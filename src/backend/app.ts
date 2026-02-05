@@ -10,6 +10,8 @@ import cors from 'cors';
  */
 
 import path from 'path';
+import authRoutes from './routes/auth';
+import { requireAuth, guardWrite } from './middleware/auth';
 
 const app = express();
 
@@ -32,6 +34,9 @@ const frontendPath = path.join(process.cwd(), 'src', 'frontend');
 app.use(express.static(frontendPath));
 
 app.use('/IMAGENS', express.static(path.join(process.cwd(), 'IMAGENS')));
+
+// Rotas públicas de autenticação
+app.use('/auth', authRoutes);
 
 // Sincroniza a base de dados (PT-PT)
 
@@ -68,6 +73,8 @@ import eventoRoutes from './routes/evento';
 import receitaRoutes from './routes/receita';
 import movimentoRoutes from './routes/movimento';
 import relatorioRoutes from './routes/relatorio';
+app.use(requireAuth);
+app.use(guardWrite);
 app.use('/faturas', faturaRoutes);
 app.use('/eventos', eventoRoutes);
 app.use('/receitas', receitaRoutes);

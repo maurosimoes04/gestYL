@@ -5,6 +5,7 @@ const API_EVENTOS = 'http://localhost:3000/eventos';
 const API_FATURAS = 'http://localhost:3000/faturas';
 const API_RECEITAS = 'http://localhost:3000/receitas';
 const API_MOVIMENTOS = 'http://localhost:3000/movimentos';
+const API_AUTH = 'http://localhost:3000/auth';
 const RECEITA_CATEGORIAS = [
   'Quotas',
   'Patrocínios/Doações',
@@ -38,6 +39,151 @@ let eventosCache: any[] = [];
 let faturasCache: any[] = [];
 let receitasCache: any[] = [];
 let movimentosCache: any[] = [];
+let authToken = localStorage.getItem('authToken') || '';
+let authRole: 'direcao' | 'fiscal' | '' = (localStorage.getItem('authRole') as any) || '';
+let isAuthenticated = false;
+let listenersBound = false;
+
+const nativeFetch = window.fetch.bind(window);
+(window as any).fetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+  const headers = new Headers(init.headers || {});
+  if (authToken) headers.set('Authorization', `Bearer ${authToken}`);
+  const nextInit = { ...init, headers } as RequestInit;
+  return nativeFetch(input, nextInit).then((resp) => {
+    if (resp.status === 401 && isAuthenticated) handleLogout(false);
+    return resp;
+  });
+};
+
+function showAuthScreen() {
+  const authEl = document.getElementById('authScreen');
+  if (authEl) {
+    authEl.removeAttribute('hidden');
+    authEl.style.display = 'flex';
+  }
+  document.body.classList.add('auth-locked');
+}
+
+function hideAuthScreen() {
+  const authEl = document.getElementById('authScreen');
+  if (authEl) {
+    authEl.setAttribute('hidden', 'true');
+    authEl.style.display = 'none';
+  }
+  document.body.classList.remove('auth-locked');
+}
+
+function setAuthToken(token: string) {
+  authToken = token;
+  localStorage.setItem('authToken', token);
+}
+
+function setAuthRole(role: 'direcao' | 'fiscal') {
+  authRole = role;
+  localStorage.setItem('authRole', role);
+}
+
+function updateAuthUI() {
+  const btnLogout = document.getElementById('btnLogout');
+  if (btnLogout) {
+    if (isAuthenticated) btnLogout.removeAttribute('hidden');
+    else btnLogout.setAttribute('hidden', 'true');
+  }
+  const hasWrite = authRole === 'direcao';
+  const writeButtons = [
+    'btnEscolherEvento', 'btnEscolherFatura', 'qaNovaFatura', 'qaNovoEvento',
+    'qaNovoEventoReceitas', 'qaNovaReceita', 'btnNovaReceita'
+  ];
+  writeButtons.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (hasWrite) el.removeAttribute('hidden'); else el.setAttribute('hidden', 'true');
+  });
+
+  const readOnlyBanner = document.getElementById('readonlyBanner');
+  if (readOnlyBanner) {
+    if (isAuthenticated && isReadOnly()) readOnlyBanner.removeAttribute('hidden');
+    else readOnlyBanner.setAttribute('hidden', 'true');
+  }
+}
+
+function isReadOnly() {
+  return authRole === 'fiscal';
+}
+
+async function handleLogin(e: SubmitEvent) {
+  e.preventDefault();
+  const username = getValue('loginUser').trim();
+  const password = getValue('loginPass');
+  if (!username || !password) {
+    showNotification('Preencha utilizador e password.', 'error');
+    return;
+  }
+  try {
+    const resp = await nativeFetch(`${API_AUTH}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    if (!resp.ok) throw new Error('Login inválido');
+    const data = await resp.json();
+    setAuthToken(data.token);
+    setAuthRole(data.role);
+    isAuthenticated = true;
+    hideAuthScreen();
+    updateAuthUI();
+    showNotification('Sessão iniciada com sucesso!', 'success');
+    await startApp();
+  } catch {
+    showNotification('Credenciais inválidas ou servidor indisponível.', 'error');
+  }
+}
+
+function handleLogout(showMessage = true) {
+  if (authToken) void fetch(`${API_AUTH}/logout`, { method: 'POST' });
+  authToken = '';
+  authRole = '' as any;
+  isAuthenticated = false;
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('authRole');
+  updateAuthUI();
+  showAuthScreen();
+  if (showMessage) showNotification('Sessão terminada.', 'success');
+}
+
+async function validateSession(): Promise<boolean> {
+  if (!authToken) return false;
+  try {
+    const resp = await fetch(`${API_AUTH}/status`);
+    if (!resp.ok) return false;
+    const data = await resp.json();
+    if (data.role) setAuthRole(data.role);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function setupAuthUI() {
+  const loginForm = document.getElementById('loginForm');
+  if (loginForm) loginForm.addEventListener('submit', handleLogin);
+
+  const logoutBtn = document.getElementById('btnLogout');
+  if (logoutBtn) logoutBtn.addEventListener('click', () => handleLogout(true));
+}
+
+async function bootstrapAuth() {
+  setupAuthUI();
+  const valid = await validateSession();
+  if (valid) {
+    isAuthenticated = true;
+    hideAuthScreen();
+    updateAuthUI();
+    await startApp();
+  } else {
+    showAuthScreen();
+  }
+}
 
 // --- Helpers DOM ---
 function getValue(id: string): string {
@@ -153,6 +299,8 @@ function handleExportRelatorio(e: Event) {
     if (to) params.append('dateTo', to);
   }
 
+  if (authToken) params.append('token', authToken);
+
   const url = `/relatorios/pdf?${params.toString()}`;
   window.open(url, '_blank');
   closeExportModal();
@@ -252,6 +400,7 @@ async function editarEvento(id: number) {
 
 async function removerEvento(id: number) {
   if (!confirm('Tem a certeza que deseja remover este evento? Esta ação não pode ser desfeita.')) return;
+  if (isReadOnly()) { showNotification('Sem permissões para remover eventos.', 'error'); return; }
   try {
     const resp = await fetch(`${API_EVENTOS}/${id}`, { method: 'DELETE' });
     if (!resp.ok) throw new Error('Erro ao remover evento');
@@ -270,6 +419,7 @@ async function removerEvento(id: number) {
 
 async function guardarEvento(e: SubmitEvent) {
   e.preventDefault();
+  if (isReadOnly()) { showNotification('Sem permissões para alterar eventos.', 'error'); return; }
   const payload: any = {
     nome: getValue('eventoNome').trim(),
     descricao: getValue('eventoDescricao').trim() || undefined,
@@ -347,6 +497,11 @@ async function carregarEventosResumo() {
       const dataInicio = formatDia(dataInicioRaw);
       const dataFim = formatDia(dataFimRaw);
       const intervalo = dataInicio && dataFim ? `${dataInicio} a ${dataFim}` : (dataInicio || dataFim || 'Sem data');
+      const actions = isReadOnly() ? '' : `
+        <div class="evento-actions">
+          <button class="btn-editar-evento" data-id="${ev.id}" title="Editar evento">✏️ Editar</button>
+          <button class="btn-remover-evento" data-id="${ev.id}" title="Remover evento">🗑️ Remover</button>
+        </div>`;
       return `<div class="evento-card" data-evento-id="${ev.id}">
         <div class="evento-head">
           <div>
@@ -361,24 +516,23 @@ async function carregarEventosResumo() {
           <div class="evento-metric"><span>Saldo do evento</span><strong>${formatCurrency(saldo)}</strong></div>
         </div>
         <p class="evento-desc">${ev.descricao || 'Sem descrição.'}</p>
-        <div class="evento-actions">
-          <button class="btn-editar-evento" data-id="${ev.id}" title="Editar evento">✏️ Editar</button>
-          <button class="btn-remover-evento" data-id="${ev.id}" title="Remover evento">🗑️ Remover</button>
-        </div>
+        ${actions}
       </div>`;
     }).join('');
-    eventosLista.querySelectorAll('.btn-editar-evento').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
-        if (id) editarEvento(parseInt(id));
+    if (!isReadOnly()) {
+      eventosLista.querySelectorAll('.btn-editar-evento').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+          if (id) editarEvento(parseInt(id));
+        });
       });
-    });
-    eventosLista.querySelectorAll('.btn-remover-evento').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
-        if (id) removerEvento(parseInt(id));
+      eventosLista.querySelectorAll('.btn-remover-evento').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+          if (id) removerEvento(parseInt(id));
+        });
       });
-    });
+    }
   } catch {
     eventosLista.innerHTML = '<p>Erro ao carregar eventos.</p>';
   }
@@ -436,7 +590,13 @@ async function carregarFaturas() {
     }
     tbody.innerHTML = faturasCache.map((f: any) => {
       const eventoNome = eventosCache.find((ev: any) => ev.id === f.eventoId)?.nome || '-';
-      const anexoLink = f.anexo?.driveWebViewLink ? f.anexo.driveWebViewLink : (f.anexo ? `/faturas/${f.id}/anexo` : '');
+      const anexoLink = f.anexo?.driveWebViewLink
+        ? f.anexo.driveWebViewLink
+        : (f.anexo ? `/faturas/${f.id}/anexo${authToken ? `?token=${authToken}` : ''}` : '');
+      const actions = isReadOnly()
+        ? '-'
+        : `<button class="btn-acao btn-editar-fatura" data-id="${f.id}" title="Editar">✏️</button>
+           <button class="btn-acao btn-remover-fatura" data-id="${f.id}" title="Remover">🗑️</button>`;
       return `<tr>
         <td>${f.titulo || '-'}</td>
         <td>${f.tipo || 'Fatura'}</td>
@@ -447,24 +607,23 @@ async function carregarFaturas() {
         <td>${eventoNome}</td>
         <td>${f.estado || '-'}</td>
         <td>${anexoLink ? `<a href="${anexoLink}" target="_blank">Abrir</a>` : '-'}</td>
-        <td class="table-actions">
-          <button class="btn-acao btn-editar-fatura" data-id="${f.id}" title="Editar">✏️</button>
-          <button class="btn-acao btn-remover-fatura" data-id="${f.id}" title="Remover">🗑️</button>
-        </td>
+        <td class="table-actions">${actions}</td>
       </tr>`;
     }).join('');
-    tbody.querySelectorAll('.btn-editar-fatura').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
-        if (id) editarFatura(parseInt(id, 10));
+    if (!isReadOnly()) {
+      tbody.querySelectorAll('.btn-editar-fatura').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+          if (id) editarFatura(parseInt(id, 10));
+        });
       });
-    });
-    tbody.querySelectorAll('.btn-remover-fatura').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
-        if (id) removerFatura(parseInt(id, 10));
+      tbody.querySelectorAll('.btn-remover-fatura').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+          if (id) removerFatura(parseInt(id, 10));
+        });
       });
-    });
+    }
     atualizarDashboards(faturasCache, movimentosCache, receitasCache);
   } catch {
     tbody.innerHTML = '<tr><td colspan="10">Erro ao carregar faturas.</td></tr>';
@@ -474,6 +633,7 @@ async function carregarFaturas() {
 
 async function guardarFatura(e: SubmitEvent) {
   e.preventDefault();
+  if (isReadOnly()) { showNotification('Sem permissões para alterar despesas.', 'error'); return; }
   const titulo = getValue('nomeFatura').trim();
   const valor = parseFloat(getValue('valorFatura'));
   const data = getValue('dataFatura');
@@ -548,7 +708,13 @@ async function carregarReceitas() {
     }
     tbody.innerHTML = receitasCache.map((r: any) => {
       const eventoNome = eventosCache.find((ev: any) => ev.id === r.eventoId)?.nome || '-';
-      const anexoLink = r.anexo?.driveWebViewLink ? r.anexo.driveWebViewLink : (r.anexo ? `/receitas/${r.id}/anexo` : '');
+      const anexoLink = r.anexo?.driveWebViewLink
+        ? r.anexo.driveWebViewLink
+        : (r.anexo ? `/receitas/${r.id}/anexo${authToken ? `?token=${authToken}` : ''}` : '');
+      const actions = isReadOnly()
+        ? '-'
+        : `<button class="btn-acao btn-editar-receita" data-id="${r.id}" title="Editar">✏️</button>
+           <button class="btn-acao btn-remover-receita" data-id="${r.id}" title="Remover">🗑️</button>`;
       return `<tr>
         <td>${r.titulo || '-'}</td>
         <td>${r.categoria || '-'}</td>
@@ -559,24 +725,23 @@ async function carregarReceitas() {
         <td>${formatDate(r.data)}</td>
         <td>${r.observacoes || '-'}</td>
         <td>${anexoLink ? `<a href="${anexoLink}" target="_blank">Abrir</a>` : '-'}</td>
-        <td class="table-actions">
-          <button class="btn-acao btn-editar-receita" data-id="${r.id}" title="Editar">✏️</button>
-          <button class="btn-acao btn-remover-receita" data-id="${r.id}" title="Remover">🗑️</button>
-        </td>
+        <td class="table-actions">${actions}</td>
       </tr>`;
     }).join('');
-    tbody.querySelectorAll('.btn-editar-receita').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
-        if (id) editarReceita(parseInt(id, 10));
+    if (!isReadOnly()) {
+      tbody.querySelectorAll('.btn-editar-receita').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+          if (id) editarReceita(parseInt(id, 10));
+        });
       });
-    });
-    tbody.querySelectorAll('.btn-remover-receita').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
-        if (id) removerReceita(parseInt(id, 10));
+      tbody.querySelectorAll('.btn-remover-receita').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+          if (id) removerReceita(parseInt(id, 10));
+        });
       });
-    });
+    }
     atualizarDashboards(faturasCache, movimentosCache, receitasCache);
   } catch {
     tbody.innerHTML = '<tr><td colspan="10">Erro ao carregar receitas.</td></tr>';
@@ -596,6 +761,7 @@ async function carregarMovimentos() {
 
 async function guardarReceita(e: SubmitEvent) {
   e.preventDefault();
+  if (isReadOnly()) { showNotification('Sem permissões para alterar receitas.', 'error'); return; }
   const valor = parseFloat(getValue('valorReceita'));
   const titulo = getValue('tituloReceita').trim();
   const categoria = getValue('categoriaReceita');
@@ -644,10 +810,14 @@ async function guardarReceita(e: SubmitEvent) {
 
 // --- Inicialização ---
 function setupEventListeners() {
+  if (listenersBound) return;
+  listenersBound = true;
+
   setupExportRelatorio();
   const btnNovoEvento = document.getElementById('btnEscolherEvento');
   if (btnNovoEvento) {
     btnNovoEvento.addEventListener('click', () => {
+      if (isReadOnly()) { showNotification('Sem permissões para criar eventos.', 'error'); return; }
       setActiveSection('eventos');
       editingEventoId = null;
       resetForm('eventoForm');
@@ -661,6 +831,7 @@ function setupEventListeners() {
   const qaNovoEventoReceitas = document.getElementById('qaNovoEventoReceitas');
   if (qaNovoEventoReceitas) {
     qaNovoEventoReceitas.addEventListener('click', () => {
+      if (isReadOnly()) { showNotification('Sem permissões para criar eventos.', 'error'); return; }
       setActiveSection('eventos');
       editingEventoId = null;
       resetForm('eventoForm');
@@ -686,6 +857,7 @@ function setupEventListeners() {
   const btnNovoFatura = document.getElementById('btnEscolherFatura');
   if (btnNovoFatura) {
     btnNovoFatura.addEventListener('click', () => {
+      if (isReadOnly()) { showNotification('Sem permissões para criar despesas.', 'error'); return; }
       setActiveSection('faturas');
       toggleSection('formularioFatura', true);
       setValue('tipoFatura', 'Fatura');
@@ -700,6 +872,7 @@ function setupEventListeners() {
   const qaNovaFatura = document.getElementById('qaNovaFatura');
   if (qaNovaFatura) {
     qaNovaFatura.addEventListener('click', () => {
+      if (isReadOnly()) { showNotification('Sem permissões para criar despesas.', 'error'); return; }
       setActiveSection('faturas');
       toggleSection('formularioFatura', true);
       setValue('tipoFatura', 'Fatura');
@@ -714,6 +887,7 @@ function setupEventListeners() {
   const qaNovoEvento = document.getElementById('qaNovoEvento');
   if (qaNovoEvento) {
     qaNovoEvento.addEventListener('click', () => {
+      if (isReadOnly()) { showNotification('Sem permissões para criar eventos.', 'error'); return; }
       setActiveSection('eventos');
       editingEventoId = null;
       resetForm('eventoForm');
@@ -741,6 +915,7 @@ function setupEventListeners() {
   const btnNovaReceita = document.getElementById('btnNovaReceita');
   if (btnNovaReceita) {
     btnNovaReceita.addEventListener('click', () => {
+      if (isReadOnly()) { showNotification('Sem permissões para criar receitas.', 'error'); return; }
       setActiveSection('receitas');
       resetForm('receitaForm');
       toggleSection('formularioReceita', true);
@@ -775,6 +950,7 @@ function setupEventListeners() {
   const qaNovaReceita = document.getElementById('qaNovaReceita');
   if (qaNovaReceita) {
     qaNovaReceita.addEventListener('click', () => {
+      if (isReadOnly()) { showNotification('Sem permissões para criar receitas.', 'error'); return; }
       setActiveSection('receitas');
       resetForm('receitaForm');
       toggleSection('formularioReceita', true);
@@ -882,29 +1058,45 @@ function renderDashboard(faturas: any[], movimentos: any[], receitas: any[]) {
   `;
 }
 
-function calcularResumoAno(faturas: any[]) {
+function calcularResumoAno(faturas: any[], receitas: any[]) {
   const ano = new Date().getFullYear();
-  const porMes = new Array(12).fill(0);
+  const despesasMes = new Array(12).fill(0);
+  const receitasMes = new Array(12).fill(0);
+
   faturas.forEach(f => {
     const d = new Date(f.data);
-    if (d.getFullYear() === ano) porMes[d.getMonth()] += Number(f.valor || 0);
+    if (d.getFullYear() === ano) despesasMes[d.getMonth()] += Number(f.valor || 0);
   });
-  return porMes.map((valor, idx) => ({ mes: monthName(idx), valor }));
+
+  receitas.forEach(r => {
+    const d = new Date(r.data);
+    if (d.getFullYear() === ano) receitasMes[d.getMonth()] += Number(r.valor || 0);
+  });
+
+  return despesasMes.map((desp, idx) => {
+    const rec = receitasMes[idx];
+    const saldo = rec - desp;
+    return { mes: monthName(idx), desp, rec, saldo };
+  });
 }
 
-function renderDashboardAno(faturas: any[]) {
+function renderDashboardAno(faturas: any[], receitas: any[]) {
   const container = document.getElementById('dashboardAnoContent');
   if (!container) return;
-  const dados = calcularResumoAno(faturas);
-  const temDados = dados.some(d => d.valor > 0);
+  const dados = calcularResumoAno(faturas, receitas);
+  const temDados = dados.some(d => d.desp > 0 || d.rec > 0);
   if (!temDados) {
     container.innerHTML = '<p class="text-muted">Ainda sem dados para este ano.</p>';
     return;
   }
-  const renderCards = (lista: { mes: string; valor: number; }[]) => lista.map(d => `
-    <div class="summary-card">
+  const renderCards = (lista: { mes: string; desp: number; rec: number; saldo: number; }[]) => lista.map(d => `
+    <div class="summary-card summary-card-ano">
       <div class="label">${d.mes}</div>
-      <div class="value">${formatCurrency(d.valor)}</div>
+      <div class="ano-metrics">
+        <div class="ano-metric"><span>Despesas</span><strong>${formatCurrency(d.desp)}</strong></div>
+        <div class="ano-metric"><span>Receitas</span><strong>${formatCurrency(d.rec)}</strong></div>
+        <div class="ano-metric ${d.saldo >= 0 ? 'saldo-positivo' : 'saldo-negativo'}"><span>Saldo</span><strong>${formatCurrency(d.saldo)}</strong></div>
+      </div>
     </div>
   `).join('');
 
@@ -1026,6 +1218,7 @@ async function editarReceita(id: number) {
 
 async function removerReceita(id: number) {
   if (!confirm('Tem a certeza que deseja remover esta receita?')) return;
+  if (isReadOnly()) { showNotification('Sem permissões para remover receitas.', 'error'); return; }
   try {
     const resp = await fetch(`${API_RECEITAS}/${id}`, { method: 'DELETE' });
     if (!resp.ok) throw new Error('Erro ao remover receita');
@@ -1064,6 +1257,7 @@ async function editarFatura(id: number) {
 
 async function removerFatura(id: number) {
   if (!confirm('Tem a certeza que deseja remover esta fatura?')) return;
+  if (isReadOnly()) { showNotification('Sem permissões para remover despesas.', 'error'); return; }
   try {
     const resp = await fetch(`${API_FATURAS}/${id}`, { method: 'DELETE' });
     if (!resp.ok) throw new Error('Erro ao remover fatura');
@@ -1076,12 +1270,12 @@ async function removerFatura(id: number) {
 
 function atualizarDashboards(faturas: any[], movimentos: any[] = movimentosCache, receitas: any[] = receitasCache) {
   renderDashboard(faturas, movimentos, receitas);
-  renderDashboardAno(faturas);
+  renderDashboardAno(faturas, receitas);
   renderChartDepartamentos(faturas);
   renderChartReceitas(receitas);
 }
 
-async function init() {
+async function startApp() {
   aplicarDepartamentosFiltro();
   aplicarCategoriasFiltroReceita();
   setupEventListeners();
@@ -1090,4 +1284,4 @@ async function init() {
   setActiveSection('resumo');
 }
 
-document.addEventListener('DOMContentLoaded', () => { void init(); });
+document.addEventListener('DOMContentLoaded', () => { void bootstrapAuth(); });

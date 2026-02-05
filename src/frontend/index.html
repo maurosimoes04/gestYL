@@ -16,6 +16,24 @@
 
 <body>
 
+  <div id="authScreen" class="auth-screen" hidden>
+    <div class="auth-card">
+      <img src="/IMAGENS/Despesas Mensais Logo.png" alt="Logotipo YoungLink" class="auth-logo">
+      <h1>Área restrita</h1>
+      <p class="auth-subtitle">Aceda com as credenciais fornecidas pela equipa.</p>
+      <form id="loginForm" class="auth-form">
+        <label for="loginUser">Utilizador</label>
+        <input id="loginUser" name="username" autocomplete="username" required>
+
+        <label for="loginPass">Password</label>
+        <input id="loginPass" name="password" type="password" autocomplete="current-password" required>
+
+        <button type="submit" class="main-action auth-submit">Entrar</button>
+      </form>
+      <p class="auth-hint">Acesso restrito ao staff autorizado.</p>
+    </div>
+  </div>
+
   <!-- ==================================================
        HEADER
   =================================================== -->
@@ -32,8 +50,14 @@
         <a href="#eventos" class="nav-link" data-target="eventos">Eventos</a>
       </nav>
 
+      <button id="btnLogout" class="logout-btn" hidden>Terminar sessão</button>
+
     </div>
   </header>
+
+  <div id="readonlyBanner" class="readonly-banner" hidden>
+    Acesso de visualização (Conselho Fiscal). Alterações estão bloqueadas.
+  </div>
 
   <!-- ==================================================
        MAIN
