@@ -6,21 +6,7 @@
  * Data: 20/11/2025
  */
 
-import path from 'path';
 import multer from 'multer';
-import { v4 as uuidv4 } from 'uuid';
-
-
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, path.join(process.cwd(), 'src', 'backend', 'uploads'));
-  },
-  filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname);
-    const name = uuidv4() + ext;
-    cb(null, name);
-  }
-});
 
 // Filtra ficheiros por tipo MIME permitido (PDF, JPEG, PNG) (PT-PT)
 function fileFilter(req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) {
@@ -30,9 +16,9 @@ function fileFilter(req: any, file: Express.Multer.File, cb: multer.FileFilterCa
 }
 
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   fileFilter,
-  limits: { fileSize: 10 * 1024 * 1024 } 
+  limits: { fileSize: 10 * 1024 * 1024 }
 });
 
 export default upload;

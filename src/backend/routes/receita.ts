@@ -1,12 +1,14 @@
 import express from 'express';
-import path from 'path';
 import { Op } from 'sequelize';
 import { sequelize } from '../config/database';
 import createReceitaModel from '../models/Receita';
 import upload from '../middleware/upload';
+import { uploadBufferToDrive, deleteFromDrive } from '../services/googleDrive';
 
 const Receita = createReceitaModel(sequelize);
 const router = express.Router();
+
+const RECEITAS_FOLDER_ID = process.env.GDRIVE_RECEITAS_FOLDER_ID || '1de2J02zus3HnP3uW2ib7DWkgMQkDwIO7';
 
 // Listar receitas (com filtros básicos)
 router.get('/', async (req, res) => {
@@ -35,12 +37,20 @@ router.post('/', upload.single('anexo'), async (req, res) => {
     const payload: any = { ...req.body };
     if (req.body.eventoId) payload.eventoId = req.body.eventoId;
     if (req.file) {
+      const driveFile = await uploadBufferToDrive({
+        buffer: req.file.buffer,
+        filename: req.file.originalname,
+        mimeType: req.file.mimetype,
+        folderId: RECEITAS_FOLDER_ID
+      });
+
       payload.anexo = {
         originalName: req.file.originalname,
-        storedName: req.file.filename,
         mimeType: req.file.mimetype,
         size: req.file.size,
-        path: path.join('uploads', req.file.filename)
+        driveFileId: driveFile.id,
+        driveWebViewLink: driveFile.webViewLink,
+        driveWebContentLink: driveFile.webContentLink
       };
     }
     const receita = await Receita.create(payload);
@@ -62,6 +72,21 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// Servir anexo da receita
+router.get('/:id/anexo', async (req, res) => {
+  try {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const receita: any = await Receita.findByPk(id);
+    if (!receita || !receita.anexo) return res.status(404).json({ error: 'Anexo não encontrado' });
+    const link = receita.anexo.driveWebContentLink || receita.anexo.driveWebViewLink;
+    if (link) return res.redirect(link);
+    return res.status(404).json({ error: 'Link do anexo indisponível' });
+  } catch (err) {
+    console.error('Erro servir anexo receita:', err);
+    res.status(500).json({ error: 'Erro ao servir anexo' });
+  }
+});
+
 // Atualizar receita
 router.put('/:id', upload.single('anexo'), async (req, res) => {
   try {
@@ -71,12 +96,22 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     const payload: any = { ...req.body };
     if (req.body.eventoId) payload.eventoId = req.body.eventoId;
     if (req.file) {
+      if (receita.anexo?.driveFileId) await deleteFromDrive(receita.anexo.driveFileId);
+
+      const driveFile = await uploadBufferToDrive({
+        buffer: req.file.buffer,
+        filename: req.file.originalname,
+        mimeType: req.file.mimetype,
+        folderId: RECEITAS_FOLDER_ID
+      });
+
       payload.anexo = {
         originalName: req.file.originalname,
-        storedName: req.file.filename,
         mimeType: req.file.mimetype,
         size: req.file.size,
-        path: path.join('uploads', req.file.filename)
+        driveFileId: driveFile.id,
+        driveWebViewLink: driveFile.webViewLink,
+        driveWebContentLink: driveFile.webContentLink
       };
     }
     await receita.update(payload);
@@ -92,9 +127,17 @@ router.delete('/:id', async (req, res) => {
     const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const receita: any = await Receita.findByPk(id);
     if (!receita) return res.status(404).json({ error: 'Receita não encontrada' });
+    if (receita.anexo?.driveFileId) {
+      try {
+        await deleteFromDrive(receita.anexo.driveFileId);
+      } catch (driveErr) {
+        console.error('Falha ao apagar anexo no Drive (receita):', driveErr);
+      }
+    }
     await receita.destroy();
     res.json({ message: 'Receita removida com sucesso' });
   } catch (err) {
+    console.error('Erro ao remover receita:', err);
     res.status(500).json({ error: 'Erro ao remover receita', details: err });
   }
 });

@@ -126,6 +126,9 @@
         <label>📝 Observações</label>
         <textarea id="observacoesFatura"></textarea>
 
+        <label>📎 Anexo (PDF/Imagem)</label>
+        <input type="file" id="anexoFatura" accept="application/pdf,image/*">
+
         <div class="form-btns">
           <button type="submit" class="main-action">💾 Guardar</button>
           <button type="button" id="btnCancelarFatura">Cancelar</button>
@@ -168,6 +171,7 @@
               <th>Departamento</th>
               <th>Evento</th>
               <th>Estado</th>
+              <th>Anexo</th>
               <th>Ações</th>
             </tr>
           </thead>
@@ -242,6 +246,7 @@
               <th>Valor</th>
               <th>Data</th>
               <th>Notas</th>
+              <th>Anexo</th>
               <th>Ações</th>
             </tr>
           </thead>
@@ -298,6 +303,9 @@
 
         <label>Observações</label>
         <textarea id="observacoesReceita"></textarea>
+
+        <label>📎 Anexo (PDF/Imagem)</label>
+        <input type="file" id="anexoReceita" accept="application/pdf,image/*">
 
         <div class="form-btns">
           <button type="submit" class="main-action">💾 Guardar</button>

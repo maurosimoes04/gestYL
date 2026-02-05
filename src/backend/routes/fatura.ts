@@ -11,6 +11,8 @@ import path from 'path';
 import { Op } from 'sequelize';
 import PDFDocument from 'pdfkit';
 
+import { uploadBufferToDrive, deleteFromDrive } from '../services/googleDrive';
+
 const router = express.Router();
 
 
@@ -19,6 +21,8 @@ import createFaturaModel from '../models/Fatura';
 const FaturaModel = createFaturaModel(sequelize);
 
 import upload from '../middleware/upload';
+
+const DESPESAS_FOLDER_ID = process.env.GDRIVE_DESPESAS_FOLDER_ID || '1hPjxhbAXu0PzaZ7mqc5M-GbDetOjtwvB';
 
 
 // GET /faturas - Lista faturas com filtros (PT-PT)
@@ -72,12 +76,20 @@ router.post('/', upload.single('anexo'), async (req, res) => {
     const payload = { ...req.body } as any;
     if (req.body.eventoId) payload.eventoId = req.body.eventoId;
     if (req.file) {
+      const driveFile = await uploadBufferToDrive({
+        buffer: req.file.buffer,
+        filename: req.file.originalname,
+        mimeType: req.file.mimetype,
+        folderId: DESPESAS_FOLDER_ID
+      });
+
       payload.anexo = {
         originalName: req.file.originalname,
-        storedName: req.file.filename,
         mimeType: req.file.mimetype,
         size: req.file.size,
-        path: path.join('uploads', req.file.filename)
+        driveFileId: driveFile.id,
+        driveWebViewLink: driveFile.webViewLink,
+        driveWebContentLink: driveFile.webContentLink
       };
     }
     const novaFatura = await FaturaModel.create(payload);
@@ -97,12 +109,22 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     if (!fatura) return res.status(404).json({ erro: 'Fatura não encontrada' });
     const payload = { ...req.body } as any;
     if (req.file) {
+      if (fatura.anexo?.driveFileId) await deleteFromDrive(fatura.anexo.driveFileId);
+
+      const driveFile = await uploadBufferToDrive({
+        buffer: req.file.buffer,
+        filename: req.file.originalname,
+        mimeType: req.file.mimetype,
+        folderId: DESPESAS_FOLDER_ID
+      });
+
       payload.anexo = {
         originalName: req.file.originalname,
-        storedName: req.file.filename,
         mimeType: req.file.mimetype,
         size: req.file.size,
-        path: path.join('uploads', req.file.filename)
+        driveFileId: driveFile.id,
+        driveWebViewLink: driveFile.webViewLink,
+        driveWebContentLink: driveFile.webContentLink
       };
     }
     await fatura.update(payload);
@@ -118,10 +140,18 @@ router.delete('/:id', async (req, res) => {
   try {
     const fatura: any = await FaturaModel.findByPk(req.params.id) as any;
     if (fatura) {
+      if (fatura.anexo?.driveFileId) {
+        try {
+          await deleteFromDrive(fatura.anexo.driveFileId);
+        } catch (driveErr) {
+          console.error('Falha ao apagar anexo no Drive:', driveErr);
+        }
+      }
       await fatura.destroy();
       res.json({ mensagem: 'Fatura eliminada com sucesso' });
     } else res.status(404).json({ erro: 'Fatura não encontrada' });
   } catch (error) {
+    console.error('Erro ao eliminar fatura:', error);
     res.status(500).json({ erro: 'Erro ao eliminar fatura' });
   }
 });
@@ -261,8 +291,15 @@ router.get('/:id/anexo', async (req, res) => {
   try {
     const fatura: any = await FaturaModel.findByPk(req.params.id) as any;
     if (!fatura || !fatura.anexo) return res.status(404).json({ erro: 'Anexo não encontrado' });
-    const filePath = path.join(__dirname, '..', fatura.anexo.path);
-    res.sendFile(path.resolve(filePath));
+    const link = fatura.anexo.driveWebContentLink || fatura.anexo.driveWebViewLink;
+    if (link) return res.redirect(link);
+
+    if (fatura.anexo.path) {
+      const filePath = path.join(__dirname, '..', fatura.anexo.path);
+      return res.sendFile(path.resolve(filePath));
+    }
+
+    return res.status(404).json({ erro: 'Link do anexo indisponível' });
   } catch (error) {
     console.error('Erro servir anexo:', error.message || error);
     res.status(500).json({ erro: 'Erro ao servir anexo' });

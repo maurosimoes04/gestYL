@@ -29,6 +29,7 @@
   "dependencies": {
     "cors": "^2.8.6",
     "express": "^4.22.1",
+    "googleapis": "^144.0.0",
     "multer": "^2.0.2",
     "pdfkit": "^0.17.2",
     "sequelize": "^6.37.7",

@@ -430,12 +430,13 @@ async function carregarFaturas() {
     if (!resp.ok) throw new Error('Erro ao listar faturas');
     faturasCache = await resp.json();
     if (!Array.isArray(faturasCache) || faturasCache.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="9">Nenhuma fatura encontrada.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10">Nenhuma fatura encontrada.</td></tr>';
       atualizarDashboards([], movimentosCache, receitasCache);
       return;
     }
     tbody.innerHTML = faturasCache.map((f: any) => {
       const eventoNome = eventosCache.find((ev: any) => ev.id === f.eventoId)?.nome || '-';
+      const anexoLink = f.anexo?.driveWebViewLink ? f.anexo.driveWebViewLink : (f.anexo ? `/faturas/${f.id}/anexo` : '');
       return `<tr>
         <td>${f.titulo || '-'}</td>
         <td>${f.tipo || 'Fatura'}</td>
@@ -445,6 +446,7 @@ async function carregarFaturas() {
         <td>${f.departamento || '-'}</td>
         <td>${eventoNome}</td>
         <td>${f.estado || '-'}</td>
+        <td>${anexoLink ? `<a href="${anexoLink}" target="_blank">Abrir</a>` : '-'}</td>
         <td class="table-actions">
           <button class="btn-acao btn-editar-fatura" data-id="${f.id}" title="Editar">✏️</button>
           <button class="btn-acao btn-remover-fatura" data-id="${f.id}" title="Remover">🗑️</button>
@@ -465,7 +467,7 @@ async function carregarFaturas() {
     });
     atualizarDashboards(faturasCache, movimentosCache, receitasCache);
   } catch {
-    tbody.innerHTML = '<tr><td colspan="9">Erro ao carregar faturas.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10">Erro ao carregar faturas.</td></tr>';
     atualizarDashboards([], movimentosCache, receitasCache);
   }
 }
@@ -481,17 +483,20 @@ async function guardarFatura(e: SubmitEvent) {
     return;
   }
   const eventoIdStr = getValue('eventoFatura');
-  const payload: any = {
-    titulo,
-    valor,
-    data,
-    departamento,
-    tipo: 'Fatura',
-    numero: getValue('numeroFatura').trim() || undefined,
-    estado: getValue('estadoFatura') || 'Pendente',
-    descricao: getValue('observacoesFatura').trim() || undefined
-  };
-  if (eventoIdStr) payload.eventoId = parseInt(eventoIdStr, 10);
+  const formData = new FormData();
+  formData.append('titulo', titulo);
+  formData.append('valor', String(valor));
+  formData.append('data', data);
+  formData.append('departamento', departamento);
+  formData.append('tipo', 'Fatura');
+  formData.append('numero', getValue('numeroFatura').trim());
+  formData.append('estado', getValue('estadoFatura') || 'Pendente');
+  formData.append('descricao', getValue('observacoesFatura').trim());
+  if (eventoIdStr) formData.append('eventoId', eventoIdStr);
+
+  const anexoInput = document.getElementById('anexoFatura') as HTMLInputElement | null;
+  const anexoFile = anexoInput?.files?.[0];
+  if (anexoFile) formData.append('anexo', anexoFile);
 
   const url = editingFaturaId ? `${API_FATURAS}/${editingFaturaId}` : API_FATURAS;
   const method = editingFaturaId ? 'PUT' : 'POST';
@@ -499,8 +504,7 @@ async function guardarFatura(e: SubmitEvent) {
   try {
     const resp = await fetch(url, {
       method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: formData
     });
     if (!resp.ok) throw new Error('Erro ao guardar fatura');
     showNotification(editingFaturaId ? 'Fatura atualizada com sucesso!' : 'Fatura criada com sucesso!', 'success');
@@ -538,12 +542,13 @@ async function carregarReceitas() {
     if (!resp.ok) throw new Error('Erro ao listar receitas');
     receitasCache = await resp.json();
     if (!Array.isArray(receitasCache) || receitasCache.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="9">Nenhuma receita encontrada.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10">Nenhuma receita encontrada.</td></tr>';
       atualizarDashboards(faturasCache, movimentosCache, receitasCache);
       return;
     }
     tbody.innerHTML = receitasCache.map((r: any) => {
       const eventoNome = eventosCache.find((ev: any) => ev.id === r.eventoId)?.nome || '-';
+      const anexoLink = r.anexo?.driveWebViewLink ? r.anexo.driveWebViewLink : (r.anexo ? `/receitas/${r.id}/anexo` : '');
       return `<tr>
         <td>${r.titulo || '-'}</td>
         <td>${r.categoria || '-'}</td>
@@ -553,6 +558,7 @@ async function carregarReceitas() {
         <td>${formatCurrency(r.valor)}</td>
         <td>${formatDate(r.data)}</td>
         <td>${r.observacoes || '-'}</td>
+        <td>${anexoLink ? `<a href="${anexoLink}" target="_blank">Abrir</a>` : '-'}</td>
         <td class="table-actions">
           <button class="btn-acao btn-editar-receita" data-id="${r.id}" title="Editar">✏️</button>
           <button class="btn-acao btn-remover-receita" data-id="${r.id}" title="Remover">🗑️</button>
@@ -573,7 +579,7 @@ async function carregarReceitas() {
     });
     atualizarDashboards(faturasCache, movimentosCache, receitasCache);
   } catch {
-    tbody.innerHTML = '<tr><td colspan="9">Erro ao carregar receitas.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10">Erro ao carregar receitas.</td></tr>';
     atualizarDashboards(faturasCache, movimentosCache, receitasCache);
   }
 }
@@ -590,23 +596,30 @@ async function carregarMovimentos() {
 
 async function guardarReceita(e: SubmitEvent) {
   e.preventDefault();
-  const payload: any = {
-    titulo: getValue('tituloReceita').trim(),
-    categoria: getValue('categoriaReceita'),
-    estado: getValue('estadoReceita') || 'Previsto',
-    financiador: getValue('financiadorReceita').trim() || undefined,
-    valor: parseFloat(getValue('valorReceita')),
-    data: getValue('dataReceita'),
-    observacoes: getValue('observacoesReceita').trim() || undefined
-  };
-
-  const eventoIdStr = getValue('eventoReceita');
-  if (eventoIdStr) payload.eventoId = parseInt(eventoIdStr, 10);
-
-  if (!payload.titulo || !payload.categoria || !payload.data || Number.isNaN(payload.valor)) {
+  const valor = parseFloat(getValue('valorReceita'));
+  const titulo = getValue('tituloReceita').trim();
+  const categoria = getValue('categoriaReceita');
+  const data = getValue('dataReceita');
+  if (!titulo || !categoria || !data || Number.isNaN(valor)) {
     showNotification('Preencha os campos obrigatórios da receita.', 'error');
     return;
   }
+
+  const formData = new FormData();
+  formData.append('titulo', titulo);
+  formData.append('categoria', categoria);
+  formData.append('estado', getValue('estadoReceita') || 'Previsto');
+  formData.append('financiador', getValue('financiadorReceita').trim());
+  formData.append('valor', String(valor));
+  formData.append('data', data);
+  formData.append('observacoes', getValue('observacoesReceita').trim());
+
+  const eventoIdStr = getValue('eventoReceita');
+  if (eventoIdStr) formData.append('eventoId', eventoIdStr);
+
+  const anexoInput = document.getElementById('anexoReceita') as HTMLInputElement | null;
+  const anexoFile = anexoInput?.files?.[0];
+  if (anexoFile) formData.append('anexo', anexoFile);
 
   const url = editingReceitaId ? `${API_RECEITAS}/${editingReceitaId}` : API_RECEITAS;
   const method = editingReceitaId ? 'PUT' : 'POST';
@@ -614,8 +627,7 @@ async function guardarReceita(e: SubmitEvent) {
   try {
     const resp = await fetch(url, {
       method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: formData
     });
     if (!resp.ok) throw new Error('Erro ao guardar receita');
     showNotification(editingReceitaId ? 'Receita atualizada com sucesso!' : 'Receita criada com sucesso!', 'success');
