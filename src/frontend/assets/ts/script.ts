@@ -1,12 +1,15 @@
 // script.ts - Gestão de Faturas e Eventos
 
 // --- Constantes e estado global ---
-const API_EVENTOS = 'http://localhost:3000/eventos';
-const API_FATURAS = 'http://localhost:3000/faturas';
-const API_RECEITAS = 'http://localhost:3000/receitas'; 
-const API_MOVIMENTOS = 'http://localhost:3000/movimentos'; 
-const API_AUTH = 'http://localhost:3000/auth'; 
-const API_INVENTARIO = 'http://localhost:3000/inventario'; 
+const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://localhost:3000'
+  : window.location.origin;
+const API_EVENTOS = `${API_BASE}/eventos`;
+const API_FATURAS = `${API_BASE}/faturas`;
+const API_RECEITAS = `${API_BASE}/receitas`; 
+const API_MOVIMENTOS = `${API_BASE}/movimentos`; 
+const API_AUTH = `${API_BASE}/auth`; 
+const API_INVENTARIO = `${API_BASE}/inventario`; 
 const RECEITA_CATEGORIAS = [
   'Quotas',
   'Patrocínios/Doações',
