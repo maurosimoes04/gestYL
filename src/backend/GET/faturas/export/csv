@@ -1,0 +1,7 @@
+// Archived legacy CommonJS route file.
+// The CSV export route is now implemented in TypeScript under
+// src/backend/routes/fatura.ts. This file is intentionally left as a
+// placeholder to avoid accidental execution of duplicate routes.
+
+// If you want to fully remove it, you can delete this file after
+// confirming the TypeScript routes work correctly.

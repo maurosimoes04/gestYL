@@ -1,0 +1,50 @@
+{
+  "name": "gestor-despesas",
+  "version": "0.1.0",
+  "description": "Sistema moderno de gestão de faturas e despesas familiares com TypeScript, Express e SQLite",
+  "main": "dist/backend/app.js",
+  "scripts": {
+    "dev:backend": "ts-node-dev --respawn --transpile-only src/backend/app.ts",
+    "dev:frontend": "esbuild src/frontend/assets/ts/script.ts --bundle --outfile=src/frontend/assets/js/script.js --sourcemap --watch",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "build:frontend": "npx esbuild src/frontend/assets/ts/script.ts --bundle --outfile=src/frontend/assets/js/script.js --minify",
+    "build:backend": "tsc -p tsconfig.json",
+    "build": "npm run build:backend && npm run build:frontend",
+    "start": "node dist/backend/app.js",
+    "seed": "ts-node src/backend/seeds/seedFaturas.ts"
+  },
+  "keywords": [
+    "gestor",
+    "faturas",
+    "despesas",
+    "typescript",
+    "express",
+    "sqlite",
+    "chart.js"
+  ],
+  "author": "DAW 2024/2025",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^4.22.1",
+    "multer": "^2.0.2",
+    "pdfkit": "^0.17.2",
+    "sequelize": "^6.37.7",
+    "sqlite3": "^5.1.6",
+    "undici-types": "^7.19.1",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^24.10.10",
+    "@types/pdfkit": "^0.17.4",
+    "@types/sequelize": "^4.28.20",
+    "@types/uuid": "^10.0.0",
+    "concurrently": "^9.2.1",
+    "esbuild": "^0.27.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.9.3"
+  }
+}

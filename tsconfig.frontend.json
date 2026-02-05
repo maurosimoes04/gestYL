@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "ES6",
+    "module": "none",
+    "outDir": "src/frontend/assets/js/",
+    "strict": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": [],
+    "allowJs": true
+  },
+  "include": ["src/frontend/ts/script.ts"]
+}

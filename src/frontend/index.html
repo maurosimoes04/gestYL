@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestor de Despesas YL</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+
+<body>
+
+  <!-- ==================================================
+       HEADER
+  =================================================== -->
+  <header class="main-header">
+    <div class="header-inner">
+      <a href="#dashboard" class="logo-block">
+        <img src="/IMAGENS/Despesas Mensais Logo.png" alt="Gestor de Despesas YL" class="logo">
+      </a>
+
+      <nav class="main-nav">
+        <a href="#dashboard" class="nav-link active" data-target="resumo">Resumo</a>
+        <a href="#faturas" class="nav-link" data-target="faturas">Faturas</a>
+        <a href="#eventos" class="nav-link" data-target="eventos">Eventos</a>
+      </nav>
+
+      <button id="darkModeToggle" class="dark-mode-toggle" aria-label="Alternar tema">
+        🌙
+      </button>
+    </div>
+  </header>
+
+  <!-- ==================================================
+       MAIN
+  =================================================== -->
+  <main>
+
+    <!-- ================= DASHBOARD ================= -->
+    <section id="dashboard" class="fade-in">
+      <h2>📊 Resumo Geral</h2>
+
+      <!-- KPIs -->
+      <div class="dashboard-grid" id="dashboardContent">
+        <!-- JS injecta aqui os cards -->
+      </div>
+    </section>
+
+    <!-- ================= RESUMO ANUAL ================= -->
+    <section id="dashboardAno" class="fade-in">
+      <h2>📅 Resumo do Ano</h2>
+      <div class="dashboard-grid" id="dashboardAnoContent"></div>
+    </section>
+
+    <!-- ================= AÇÕES RÁPIDAS ================= -->
+    <section id="acoesRapidas" class="fade-in">
+      <h2>⚡ Ações rápidas</h2>
+      <div class="quick-actions">
+        <button id="qaNovaFatura" class="quick-card primary">
+          <div class="quick-title">➕ Nova Fatura</div>
+          <div class="quick-desc">Registe uma despesa com evento opcional.</div>
+          <span class="quick-cta">Abrir formulário →</span>
+        </button>
+
+        <a href="/faturas/export/pdf" target="_blank" class="quick-card ghost" rel="noreferrer">
+          <div class="quick-title">📄 Exportar PDF</div>
+          <div class="quick-desc">Resumo imediato das faturas atuais.</div>
+          <span class="quick-cta">Gerar ficheiro →</span>
+        </a>
+
+        <button id="qaNovoEvento" class="quick-card neutral">
+          <div class="quick-title">🎉 Novo Evento</div>
+          <div class="quick-desc">Crie um evento e associe futuras faturas.</div>
+          <span class="quick-cta">Adicionar evento →</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ================= FORM FATURA ================= -->
+    <section id="formularioFatura" class="fade-in" hidden>
+      <h2>✨ Nova Fatura</h2>
+
+      <form id="faturaForm" class="styled-form">
+
+        <label>🎉 Evento</label>
+        <select id="eventoFatura">
+          <option value="">Nenhum evento</option>
+        </select>
+
+        <label>📄 Tipo *</label>
+        <input id="tipoFatura" required>
+
+        <label>🏷️ Nome *</label>
+        <input id="nomeFatura" required>
+
+        <label>🔢 Número *</label>
+        <input id="numeroFatura" required>
+
+        <label>🏢 Departamento *</label>
+        <select id="departamento" required>
+          <option value="">Selecionar...</option>
+          <option>Cultural</option>
+          <option>Marketing e Multimédia</option>
+          <option>Desporto</option>
+          <option>Educação</option>
+          <option>Parcerias e Colaborações</option>
+          <option>Despesas Extraordinárias</option>
+        </select>
+
+        <label>💰 Valor *</label>
+        <input type="number" step="0.01" id="valorFatura" required>
+
+        <label>📅 Data *</label>
+        <input type="date" id="dataFatura" required>
+
+        <label>⚡ Estado</label>
+        <select id="estadoFatura">
+          <option>Pendente</option>
+          <option>Paga</option>
+        </select>
+
+        <label>📝 Observações</label>
+        <textarea id="observacoesFatura"></textarea>
+
+        <div class="form-btns">
+          <button type="submit" class="main-action">💾 Guardar</button>
+          <button type="button" id="btnCancelarFatura">Cancelar</button>
+        </div>
+
+      </form>
+    </section>
+
+    <!-- ================= FATURAS ================= -->
+    <section id="faturas" class="fade-in">
+      <div class="section-header">
+        <h2>📊 Faturas</h2>
+        <a href="/faturas/export/pdf" class="main-action" target="_blank">📄 Exportar PDF</a>
+      </div>
+
+      <div class="filtros">
+        <input type="date" id="filterFrom">
+        <input type="date" id="filterTo">
+        <input type="text" id="filterQ" placeholder="🔍 Pesquisar">
+        <select id="filterDepartamento">
+          <option value="">🏢 Todos</option>
+        </select>
+        <select id="filterEstado">
+          <option value="">⚡ Todos</option>
+          <option>Paga</option>
+          <option>Pendente</option>
+        </select>
+        <button id="btnAplicarFiltros" class="main-action">Aplicar</button>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Título</th>
+              <th>Tipo</th>
+              <th>Nº</th>
+              <th>Valor</th>
+              <th>Data</th>
+              <th>Departamento</th>
+              <th>Evento</th>
+              <th>Estado</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tabelaFaturas"></tbody>
+        </table>
+      </div>
+
+      <div class="chart-wrap">
+        <h3>📈 Resumo por Departamento</h3>
+        <canvas id="chartDespesas"></canvas>
+      </div>
+    </section>
+
+    <!-- ================= EVENTOS ================= -->
+    <section id="eventos" class="fade-in">
+      <div class="section-header">
+        <h2>🎉 Eventos</h2>
+        <button id="btnEscolherEvento" class="main-action">➕ Novo Evento</button>
+      </div>
+
+      <div id="eventosLista" class="dashboard-grid">
+        <p class="text-muted">Nenhum evento registado.</p>
+      </div>
+    </section>
+
+    <!-- ================= FORM EVENTO ================= -->
+    <section id="formularioEvento" class="fade-in" hidden>
+      <h2>✨ Novo Evento</h2>
+
+      <form id="eventoForm" class="styled-form">
+        <label>🏷️ Nome *</label>
+        <input id="eventoNome" required>
+
+        <label>📝 Descrição</label>
+        <textarea id="eventoDescricao"></textarea>
+
+        <label>📅 Data de Início</label>
+        <input type="date" id="eventoDataInicio">
+
+        <label>📅 Data de Fim</label>
+        <input type="date" id="eventoDataFim">
+
+        <label>🏢 Departamento</label>
+        <select id="eventoDepartamento">
+          <option value="">Selecionar...</option>
+          <option>Cultural</option>
+          <option>Marketing e Multimédia</option>
+          <option>Desporto</option>
+          <option>Educação</option>
+          <option>Parcerias e Colaborações</option>
+          <option>Despesas Extraordinárias</option>
+        </select>
+
+        <div class="form-btns">
+          <button type="submit" id="eventoSubmitButton" class="main-action">💾 Guardar</button>
+          <button type="button" id="btnCancelarEvento">Cancelar</button>
+        </div>
+      </form>
+    </section>
+
+  </main>
+
+  <!-- JS -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="assets/js/script.js"></script>
+
+</body>
+</html>
