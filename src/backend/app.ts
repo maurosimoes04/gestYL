@@ -67,10 +67,12 @@ import faturaRoutes from './routes/fatura';
 import eventoRoutes from './routes/evento';
 import receitaRoutes from './routes/receita';
 import movimentoRoutes from './routes/movimento';
+import relatorioRoutes from './routes/relatorio';
 app.use('/faturas', faturaRoutes);
 app.use('/eventos', eventoRoutes);
 app.use('/receitas', receitaRoutes);
 app.use('/movimentos', movimentoRoutes);
+app.use('/relatorios', relatorioRoutes);
 
 
 // Inicia o servidor se chamado diretamente (PT-PT)

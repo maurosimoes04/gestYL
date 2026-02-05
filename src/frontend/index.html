@@ -66,11 +66,11 @@
           <span class="quick-cta">Abrir formulário →</span>
         </button>
 
-        <a href="/faturas/export/pdf" target="_blank" class="quick-card ghost" rel="noreferrer">
-          <div class="quick-title">📄 Exportar PDF</div>
-          <div class="quick-desc">Resumo imediato das despesas atuais.</div>
-          <span class="quick-cta">Gerar ficheiro →</span>
-        </a>
+        <button class="quick-card ghost" id="qaExportRelatorio">
+          <div class="quick-title">📄 Relatório PDF</div>
+          <div class="quick-desc">Gerar relatório com período e tipo configurável.</div>
+          <span class="quick-cta">Abrir opções →</span>
+        </button>
 
         <button id="qaNovoEvento" class="quick-card neutral">
           <div class="quick-title">🎉 Novo Evento</div>
@@ -138,7 +138,7 @@
     <section id="faturas" class="fade-in">
       <div class="section-header">
         <h2>📊 Despesas</h2>
-        <a href="/faturas/export/pdf" class="main-action" target="_blank">📄 Exportar PDF</a>
+        <button type="button" id="btnEscolherFatura" class="main-action">➕ Nova Despesa</button>
       </div>
 
       <div class="filtros">
@@ -190,11 +190,17 @@
           <div class="quick-desc">Registe uma entrada e associe a um evento.</div>
           <span class="quick-cta">Abrir formulário →</span>
         </button>
-        <div class="quick-card ghost">
-          <div class="quick-title">📈 Resumo</div>
-          <div class="quick-desc">Use os filtros para ver totais por categoria.</div>
-          <span class="quick-cta">Abaixo</span>
-        </div>
+        <button class="quick-card ghost" id="qaExportRelatorioReceitas">
+          <div class="quick-title">📄 Relatório PDF</div>
+          <div class="quick-desc">Gerar relatório com período e tipo configurável.</div>
+          <span class="quick-cta">Abrir opções →</span>
+        </button>
+
+        <button id="qaNovoEventoReceitas" class="quick-card neutral">
+          <div class="quick-title">🎉 Novo Evento</div>
+          <div class="quick-desc">Crie um evento e associe futuras receitas.</div>
+          <span class="quick-cta">Adicionar evento →</span>
+        </button>
       </div>
     </section>
 
@@ -348,6 +354,45 @@
     </section>
 
   </main>
+
+  <!-- Modal Exportar Relatório -->
+  <div id="exportModal" class="modal-backdrop" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>📄 Gerar Relatório PDF</h3>
+        <button type="button" class="modal-close" id="exportModalClose" aria-label="Fechar">✖</button>
+      </div>
+      <form id="exportRelatorioForm" class="export-form">
+        <label class="export-label" for="exportTipo">Tipo</label>
+        <select id="exportTipo">
+          <option value="ambos">Receitas + Despesas</option>
+          <option value="despesas">Só despesas</option>
+          <option value="receitas">Só receitas</option>
+        </select>
+
+        <label class="export-label" for="exportPeriodo">Período</label>
+        <select id="exportPeriodo">
+          <option value="" selected disabled>Selecione...</option>
+          <option value="custom">Personalizado</option>
+          <option value="anual">Anual</option>
+        </select>
+
+        <div class="export-inline" id="exportDatas" hidden>
+          <input type="date" id="exportFrom">
+          <input type="date" id="exportTo">
+        </div>
+
+        <div class="export-inline" id="exportAnoWrap" hidden>
+          <input type="number" id="exportAno" min="2000" max="2100" placeholder="Ano">
+        </div>
+
+        <div class="modal-actions">
+          <button type="submit" class="main-action export-action">Gerar PDF</button>
+          <button type="button" id="exportModalCancel">Cancelar</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <!-- JS -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>

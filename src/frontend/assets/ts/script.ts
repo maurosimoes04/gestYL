@@ -79,6 +79,113 @@ function monthName(idx: number) {
   return ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx] || '';
 }
 
+function setDefaultExportPeriodo() {
+  const now = new Date();
+  const first = new Date(now.getFullYear(), now.getMonth(), 1);
+  const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  setValue('exportFrom', first.toISOString().slice(0, 10));
+  setValue('exportTo', last.toISOString().slice(0, 10));
+  setValue('exportAno', String(now.getFullYear()));
+}
+
+function toggleExportPeriodoFields(periodo: string) {
+  const datasWrap = document.getElementById('exportDatas');
+  const anoWrap = document.getElementById('exportAnoWrap');
+  const now = new Date();
+  if (periodo === 'anual') {
+    const anoEl = document.getElementById('exportAno') as HTMLInputElement | null;
+    if (anoEl && !anoEl.value) anoEl.value = String(now.getFullYear());
+    if (datasWrap) { datasWrap.setAttribute('hidden', 'true'); datasWrap.style.display = 'none'; }
+    if (anoWrap) { anoWrap.removeAttribute('hidden'); anoWrap.style.display = 'flex'; }
+  } else if (periodo === 'custom') {
+    const fromEl = document.getElementById('exportFrom') as HTMLInputElement | null;
+    const toEl = document.getElementById('exportTo') as HTMLInputElement | null;
+    if (fromEl && !fromEl.value) {
+      const first = new Date(now.getFullYear(), now.getMonth(), 1);
+      fromEl.value = first.toISOString().slice(0, 10);
+    }
+    if (toEl && !toEl.value) {
+      const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      toEl.value = last.toISOString().slice(0, 10);
+    }
+    if (anoWrap) { anoWrap.setAttribute('hidden', 'true'); anoWrap.style.display = 'none'; }
+    if (datasWrap) { datasWrap.removeAttribute('hidden'); datasWrap.style.display = 'flex'; }
+  } else {
+    // Nenhuma seleção: esconder ambos
+    if (anoWrap) { anoWrap.setAttribute('hidden', 'true'); anoWrap.style.display = 'none'; }
+    if (datasWrap) { datasWrap.setAttribute('hidden', 'true'); datasWrap.style.display = 'none'; }
+  }
+}
+
+function openExportModal() {
+  const periodoSelect = document.getElementById('exportPeriodo') as HTMLSelectElement | null;
+  if (periodoSelect) periodoSelect.value = '';
+  toggleExportPeriodoFields(periodoSelect?.value || '');
+  // Garantir ocultação inicial
+  const datasWrap = document.getElementById('exportDatas');
+  const anoWrap = document.getElementById('exportAnoWrap');
+  datasWrap?.setAttribute('hidden', 'true');
+  anoWrap?.setAttribute('hidden', 'true');
+  const modal = document.getElementById('exportModal');
+  if (modal) modal.removeAttribute('hidden');
+  const tipoSel = document.getElementById('exportTipo') as HTMLSelectElement | null;
+  if (tipoSel) tipoSel.focus();
+}
+
+function closeExportModal() {
+  const modal = document.getElementById('exportModal');
+  if (modal) modal.setAttribute('hidden', 'true');
+}
+
+function handleExportRelatorio(e: Event) {
+  e.preventDefault();
+  const tipo = getValue('exportTipo') || 'ambos';
+  const periodo = getValue('exportPeriodo') || 'custom';
+  const params = new URLSearchParams({ tipo, periodo });
+
+  if (periodo === 'anual') {
+    const ano = getValue('exportAno') || String(new Date().getFullYear());
+    params.append('ano', ano);
+  } else {
+    const from = getValue('exportFrom');
+    const to = getValue('exportTo');
+    if (from) params.append('dateFrom', from);
+    if (to) params.append('dateTo', to);
+  }
+
+  const url = `/relatorios/pdf?${params.toString()}`;
+  window.open(url, '_blank');
+  closeExportModal();
+}
+
+function setupExportRelatorio() {
+  const form = document.getElementById('exportRelatorioForm') as HTMLFormElement | null;
+  const periodoSelect = document.getElementById('exportPeriodo') as HTMLSelectElement | null;
+  closeExportModal();
+  if (form) {
+    if (periodoSelect) periodoSelect.addEventListener('change', () => toggleExportPeriodoFields(periodoSelect.value));
+    form.addEventListener('submit', handleExportRelatorio);
+  }
+
+  const headerBtn = document.getElementById('btnExportRelatorioHeader');
+  const quickBtn = document.getElementById('qaExportRelatorio');
+  const quickBtnReceitas = document.getElementById('qaExportRelatorioReceitas');
+  if (headerBtn) headerBtn.addEventListener('click', openExportModal);
+  if (quickBtn) quickBtn.addEventListener('click', openExportModal);
+  if (quickBtnReceitas) quickBtnReceitas.addEventListener('click', openExportModal);
+
+  const closeBtn = document.getElementById('exportModalClose');
+  const cancelBtn = document.getElementById('exportModalCancel');
+  const modal = document.getElementById('exportModal');
+  if (closeBtn) closeBtn.addEventListener('click', closeExportModal);
+  if (cancelBtn) cancelBtn.addEventListener('click', closeExportModal);
+  if (modal) {
+    modal.addEventListener('click', (ev) => {
+      if (ev.target === modal) closeExportModal();
+    });
+  }
+}
+
 function hideForms() {
   toggleSection('formularioFatura', false);
   toggleSection('formularioEvento', false);
@@ -234,8 +341,11 @@ async function carregarEventosResumo() {
       const receitaTotal = receitasPorEvento[ev.id] || 0;
       const numReceitas = receitas.filter((r: any) => r.eventoId === ev.id).length;
       const saldo = receitaTotal - gasto;
-      const dataInicio = ev.data_inicio || ev.dataInicio || '';
-      const dataFim = ev.data_fim || ev.dataFim || '';
+      const dataInicioRaw = ev.data_inicio || ev.dataInicio || '';
+      const dataFimRaw = ev.data_fim || ev.dataFim || '';
+      const formatDia = (d: string) => d ? new Date(d).toLocaleDateString('pt-PT') : '';
+      const dataInicio = formatDia(dataInicioRaw);
+      const dataFim = formatDia(dataFimRaw);
       const intervalo = dataInicio && dataFim ? `${dataInicio} a ${dataFim}` : (dataInicio || dataFim || 'Sem data');
       return `<div class="evento-card" data-evento-id="${ev.id}">
         <div class="evento-head">
@@ -522,9 +632,23 @@ async function guardarReceita(e: SubmitEvent) {
 
 // --- Inicialização ---
 function setupEventListeners() {
+  setupExportRelatorio();
   const btnNovoEvento = document.getElementById('btnEscolherEvento');
   if (btnNovoEvento) {
     btnNovoEvento.addEventListener('click', () => {
+      setActiveSection('eventos');
+      editingEventoId = null;
+      resetForm('eventoForm');
+      const btn = document.getElementById('eventoSubmitButton') as HTMLButtonElement | null;
+      if (btn) btn.textContent = '💾 Guardar';
+      toggleSection('formularioEvento', true);
+      document.getElementById('formularioEvento')?.scrollIntoView({ behavior: 'smooth' });
+    });
+  }
+
+  const qaNovoEventoReceitas = document.getElementById('qaNovoEventoReceitas');
+  if (qaNovoEventoReceitas) {
+    qaNovoEventoReceitas.addEventListener('click', () => {
       setActiveSection('eventos');
       editingEventoId = null;
       resetForm('eventoForm');
