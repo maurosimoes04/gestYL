@@ -37,10 +37,26 @@ app.use('/IMAGENS', express.static(path.join(process.cwd(), 'IMAGENS')));
 
 
 import { sequelize } from './config/database';
+import { DataTypes } from 'sequelize';
+
+async function ensureReceitaEventoColumn() {
+  const qi = sequelize.getQueryInterface();
+  const desc = await qi.describeTable('receitas');
+  if (!desc.eventoId) {
+    await qi.addColumn('receitas', 'eventoId', {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: { model: 'eventos', key: 'id' }
+    });
+  }
+}
 
 
-sequelize.sync({ alter: true })
-  .then(() => console.log('Base de dados sincronizada (alter)'))
+sequelize.sync()
+  .then(async () => {
+    await ensureReceitaEventoColumn();
+    console.log('Base de dados sincronizada');
+  })
 
 // Endpoint de estado (PT-PT)
   .catch((err: any) => console.error('Erro ao sincronizar BD:', err));
@@ -49,8 +65,12 @@ sequelize.sync({ alter: true })
 
 import faturaRoutes from './routes/fatura';
 import eventoRoutes from './routes/evento';
+import receitaRoutes from './routes/receita';
+import movimentoRoutes from './routes/movimento';
 app.use('/faturas', faturaRoutes);
 app.use('/eventos', eventoRoutes);
+app.use('/receitas', receitaRoutes);
+app.use('/movimentos', movimentoRoutes);
 
 
 // Inicia o servidor se chamado diretamente (PT-PT)

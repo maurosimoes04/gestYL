@@ -1,7 +1,7 @@
 {
-  "name": "gestor-despesas",
+  "name": "gestao-financeira-yl",
   "version": "0.1.0",
-  "description": "Sistema moderno de gestão de faturas e despesas familiares com TypeScript, Express e SQLite",
+  "description": "Gestão Financeira YL: controlo de despesas, receitas e eventos com TypeScript, Express e SQLite",
   "main": "dist/backend/app.js",
   "scripts": {
     "dev:backend": "ts-node-dev --respawn --transpile-only src/backend/app.ts",
@@ -11,7 +11,9 @@
     "build:backend": "tsc -p tsconfig.json",
     "build": "npm run build:backend && npm run build:frontend",
     "start": "node dist/backend/app.js",
-    "seed": "ts-node src/backend/seeds/seedFaturas.ts"
+    "seed": "ts-node src/backend/seeds/seedFaturas.ts",
+    "seed:demo": "ts-node src/backend/seeds/seedDemo.ts",
+    "db:reset": "ts-node src/backend/seeds/resetDb.ts"
   },
   "keywords": [
     "gestor",

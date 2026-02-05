@@ -53,16 +53,18 @@ body {
 }
 
 .header-inner {
-  max-width: 1100px;
+  max-width: 1180px;
   margin: auto;
-  padding: 18px 24px;
+  padding: 10px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
 .logo {
-  height: 75px;
+  height: 120px;
+  margin-top: -10px;
+  margin-bottom: -10px;
   filter: drop-shadow(0 4px 10px rgba(255,255,255,0.3));
 }
 
@@ -98,22 +100,10 @@ body {
 }
 
 /* ======================================================
-   DARK MODE TOGGLE
-====================================================== */
-.dark-mode-toggle {
-  background: rgba(255,255,255,0.1);
-  border: none;
-  border-radius: 999px;
-  padding: 8px 12px;
-  cursor: pointer;
-  color: white;
-}
-
-/* ======================================================
    MAIN
 ====================================================== */
 main {
-  max-width: 980px;
+  max-width: 1200px;
   margin: 48px auto;
   padding: 0 20px;
   display: flex;
@@ -169,6 +159,94 @@ section h2 {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
+}
+
+.eventos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.evento-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 12px;
+}
+
+.evento-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.evento-title {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--text-dark);
+}
+
+.evento-dates {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.evento-dept {
+  background: #eef2ff;
+  color: var(--primary);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.evento-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.evento-metric {
+  background: var(--bg-muted);
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.evento-metric span {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.evento-metric strong {
+  color: var(--text-dark);
+  font-size: 1.05rem;
+}
+
+.evento-desc {
+  margin: 0;
+  color: var(--text-dark);
+  font-size: 0.95rem;
+}
+
+.evento-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.evento-actions button {
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: var(--text-dark);
 }
 
 /* ======================================================
@@ -402,11 +480,22 @@ tbody tr:hover {
    CHART
 ====================================================== */
 .chart-wrap {
-  margin-top: 28px;
+  margin: 16px auto 8px;
+  max-width: 720px;
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius);
+}
+
+.chart-wrap canvas {
+  width: 100% !important;
+  height: 220px !important;
 }
 
 .chart-wrap h3 {
-  font-size: 1rem;
+  font-size: 1.05rem;
   margin-bottom: 12px;
   color: var(--text-dark);
 }
@@ -430,26 +519,41 @@ tbody tr:hover {
 }
 
 /* ======================================================
-   DARK MODE
+   NOTIFICATIONS
 ====================================================== */
-body.dark {
-  background: linear-gradient(180deg, #020617, #020617);
-  color: #e5e7eb;
+.notification {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 2000;
+  background: var(--bg-card);
+  border: 1px solid #e2e8f0;
+  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dark);
+  animation: slideIn 0.3s ease;
 }
 
-body.dark section {
-  background: #020617;
-  border: 1px solid rgba(255,255,255,0.06);
+.notification .notification-icon {
+  font-size: 1rem;
 }
 
-body.dark input,
-body.dark select,
-body.dark textarea {
-  background: #020617;
-  border-color: rgba(255,255,255,0.15);
-  color: white;
+.notification .notification-message {
+  font-weight: 600;
 }
 
-body.dark table tbody tr:nth-child(even) {
-  background: rgba(255,255,255,0.03);
+.notification.error {
+  border-color: #fecdd3;
+  color: #be123c;
+  background: #fff1f2;
 }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+

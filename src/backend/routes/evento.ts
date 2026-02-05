@@ -2,8 +2,12 @@
 import express from 'express';
 import { sequelize } from '../config/database';
 import createEventoModel from '../models/Evento';
+import createFaturaModel from '../models/Fatura';
+import createReceitaModel from '../models/Receita';
 
 const Evento = createEventoModel(sequelize);
+const Fatura = createFaturaModel(sequelize);
+const Receita = createReceitaModel(sequelize);
 const router = express.Router();
 
 // Criar evento
@@ -51,12 +55,24 @@ router.put('/:id', async (req, res) => {
 
 // Remover evento
 router.delete('/:id', async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
-    const evento = await Evento.findByPk(req.params.id);
-    if (!evento) return res.status(404).json({ error: 'Evento não encontrado' });
-    await evento.destroy();
-    res.json({ message: 'Evento removido com sucesso' });
+    const evento = await Evento.findByPk(req.params.id, { transaction });
+    if (!evento) {
+      await transaction.rollback();
+      return res.status(404).json({ error: 'Evento não encontrado' });
+    }
+
+    await Promise.all([
+      Fatura.destroy({ where: { eventoId: evento.id }, transaction }),
+      Receita.destroy({ where: { eventoId: evento.id }, transaction })
+    ]);
+
+    await evento.destroy({ transaction });
+    await transaction.commit();
+    res.json({ message: 'Evento e registos associados removidos com sucesso' });
   } catch (err) {
+    await transaction.rollback();
     res.status(500).json({ error: 'Erro ao remover evento', details: err });
   }
 });

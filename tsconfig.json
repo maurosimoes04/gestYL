@@ -11,7 +11,7 @@
     "resolveJsonModule": true,
     "allowJs": true,
     "noEmitOnError": false,
-    "types": []
+    "types": ["node"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "src/frontend/assets/js/*"]

@@ -3,6 +3,16 @@
 // --- Constantes e estado global ---
 const API_EVENTOS = 'http://localhost:3000/eventos';
 const API_FATURAS = 'http://localhost:3000/faturas';
+const API_RECEITAS = 'http://localhost:3000/receitas';
+const API_MOVIMENTOS = 'http://localhost:3000/movimentos';
+const RECEITA_CATEGORIAS = [
+  'Quotas',
+  'Patrocínios/Doações',
+  'Cofinanciamentos',
+  'Vendas/Serviços',
+  'Reembolsos',
+  'Outros'
+];
 const ALLOWED_DEPARTAMENTOS = [
   'Cultural',
   'Marketing e Multimédia',
@@ -15,13 +25,19 @@ const ALLOWED_DEPARTAMENTOS = [
 const SECTION_GROUPS: Record<string, string[]> = {
   resumo: ['dashboard', 'dashboardAno'],
   faturas: ['acoesRapidas', 'faturas'],
+  receitas: ['acoesRapidasReceitas', 'receitas'],
   eventos: ['eventos']
 };
 
 let chartInstance: any = null;
+let chartReceitasInstance: any = null;
 let editingEventoId: number | null = null;
+let editingFaturaId: number | null = null;
+let editingReceitaId: number | null = null;
 let eventosCache: any[] = [];
 let faturasCache: any[] = [];
+let receitasCache: any[] = [];
+let movimentosCache: any[] = [];
 
 // --- Helpers DOM ---
 function getValue(id: string): string {
@@ -66,6 +82,7 @@ function monthName(idx: number) {
 function hideForms() {
   toggleSection('formularioFatura', false);
   toggleSection('formularioEvento', false);
+  toggleSection('formularioReceita', false);
 }
 
 function setActiveNav(target: string) {
@@ -74,7 +91,7 @@ function setActiveNav(target: string) {
   });
 }
 
-function setActiveSection(target: 'resumo' | 'faturas' | 'eventos') {
+function setActiveSection(target: 'resumo' | 'faturas' | 'receitas' | 'eventos') {
   hideForms();
   const showSet = new Set(SECTION_GROUPS[target]);
   Object.values(SECTION_GROUPS).flat().forEach(id => {
@@ -91,12 +108,16 @@ async function carregarEventosSelect() {
   try {
     const resp = await fetch(API_EVENTOS);
     eventosCache = await resp.json();
-    const select = document.getElementById('eventoFatura') as HTMLSelectElement | null;
-    if (select) {
-      select.innerHTML = '<option value="">Nenhum evento</option>' + eventosCache
-        .map((ev: any) => `<option value="${ev.id}">${ev.nome}</option>`)
-        .join('');
-    }
+    const selectFatura = document.getElementById('eventoFatura') as HTMLSelectElement | null;
+    const selectReceita = document.getElementById('eventoReceita') as HTMLSelectElement | null;
+    const selectFiltroReceita = document.getElementById('filterReceitaEvento') as HTMLSelectElement | null;
+    const optsList = eventosCache
+      .map((ev: any) => `<option value="${ev.id}">${ev.nome}</option>`)
+      .join('');
+    const opts = '<option value="">Nenhum evento</option>' + optsList;
+    if (selectFatura) selectFatura.innerHTML = opts;
+    if (selectReceita) selectReceita.innerHTML = opts;
+    if (selectFiltroReceita) selectFiltroReceita.innerHTML = '<option value="">🎉 Todos os eventos</option>' + optsList;
   } catch {
     // Silencia erros neste ponto para não bloquear o fluxo principal
   }
@@ -128,7 +149,13 @@ async function removerEvento(id: number) {
     const resp = await fetch(`${API_EVENTOS}/${id}`, { method: 'DELETE' });
     if (!resp.ok) throw new Error('Erro ao remover evento');
     showNotification('Evento removido com sucesso!', 'success');
-    await Promise.all([carregarEventosResumo(), carregarEventosSelect()]);
+    await Promise.all([
+      carregarEventosResumo(),
+      carregarEventosSelect(),
+      carregarFaturas(),
+      carregarReceitas(),
+      carregarMovimentos()
+    ]);
   } catch {
     showNotification('❌ Erro ao remover evento', 'error');
   }
@@ -185,23 +212,48 @@ async function carregarEventosResumo() {
     const respFaturas = await fetch(API_FATURAS);
     const faturas = await respFaturas.json();
     faturasCache = faturas;
+    const respReceitas = await fetch(API_RECEITAS);
+    const receitas = await respReceitas.json();
+    receitasCache = receitas;
     const gastosPorEvento: Record<string, number> = {};
     faturas.forEach((f: any) => {
       if (f.eventoId) {
         gastosPorEvento[f.eventoId] = (gastosPorEvento[f.eventoId] || 0) + parseFloat(f.valor || 0);
       }
     });
+    const receitasPorEvento: Record<string, number> = {};
+    receitas.forEach((r: any) => {
+      if (r.eventoId) {
+        receitasPorEvento[r.eventoId] = (receitasPorEvento[r.eventoId] || 0) + parseFloat(r.valor || 0);
+      }
+    });
+    eventosLista.className = 'eventos-grid';
     eventosLista.innerHTML = eventos.map((ev: any) => {
       const gasto = gastosPorEvento[ev.id] || 0;
       const numFaturas = faturas.filter((f: any) => f.eventoId === ev.id).length;
-      return `<div class="dashboard-card" data-evento-id="${ev.id}">
-        <div class="card-label">${ev.nome} <span style=\"color:#888;font-size:0.95em; font-weight:400;\">${ev.data_inicio || ev.dataInicio || ''}${(ev.data_fim || ev.dataFim) ? ' a ' + (ev.data_fim || ev.dataFim) : ''}</span></div>
-        <div class="card-value">${formatCurrency(gasto)}</div>
-        <div class="card-subtitle">${numFaturas} fatura(s) registada(s)</div>
-        <div class="card-subtitle" style="margin-top:0.3em;">${ev.descricao || ''}</div>
-        <div class="card-actions" style="margin-top:0.7em; display:flex; gap:0.5em;">
-          <button class="btn-editar-evento" data-id="${ev.id}" title="Editar evento">✏️</button>
-          <button class="btn-remover-evento" data-id="${ev.id}" title="Remover evento">🗑️</button>
+      const receitaTotal = receitasPorEvento[ev.id] || 0;
+      const numReceitas = receitas.filter((r: any) => r.eventoId === ev.id).length;
+      const saldo = receitaTotal - gasto;
+      const dataInicio = ev.data_inicio || ev.dataInicio || '';
+      const dataFim = ev.data_fim || ev.dataFim || '';
+      const intervalo = dataInicio && dataFim ? `${dataInicio} a ${dataFim}` : (dataInicio || dataFim || 'Sem data');
+      return `<div class="evento-card" data-evento-id="${ev.id}">
+        <div class="evento-head">
+          <div>
+            <div class="evento-title">${ev.nome}</div>
+            <div class="evento-dates">${intervalo}</div>
+          </div>
+          <div class="evento-dept">${ev.departamento || 'Sem depto'}</div>
+        </div>
+        <div class="evento-body">
+          <div class="evento-metric"><span>Entradas (receitas)</span><strong>${formatCurrency(receitaTotal)}</strong><span>${numReceitas} receita(s)</span></div>
+          <div class="evento-metric"><span>Saídas (despesas)</span><strong>${formatCurrency(gasto)}</strong><span>${numFaturas} despesa(s)</span></div>
+          <div class="evento-metric"><span>Saldo do evento</span><strong>${formatCurrency(saldo)}</strong></div>
+        </div>
+        <p class="evento-desc">${ev.descricao || 'Sem descrição.'}</p>
+        <div class="evento-actions">
+          <button class="btn-editar-evento" data-id="${ev.id}" title="Editar evento">✏️ Editar</button>
+          <button class="btn-remover-evento" data-id="${ev.id}" title="Remover evento">🗑️ Remover</button>
         </div>
       </div>`;
     }).join('');
@@ -236,6 +288,18 @@ function aplicarDepartamentosFiltro() {
   });
 }
 
+function aplicarCategoriasFiltroReceita() {
+  const selectCat = document.getElementById('filterReceitaCategoria') as HTMLSelectElement | null;
+  if (selectCat && selectCat.options.length <= 1) {
+    RECEITA_CATEGORIAS.forEach(cat => {
+      const opt = document.createElement('option');
+      opt.value = cat;
+      opt.textContent = cat;
+      selectCat.appendChild(opt);
+    });
+  }
+}
+
 async function carregarFaturas() {
   const tbody = document.getElementById('tabelaFaturas');
   if (!tbody) return;
@@ -257,7 +321,7 @@ async function carregarFaturas() {
     faturasCache = await resp.json();
     if (!Array.isArray(faturasCache) || faturasCache.length === 0) {
       tbody.innerHTML = '<tr><td colspan="9">Nenhuma fatura encontrada.</td></tr>';
-      atualizarDashboards([]);
+      atualizarDashboards([], movimentosCache, receitasCache);
       return;
     }
     tbody.innerHTML = faturasCache.map((f: any) => {
@@ -271,13 +335,28 @@ async function carregarFaturas() {
         <td>${f.departamento || '-'}</td>
         <td>${eventoNome}</td>
         <td>${f.estado || '-'}</td>
-        <td></td>
+        <td class="table-actions">
+          <button class="btn-acao btn-editar-fatura" data-id="${f.id}" title="Editar">✏️</button>
+          <button class="btn-acao btn-remover-fatura" data-id="${f.id}" title="Remover">🗑️</button>
+        </td>
       </tr>`;
     }).join('');
-    atualizarDashboards(faturasCache);
+    tbody.querySelectorAll('.btn-editar-fatura').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+        if (id) editarFatura(parseInt(id, 10));
+      });
+    });
+    tbody.querySelectorAll('.btn-remover-fatura').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+        if (id) removerFatura(parseInt(id, 10));
+      });
+    });
+    atualizarDashboards(faturasCache, movimentosCache, receitasCache);
   } catch {
     tbody.innerHTML = '<tr><td colspan="9">Erro ao carregar faturas.</td></tr>';
-    atualizarDashboards([]);
+    atualizarDashboards([], movimentosCache, receitasCache);
   }
 }
 
@@ -304,19 +383,140 @@ async function guardarFatura(e: SubmitEvent) {
   };
   if (eventoIdStr) payload.eventoId = parseInt(eventoIdStr, 10);
 
+  const url = editingFaturaId ? `${API_FATURAS}/${editingFaturaId}` : API_FATURAS;
+  const method = editingFaturaId ? 'PUT' : 'POST';
+
   try {
-    const resp = await fetch(API_FATURAS, {
-      method: 'POST',
+    const resp = await fetch(url, {
+      method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    if (!resp.ok) throw new Error('Erro ao criar fatura');
-    showNotification('Fatura criada com sucesso!', 'success');
+    if (!resp.ok) throw new Error('Erro ao guardar fatura');
+    showNotification(editingFaturaId ? 'Fatura atualizada com sucesso!' : 'Fatura criada com sucesso!', 'success');
     resetForm('faturaForm');
     toggleSection('formularioFatura', false);
-    await Promise.all([carregarFaturas(), carregarEventosResumo()]);
+    editingFaturaId = null;
+    const btn = document.getElementById('btnSalvarFatura') as HTMLButtonElement | null;
+    if (btn) btn.textContent = '💾 Guardar';
+    await Promise.all([carregarFaturas(), carregarEventosResumo(), carregarMovimentos()]);
   } catch {
     showNotification('❌ Erro ao guardar fatura', 'error');
+  }
+}
+
+// --- Receitas: carregar e criar ---
+async function carregarReceitas() {
+  const tbody = document.getElementById('tabelaReceitas');
+  if (!tbody) return;
+  const params = new URLSearchParams();
+  const from = getValue('filterReceitaFrom');
+  const to = getValue('filterReceitaTo');
+  const q = getValue('filterReceitaQ');
+  const categoria = getValue('filterReceitaCategoria');
+  const estado = getValue('filterReceitaEstado');
+  const eventoId = getValue('filterReceitaEvento');
+  if (from) params.append('dateFrom', from);
+  if (to) params.append('dateTo', to);
+  if (q) params.append('q', q);
+  if (categoria) params.append('categoria', categoria);
+  if (estado) params.append('estado', estado);
+  if (eventoId) params.append('eventoId', eventoId);
+  try {
+    const url = params.toString() ? `${API_RECEITAS}?${params.toString()}` : API_RECEITAS;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('Erro ao listar receitas');
+    receitasCache = await resp.json();
+    if (!Array.isArray(receitasCache) || receitasCache.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="9">Nenhuma receita encontrada.</td></tr>';
+      atualizarDashboards(faturasCache, movimentosCache, receitasCache);
+      return;
+    }
+    tbody.innerHTML = receitasCache.map((r: any) => {
+      const eventoNome = eventosCache.find((ev: any) => ev.id === r.eventoId)?.nome || '-';
+      return `<tr>
+        <td>${r.titulo || '-'}</td>
+        <td>${r.categoria || '-'}</td>
+        <td>${r.estado || '-'}</td>
+        <td>${r.financiador || '-'}</td>
+        <td>${eventoNome}</td>
+        <td>${formatCurrency(r.valor)}</td>
+        <td>${formatDate(r.data)}</td>
+        <td>${r.observacoes || '-'}</td>
+        <td class="table-actions">
+          <button class="btn-acao btn-editar-receita" data-id="${r.id}" title="Editar">✏️</button>
+          <button class="btn-acao btn-remover-receita" data-id="${r.id}" title="Remover">🗑️</button>
+        </td>
+      </tr>`;
+    }).join('');
+    tbody.querySelectorAll('.btn-editar-receita').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+        if (id) editarReceita(parseInt(id, 10));
+      });
+    });
+    tbody.querySelectorAll('.btn-remover-receita').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+        if (id) removerReceita(parseInt(id, 10));
+      });
+    });
+    atualizarDashboards(faturasCache, movimentosCache, receitasCache);
+  } catch {
+    tbody.innerHTML = '<tr><td colspan="9">Erro ao carregar receitas.</td></tr>';
+    atualizarDashboards(faturasCache, movimentosCache, receitasCache);
+  }
+}
+
+async function carregarMovimentos() {
+  try {
+    const resp = await fetch(API_MOVIMENTOS);
+    if (!resp.ok) throw new Error('Erro ao listar movimentos');
+    movimentosCache = await resp.json();
+  } catch {
+    movimentosCache = [];
+  }
+}
+
+async function guardarReceita(e: SubmitEvent) {
+  e.preventDefault();
+  const payload: any = {
+    titulo: getValue('tituloReceita').trim(),
+    categoria: getValue('categoriaReceita'),
+    estado: getValue('estadoReceita') || 'Previsto',
+    financiador: getValue('financiadorReceita').trim() || undefined,
+    valor: parseFloat(getValue('valorReceita')),
+    data: getValue('dataReceita'),
+    observacoes: getValue('observacoesReceita').trim() || undefined
+  };
+
+  const eventoIdStr = getValue('eventoReceita');
+  if (eventoIdStr) payload.eventoId = parseInt(eventoIdStr, 10);
+
+  if (!payload.titulo || !payload.categoria || !payload.data || Number.isNaN(payload.valor)) {
+    showNotification('Preencha os campos obrigatórios da receita.', 'error');
+    return;
+  }
+
+  const url = editingReceitaId ? `${API_RECEITAS}/${editingReceitaId}` : API_RECEITAS;
+  const method = editingReceitaId ? 'PUT' : 'POST';
+
+  try {
+    const resp = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!resp.ok) throw new Error('Erro ao guardar receita');
+    showNotification(editingReceitaId ? 'Receita atualizada com sucesso!' : 'Receita criada com sucesso!', 'success');
+    resetForm('receitaForm');
+    toggleSection('formularioReceita', false);
+    editingReceitaId = null;
+    const btn = document.getElementById('btnSalvarReceita') as HTMLButtonElement | null;
+    if (btn) btn.textContent = '💾 Guardar';
+    await Promise.all([carregarReceitas(), carregarMovimentos()]);
+  } catch {
+    showNotification('❌ Erro ao guardar receita', 'error');
   }
 }
 
@@ -353,6 +553,9 @@ function setupEventListeners() {
       setActiveSection('faturas');
       toggleSection('formularioFatura', true);
       setValue('tipoFatura', 'Fatura');
+      editingFaturaId = null;
+      const btn = document.getElementById('btnSalvarFatura') as HTMLButtonElement | null;
+      if (btn) btn.textContent = '💾 Guardar';
       carregarEventosSelect();
       document.getElementById('formularioFatura')?.scrollIntoView({ behavior: 'smooth' });
     });
@@ -364,6 +567,9 @@ function setupEventListeners() {
       setActiveSection('faturas');
       toggleSection('formularioFatura', true);
       setValue('tipoFatura', 'Fatura');
+      editingFaturaId = null;
+      const btn = document.getElementById('btnSalvarFatura') as HTMLButtonElement | null;
+      if (btn) btn.textContent = '💾 Guardar';
       carregarEventosSelect();
       document.getElementById('formularioFatura')?.scrollIntoView({ behavior: 'smooth' });
     });
@@ -387,19 +593,67 @@ function setupEventListeners() {
     btnCancelarFatura.addEventListener('click', () => {
       toggleSection('formularioFatura', false);
       resetForm('faturaForm');
+      editingFaturaId = null;
+      const btn = document.getElementById('btnSalvarFatura') as HTMLButtonElement | null;
+      if (btn) btn.textContent = '💾 Guardar';
     });
   }
 
   const faturaForm = document.getElementById('faturaForm');
   if (faturaForm) faturaForm.addEventListener('submit', guardarFatura);
 
+  const btnNovaReceita = document.getElementById('btnNovaReceita');
+  if (btnNovaReceita) {
+    btnNovaReceita.addEventListener('click', () => {
+      setActiveSection('receitas');
+      resetForm('receitaForm');
+      toggleSection('formularioReceita', true);
+      editingReceitaId = null;
+      const btn = document.getElementById('btnSalvarReceita') as HTMLButtonElement | null;
+      if (btn) btn.textContent = '💾 Guardar';
+      carregarEventosSelect();
+      document.getElementById('formularioReceita')?.scrollIntoView({ behavior: 'smooth' });
+    });
+  }
+
+  const btnCancelarReceita = document.getElementById('btnCancelarReceita');
+  if (btnCancelarReceita) {
+    btnCancelarReceita.addEventListener('click', () => {
+      toggleSection('formularioReceita', false);
+      resetForm('receitaForm');
+      editingReceitaId = null;
+      const btn = document.getElementById('btnSalvarReceita') as HTMLButtonElement | null;
+      if (btn) btn.textContent = '💾 Guardar';
+    });
+  }
+
+  const receitaForm = document.getElementById('receitaForm');
+  if (receitaForm) receitaForm.addEventListener('submit', guardarReceita);
+
   const btnFiltros = document.getElementById('btnAplicarFiltros');
   if (btnFiltros) btnFiltros.addEventListener('click', () => carregarFaturas());
+
+  const btnFiltrosReceita = document.getElementById('btnAplicarFiltrosReceita');
+  if (btnFiltrosReceita) btnFiltrosReceita.addEventListener('click', () => carregarReceitas());
+
+  const qaNovaReceita = document.getElementById('qaNovaReceita');
+  if (qaNovaReceita) {
+    qaNovaReceita.addEventListener('click', () => {
+      setActiveSection('receitas');
+      resetForm('receitaForm');
+      toggleSection('formularioReceita', true);
+      editingReceitaId = null;
+      const btn = document.getElementById('btnSalvarReceita') as HTMLButtonElement | null;
+      if (btn) btn.textContent = '💾 Guardar';
+      carregarEventosSelect();
+      document.getElementById('formularioReceita')?.scrollIntoView({ behavior: 'smooth' });
+    });
+  }
 
   document.querySelectorAll('.main-nav .nav-link').forEach(link => {
     link.addEventListener('click', (e) => {
       e.preventDefault();
-      const target = (e.currentTarget as HTMLElement).dataset.target as 'resumo' | 'faturas' | 'eventos' | undefined;
+      const target = (e.currentTarget as HTMLElement).dataset.target as 'resumo' | 'faturas' | 'receitas' | 'eventos' | undefined;
       if (!target) return;
       setActiveSection(target);
     });
@@ -422,18 +676,51 @@ function calcularResumoMesAtual(faturas: any[]) {
   return { total, pagas, pendentes, recorrentes, count: doMes.length };
 }
 
-function renderDashboard(faturas: any[]) {
+function calcularFluxoMesAtual(movimentos: any[], faturas: any[] = faturasCache, receitas: any[] = receitasCache) {
+  const agora = new Date();
+  const mes = agora.getMonth();
+  const ano = agora.getFullYear();
+  const movimentosMes = movimentos.filter(m => {
+    const d = new Date(m.data);
+    return d.getMonth() === mes && d.getFullYear() === ano;
+  });
+  if (movimentosMes.length > 0) {
+    const entradas = movimentosMes.filter(m => m.tipo === 'entrada').reduce((s, m) => s + Number(m.valor || 0), 0);
+    const saidas = movimentosMes.filter(m => m.tipo === 'saida').reduce((s, m) => s + Number(m.valor || 0), 0);
+    return { entradas, saidas, saldoMes: entradas - saidas };
+  }
+
+  const receitasMes = receitas.filter(r => {
+    const d = new Date(r.data);
+    return d.getMonth() === mes && d.getFullYear() === ano;
+  });
+  const faturasMes = faturas.filter(f => {
+    const d = new Date(f.data);
+    return d.getMonth() === mes && d.getFullYear() === ano;
+  });
+  const entradasFallback = receitasMes.reduce((s, r) => s + Number(r.valor || 0), 0);
+  const saidasFallback = faturasMes.reduce((s, f) => s + Number(f.valor || 0), 0);
+  return { entradas: entradasFallback, saidas: saidasFallback, saldoMes: entradasFallback - saidasFallback };
+}
+
+function renderDashboard(faturas: any[], movimentos: any[], receitas: any[]) {
   const container = document.getElementById('dashboardContent');
   if (!container) return;
   const r = calcularResumoMesAtual(faturas);
+  const fluxo = calcularFluxoMesAtual(movimentos, faturas, receitas);
   const blocoTotais = [
-    { label: 'Total do mês', value: formatCurrency(r.total) },
+    { label: 'Total do mês (faturas)', value: formatCurrency(r.total) },
     { label: 'Pagas', value: formatCurrency(r.pagas) },
     { label: 'Pendentes', value: formatCurrency(r.pendentes) }
   ];
   const blocoRecorr = [
     { label: 'Recorrentes', value: formatCurrency(r.recorrentes) },
     { label: 'Nº de faturas', value: r.count.toString() }
+  ];
+  const blocoFluxo = [
+    { label: 'Entradas (mês)', value: formatCurrency(fluxo.entradas) },
+    { label: 'Saídas (mês)', value: formatCurrency(fluxo.saidas) },
+    { label: 'Saldo do mês', value: formatCurrency(fluxo.saldoMes) }
   ];
 
   const renderCards = (cards: { label: string; value: string; }[]) => cards.map(c => `
@@ -445,12 +732,16 @@ function renderDashboard(faturas: any[]) {
 
   container.innerHTML = `
     <div class="summary-block">
-      <div class="summary-title">Totais do mês</div>
+      <div class="summary-title">Totais do mês (despesas)</div>
       <div class="summary-grid">${renderCards(blocoTotais)}</div>
     </div>
     <div class="summary-block">
       <div class="summary-title">Recorrência e contagem</div>
       <div class="summary-grid">${renderCards(blocoRecorr)}</div>
+    </div>
+    <div class="summary-block">
+      <div class="summary-title">Fluxo de caixa do mês</div>
+      <div class="summary-grid">${renderCards(blocoFluxo)}</div>
     </div>
   `;
 }
@@ -519,25 +810,148 @@ function renderChartDepartamentos(faturas: any[]) {
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: 8 },
       plugins: { legend: { display: false } },
       scales: { y: { beginAtZero: true } }
     }
   });
 }
 
-function atualizarDashboards(faturas: any[]) {
-  renderDashboard(faturas);
-  renderDashboardAno(faturas);
-  renderChartDepartamentos(faturas);
+function renderChartReceitas(receitas: any[]) {
+  const ctx = document.getElementById('chartReceitas') as HTMLCanvasElement | null;
+  if (!ctx) return;
+  const map: Record<string, number> = {};
+  receitas.forEach(r => {
+    if (!r.categoria) return;
+    map[r.categoria] = (map[r.categoria] || 0) + Number(r.valor || 0);
+  });
+  const labels = Object.keys(map);
+  const data = labels.map(l => map[l]);
+  if (chartReceitasInstance) {
+    chartReceitasInstance.destroy();
+    chartReceitasInstance = null;
+  }
+  if (labels.length === 0) {
+    const context = ctx.getContext('2d');
+    if (context) context.clearRect(0, 0, ctx.width, ctx.height);
+    return;
+  }
+  chartReceitasInstance = new (window as any).Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Receitas por categoria',
+        data,
+        backgroundColor: ['#22c55e', '#0ea5e9', '#f59e0b', '#f43f5e', '#a855f7', '#14b8a6']
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: 8 },
+      cutout: '58%',
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { boxWidth: 12, font: { size: 12 } }
+        }
+      }
+    }
+  });
 }
 
-function init() {
+
+async function editarReceita(id: number) {
+  try {
+    const resp = await fetch(`${API_RECEITAS}/${id}`);
+    if (!resp.ok) throw new Error('Receita não encontrada');
+    const r = await resp.json();
+    await carregarEventosSelect();
+    setActiveSection('receitas');
+    toggleSection('formularioReceita', true);
+    setValue('tituloReceita', r.titulo || '');
+    setValue('categoriaReceita', r.categoria || '');
+    setValue('estadoReceita', r.estado || 'Previsto');
+    setValue('financiadorReceita', r.financiador || '');
+    setValue('valorReceita', r.valor?.toString() || '');
+    setValue('dataReceita', (r.data || '').slice(0, 10));
+    setValue('observacoesReceita', r.observacoes || '');
+    if (r.eventoId) setValue('eventoReceita', String(r.eventoId)); else setValue('eventoReceita', '');
+    editingReceitaId = id;
+    const btn = document.getElementById('btnSalvarReceita') as HTMLButtonElement | null;
+    if (btn) btn.textContent = '💾 Guardar Alterações';
+    document.getElementById('formularioReceita')?.scrollIntoView({ behavior: 'smooth' });
+  } catch {
+    showNotification('❌ Erro ao carregar receita para edição', 'error');
+  }
+}
+
+async function removerReceita(id: number) {
+  if (!confirm('Tem a certeza que deseja remover esta receita?')) return;
+  try {
+    const resp = await fetch(`${API_RECEITAS}/${id}`, { method: 'DELETE' });
+    if (!resp.ok) throw new Error('Erro ao remover receita');
+    showNotification('Receita removida com sucesso!', 'success');
+    await Promise.all([carregarReceitas(), carregarMovimentos()]);
+  } catch {
+    showNotification('❌ Erro ao remover receita', 'error');
+  }
+}
+
+async function editarFatura(id: number) {
+  try {
+    const resp = await fetch(`${API_FATURAS}/${id}`);
+    if (!resp.ok) throw new Error('Fatura não encontrada');
+    const f = await resp.json();
+    await carregarEventosSelect();
+    setActiveSection('faturas');
+    toggleSection('formularioFatura', true);
+    setValue('nomeFatura', f.titulo || '');
+    setValue('valorFatura', f.valor?.toString() || '');
+    setValue('dataFatura', (f.data || '').slice(0, 10));
+    setValue('departamento', f.departamento || '');
+    setValue('numeroFatura', f.numero || '');
+    setValue('estadoFatura', f.estado || 'Pendente');
+    setValue('observacoesFatura', f.descricao || '');
+    setValue('tipoFatura', f.tipo || 'Fatura');
+    if (f.eventoId) setValue('eventoFatura', String(f.eventoId)); else setValue('eventoFatura', '');
+    editingFaturaId = id;
+    const btn = document.getElementById('btnSalvarFatura') as HTMLButtonElement | null;
+    if (btn) btn.textContent = '💾 Guardar Alterações';
+    document.getElementById('formularioFatura')?.scrollIntoView({ behavior: 'smooth' });
+  } catch {
+    showNotification('❌ Erro ao carregar fatura para edição', 'error');
+  }
+}
+
+async function removerFatura(id: number) {
+  if (!confirm('Tem a certeza que deseja remover esta fatura?')) return;
+  try {
+    const resp = await fetch(`${API_FATURAS}/${id}`, { method: 'DELETE' });
+    if (!resp.ok) throw new Error('Erro ao remover fatura');
+    showNotification('Fatura removida com sucesso!', 'success');
+    await Promise.all([carregarFaturas(), carregarEventosResumo(), carregarMovimentos()]);
+  } catch {
+    showNotification('❌ Erro ao remover fatura', 'error');
+  }
+}
+
+function atualizarDashboards(faturas: any[], movimentos: any[] = movimentosCache, receitas: any[] = receitasCache) {
+  renderDashboard(faturas, movimentos, receitas);
+  renderDashboardAno(faturas);
+  renderChartDepartamentos(faturas);
+  renderChartReceitas(receitas);
+}
+
+async function init() {
   aplicarDepartamentosFiltro();
+  aplicarCategoriasFiltroReceita();
   setupEventListeners();
-  carregarEventosSelect();
-  carregarEventosResumo();
-  carregarFaturas();
+  await Promise.all([carregarMovimentos(), carregarEventosSelect(), carregarEventosResumo()]);
+  await Promise.all([carregarFaturas(), carregarReceitas()]);
   setActiveSection('resumo');
 }
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => { void init(); });
