@@ -32,6 +32,9 @@ const SECTION_GROUPS: Record<string, string[]> = {
 
 let chartInstance: any = null;
 let chartReceitasInstance: any = null;
+let chartComparativoInstance: any = null;
+let chartTopDeptInstance: any = null;
+let chartForecastInstance: any = null;
 let editingEventoId: number | null = null;
 let editingFaturaId: number | null = null;
 let editingReceitaId: number | null = null;
@@ -223,6 +226,10 @@ function formatDate(value: string | null) {
 }
 function monthName(idx: number) {
   return ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx] || '';
+}
+
+function monthShortLabel(dateObj: Date) {
+  return `${monthName(dateObj.getMonth())}/${String(dateObj.getFullYear()).slice(-2)}`;
 }
 
 function setDefaultExportPeriodo() {
@@ -1190,6 +1197,159 @@ function renderChartReceitas(receitas: any[]) {
   });
 }
 
+function getLast12Months() {
+  const months: { label: string; year: number; month: number; }[] = [];
+  const now = new Date();
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({ label: monthShortLabel(d), year: d.getFullYear(), month: d.getMonth() });
+  }
+  return months;
+}
+
+function renderChartComparativo(faturas: any[], receitas: any[]) {
+  const ctx = document.getElementById('chartComparativo') as HTMLCanvasElement | null;
+  if (!ctx) return;
+  const months = getLast12Months();
+  const despesas = months.map(m => {
+    return faturas
+      .filter((f: any) => {
+        const d = new Date(f.data);
+        return d.getFullYear() === m.year && d.getMonth() === m.month;
+      })
+      .reduce((s: number, f: any) => s + Number(f.valor || 0), 0);
+  });
+  const recs = months.map(m => {
+    return receitas
+      .filter((r: any) => {
+        const d = new Date(r.data);
+        return d.getFullYear() === m.year && d.getMonth() === m.month;
+      })
+      .reduce((s: number, r: any) => s + Number(r.valor || 0), 0);
+  });
+
+  if (chartComparativoInstance) chartComparativoInstance.destroy();
+  chartComparativoInstance = new (window as any).Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: months.map(m => m.label),
+      datasets: [
+        { label: 'Despesas', data: despesas, backgroundColor: '#ef4444' },
+        { label: 'Receitas', data: recs, backgroundColor: '#22c55e' }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom' } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+}
+
+function renderChartTopDept(faturas: any[]) {
+  const ctx = document.getElementById('chartTopDept') as HTMLCanvasElement | null;
+  if (!ctx) return;
+  const map: Record<string, number> = {};
+  faturas.forEach((f: any) => {
+    if (!f.departamento) return;
+    map[f.departamento] = (map[f.departamento] || 0) + Number(f.valor || 0);
+  });
+  const sorted = Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const labels = sorted.map(([dep]) => dep);
+  const data = sorted.map(([, val]) => val as number);
+  if (chartTopDeptInstance) chartTopDeptInstance.destroy();
+  chartTopDeptInstance = new (window as any).Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label: 'Despesas', data, backgroundColor: '#3b82f6' }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true } }
+    }
+  });
+}
+
+function renderChartForecast(faturas: any[], receitas: any[]) {
+  const ctx = document.getElementById('chartForecast') as HTMLCanvasElement | null;
+  if (!ctx) return;
+  const months = getLast12Months();
+  const net = months.map(m => {
+    const desp = faturas
+      .filter((f: any) => {
+        const d = new Date(f.data);
+        return d.getFullYear() === m.year && d.getMonth() === m.month;
+      })
+      .reduce((s: number, f: any) => s + Number(f.valor || 0), 0);
+    const rec = receitas
+      .filter((r: any) => {
+        const d = new Date(r.data);
+        return d.getFullYear() === m.year && d.getMonth() === m.month;
+      })
+      .reduce((s: number, r: any) => s + Number(r.valor || 0), 0);
+    return rec - desp;
+  });
+
+  const actualLabels = months.slice(-6);
+  const actualNet = net.slice(-6);
+
+  const windowSize = 3;
+  const forecastPoints: number[] = [];
+  const last6 = net.slice(-6);
+  for (let i = 0; i < 3; i++) {
+    const start = Math.max(0, last6.length - windowSize + i);
+    const windowVals = last6.slice(start, start + windowSize);
+    const avg = windowVals.reduce((s, v) => s + v, 0) / (windowVals.length || 1);
+    forecastPoints.push(avg);
+    last6.push(avg);
+  }
+
+  const forecastLabels = [] as string[];
+  const base = months[months.length - 1];
+  for (let i = 1; i <= 3; i++) {
+    const d = new Date(base.year, base.month + i, 1);
+    forecastLabels.push(monthShortLabel(d));
+  }
+
+  if (chartForecastInstance) chartForecastInstance.destroy();
+  chartForecastInstance = new (window as any).Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [...actualLabels.map(l => l.label), ...forecastLabels],
+      datasets: [
+        {
+          label: 'Saldo mensal',
+          data: [...actualNet, ...Array(forecastPoints.length).fill(null)],
+          borderColor: '#2563eb',
+          backgroundColor: 'rgba(37,99,235,0.15)',
+          tension: 0.25,
+          spanGaps: true
+        },
+        {
+          label: 'Previsão (média móvel)',
+          data: [...Array(actualNet.length).fill(null), ...forecastPoints],
+          borderColor: '#f59e0b',
+          backgroundColor: 'rgba(245,158,11,0.2)',
+          borderDash: [6, 6],
+          tension: 0.25,
+          spanGaps: true
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom' } },
+      scales: { y: { beginAtZero: false } }
+    }
+  });
+}
+
 
 async function editarReceita(id: number) {
   try {
@@ -1273,6 +1433,9 @@ function atualizarDashboards(faturas: any[], movimentos: any[] = movimentosCache
   renderDashboardAno(faturas, receitas);
   renderChartDepartamentos(faturas);
   renderChartReceitas(receitas);
+  renderChartComparativo(faturas, receitas);
+  renderChartTopDept(faturas);
+  renderChartForecast(faturas, receitas);
 }
 
 async function startApp() {
