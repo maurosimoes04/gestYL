@@ -3,9 +3,10 @@
 // --- Constantes e estado global ---
 const API_EVENTOS = 'http://localhost:3000/eventos';
 const API_FATURAS = 'http://localhost:3000/faturas';
-const API_RECEITAS = 'http://localhost:3000/receitas';
-const API_MOVIMENTOS = 'http://localhost:3000/movimentos';
-const API_AUTH = 'http://localhost:3000/auth';
+const API_RECEITAS = 'http://localhost:3000/receitas'; 
+const API_MOVIMENTOS = 'http://localhost:3000/movimentos'; 
+const API_AUTH = 'http://localhost:3000/auth'; 
+const API_INVENTARIO = 'http://localhost:3000/inventario'; 
 const RECEITA_CATEGORIAS = [
   'Quotas',
   'Patrocínios/Doações',
@@ -24,10 +25,11 @@ const ALLOWED_DEPARTAMENTOS = [
 ];
 
 const SECTION_GROUPS: Record<string, string[]> = {
-  resumo: ['dashboard', 'dashboardAno'],
+  resumo: ['dashboard', 'dashboardAno', 'insights'],
   faturas: ['acoesRapidas', 'faturas'],
   receitas: ['acoesRapidasReceitas', 'receitas'],
-  eventos: ['eventos']
+  eventos: ['eventos'],
+  inventario: ['acoesRapidasInventario', 'inventario']
 };
 
 let chartInstance: any = null;
@@ -38,10 +40,12 @@ let chartForecastInstance: any = null;
 let editingEventoId: number | null = null;
 let editingFaturaId: number | null = null;
 let editingReceitaId: number | null = null;
+let editingInventarioId: number | null = null;
 let eventosCache: any[] = [];
 let faturasCache: any[] = [];
 let receitasCache: any[] = [];
 let movimentosCache: any[] = [];
+let inventarioCache: any[] = [];
 let authToken = localStorage.getItem('authToken') || '';
 let authRole: 'direcao' | 'fiscal' | '' = (localStorage.getItem('authRole') as any) || '';
 let isAuthenticated = false;
@@ -95,7 +99,7 @@ function updateAuthUI() {
   const hasWrite = authRole === 'direcao';
   const writeButtons = [
     'btnEscolherEvento', 'btnEscolherFatura', 'qaNovaFatura', 'qaNovoEvento',
-    'qaNovoEventoReceitas', 'qaNovaReceita', 'btnNovaReceita'
+    'qaNovoEventoReceitas', 'qaNovaReceita', 'btnNovaReceita', 'qaNovoInventario'
   ];
   writeButtons.forEach(id => {
     const el = document.getElementById(id);
@@ -345,6 +349,7 @@ function hideForms() {
   toggleSection('formularioFatura', false);
   toggleSection('formularioEvento', false);
   toggleSection('formularioReceita', false);
+  toggleSection('formularioInventario', false);
 }
 
 function setActiveNav(target: string) {
@@ -353,7 +358,7 @@ function setActiveNav(target: string) {
   });
 }
 
-function setActiveSection(target: 'resumo' | 'faturas' | 'receitas' | 'eventos') {
+function setActiveSection(target: 'resumo' | 'faturas' | 'receitas' | 'eventos' | 'inventario') {
   hideForms();
   const showSet = new Set(SECTION_GROUPS[target]);
   Object.values(SECTION_GROUPS).flat().forEach(id => {
@@ -571,6 +576,21 @@ function aplicarCategoriasFiltroReceita() {
   }
 }
 
+function atualizarSelectFaturaInventario() {
+  const select = document.getElementById('invFatura') as HTMLSelectElement | null;
+  if (!select) return;
+  const current = select.value;
+  select.innerHTML = '<option value="">Sem associação</option>';
+  faturasCache.forEach((f: any) => {
+    const label = f.numero ? `${f.numero} — ${f.titulo || 'Fatura'}` : (f.titulo || `Fatura #${f.id}`);
+    const opt = document.createElement('option');
+    opt.value = String(f.id);
+    opt.textContent = label;
+    select.appendChild(opt);
+  });
+  if (current) select.value = current;
+}
+
 async function carregarFaturas() {
   const tbody = document.getElementById('tabelaFaturas');
   if (!tbody) return;
@@ -591,8 +611,9 @@ async function carregarFaturas() {
     if (!resp.ok) throw new Error('Erro ao listar faturas');
     faturasCache = await resp.json();
     if (!Array.isArray(faturasCache) || faturasCache.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="10">Nenhuma fatura encontrada.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10">Nenhuma fatura encontrada.</td></tr>';
       atualizarDashboards([], movimentosCache, receitasCache);
+      atualizarSelectFaturaInventario();
       return;
     }
     tbody.innerHTML = faturasCache.map((f: any) => {
@@ -632,9 +653,11 @@ async function carregarFaturas() {
       });
     }
     atualizarDashboards(faturasCache, movimentosCache, receitasCache);
+    atualizarSelectFaturaInventario();
   } catch {
     tbody.innerHTML = '<tr><td colspan="10">Erro ao carregar faturas.</td></tr>';
     atualizarDashboards([], movimentosCache, receitasCache);
+    atualizarSelectFaturaInventario();
   }
 }
 
@@ -815,6 +838,177 @@ async function guardarReceita(e: SubmitEvent) {
   }
 }
 
+// --- Inventário ---
+async function carregarInventario() {
+  const tbodyConsumivel = document.getElementById('tabelaInventarioConsumivel');
+  const tbodyFixo = document.getElementById('tabelaInventarioFixo');
+  if (!tbodyConsumivel || !tbodyFixo) return;
+
+  const params = new URLSearchParams();
+  const tipo = getValue('filterInvTipo');
+  const q = getValue('filterInvQ');
+  if (tipo) params.append('tipo', tipo);
+  if (q) params.append('q', q);
+  const url = params.toString() ? `${API_INVENTARIO}?${params.toString()}` : API_INVENTARIO;
+
+  const renderTabela = (items: any[], tbody: HTMLElement, emptyMsg: string) => {
+    if (!items || items.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="11">${emptyMsg}</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = items.map((item: any) => {
+      const low = item.quantidadeMinima && item.quantidade < item.quantidadeMinima;
+      const actions = isReadOnly()
+        ? '-'
+        : `<button class="btn-acao btn-editar-inv" data-id="${item.id}" title="Editar">✏️</button>
+           <button class="btn-acao btn-remover-inv" data-id="${item.id}" title="Remover">🗑️</button>`;
+      const faturaNome = faturasCache.find((f: any) => f.id === item.faturaId)?.numero || faturasCache.find((f: any) => f.id === item.faturaId)?.titulo || '-';
+      return `<tr>
+        <td>${item.tipo || '-'}</td>
+        <td>${item.nome || '-'}</td>
+        <td>${item.categoria || '-'}</td>
+        <td class="${low ? 'low-stock' : ''}">${item.quantidade ?? '-'}</td>
+        <td>${item.unidade || '-'}</td>
+        <td>${item.localizacao || '-'}</td>
+        <td>${formatDate(item.dataValidade)}</td>
+        <td>${item.estado || '-'}</td>
+        <td>${item.custoUnitario ? formatCurrency(item.custoUnitario) : '-'}</td>
+        <td>${faturaNome || '-'}</td>
+        <td class="table-actions">${actions}</td>
+      </tr>`;
+    }).join('');
+
+    if (!isReadOnly()) {
+      tbody.querySelectorAll('.btn-editar-inv').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+          if (id) editarInventario(parseInt(id, 10));
+        });
+      });
+      tbody.querySelectorAll('.btn-remover-inv').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+          if (id) removerInventario(parseInt(id, 10));
+        });
+      });
+    }
+  };
+
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('Erro ao listar inventário');
+    inventarioCache = await resp.json();
+    const consumiveis = Array.isArray(inventarioCache) ? inventarioCache.filter((i: any) => i.tipo === 'consumivel') : [];
+    const fixos = Array.isArray(inventarioCache) ? inventarioCache.filter((i: any) => i.tipo === 'fixo') : [];
+
+    renderTabela(consumiveis, tbodyConsumivel, 'Nenhum item consumível encontrado.');
+    renderTabela(fixos, tbodyFixo, 'Nenhum item fixo encontrado.');
+  } catch {
+    inventarioCache = [];
+    tbodyConsumivel.innerHTML = '<tr><td colspan="11">Erro ao carregar inventário.</td></tr>';
+    tbodyFixo.innerHTML = '<tr><td colspan="11">Erro ao carregar inventário.</td></tr>';
+  }
+}
+
+async function exportarInventarioPdf() {
+  try {
+    const resp = await fetch(`${API_INVENTARIO}/export/pdf`);
+    if (!resp.ok) throw new Error('Erro no download');
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'inventario.pdf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch {
+    showNotification('Erro ao exportar PDF do inventário.', 'error');
+  }
+}
+
+async function editarInventario(id: number) {
+  try {
+    const item = inventarioCache.find((i: any) => i.id === id) || await (await fetch(`${API_INVENTARIO}/${id}`)).json();
+    if (!item) throw new Error('Item não encontrado');
+    setActiveSection('inventario');
+    toggleSection('formularioInventario', true);
+    atualizarSelectFaturaInventario();
+    setValue('invTipo', item.tipo || '');
+    setValue('invNome', item.nome || '');
+    setValue('invCategoria', item.categoria || '');
+    setValue('invQuantidade', item.quantidade?.toString() || '');
+    setValue('invUnidade', item.unidade || '');
+    setValue('invLocalizacao', item.localizacao || '');
+    setValue('invEstado', item.estado || '');
+    setValue('invCusto', item.custoUnitario?.toString() || '');
+    if (item.faturaId) setValue('invFatura', String(item.faturaId)); else setValue('invFatura', '');
+    setValue('invDataAquisicao', (item.dataAquisicao || '').slice(0, 10));
+    setValue('invDataValidade', (item.dataValidade || '').slice(0, 10));
+    setValue('invNotas', item.notas || '');
+    editingInventarioId = id;
+  } catch {
+    showNotification('❌ Erro ao carregar item', 'error');
+  }
+}
+
+async function removerInventario(id: number) {
+  if (!confirm('Remover este item?')) return;
+  if (isReadOnly()) { showNotification('Sem permissões para remover itens.', 'error'); return; }
+  try {
+    const resp = await fetch(`${API_INVENTARIO}/${id}`, { method: 'DELETE' });
+    if (!resp.ok) throw new Error('Erro ao remover');
+    showNotification('Item removido com sucesso!', 'success');
+    await carregarInventario();
+  } catch {
+    showNotification('❌ Erro ao remover item', 'error');
+  }
+}
+
+async function guardarInventario(e: SubmitEvent) {
+  e.preventDefault();
+  if (isReadOnly()) { showNotification('Sem permissões para alterar inventário.', 'error'); return; }
+  const payload: any = {
+    tipo: getValue('invTipo'),
+    nome: getValue('invNome').trim(),
+    categoria: getValue('invCategoria').trim() || undefined,
+    quantidade: parseFloat(getValue('invQuantidade') || '0'),
+    unidade: getValue('invUnidade').trim() || undefined,
+    localizacao: getValue('invLocalizacao').trim() || undefined,
+    estado: getValue('invEstado').trim() || undefined,
+    custoUnitario: getValue('invCusto') ? parseFloat(getValue('invCusto')) : undefined,
+    faturaId: getValue('invFatura') || undefined,
+    dataAquisicao: getValue('invDataAquisicao') || undefined,
+    dataValidade: getValue('invDataValidade') || undefined,
+    notas: getValue('invNotas').trim() || undefined
+  };
+
+  if (!payload.tipo || !payload.nome) {
+    showNotification('Tipo e nome são obrigatórios.', 'error');
+    return;
+  }
+
+  const url = editingInventarioId ? `${API_INVENTARIO}/${editingInventarioId}` : API_INVENTARIO;
+  const method = editingInventarioId ? 'PUT' : 'POST';
+
+  try {
+    const resp = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!resp.ok) throw new Error('Erro ao guardar item');
+    showNotification(editingInventarioId ? 'Item atualizado com sucesso!' : 'Item criado com sucesso!', 'success');
+    resetForm('inventarioForm');
+    toggleSection('formularioInventario', false);
+    editingInventarioId = null;
+    await carregarInventario();
+  } catch {
+    showNotification('❌ Erro ao guardar item', 'error');
+  }
+}
+
 // --- Inicialização ---
 function setupEventListeners() {
   if (listenersBound) return;
@@ -969,10 +1163,44 @@ function setupEventListeners() {
     });
   }
 
+  const btnCancelarInventario = document.getElementById('btnCancelarInventario');
+  if (btnCancelarInventario) {
+    btnCancelarInventario.addEventListener('click', () => {
+      toggleSection('formularioInventario', false);
+      resetForm('inventarioForm');
+      editingInventarioId = null;
+    });
+  }
+
+  const inventarioForm = document.getElementById('inventarioForm');
+  if (inventarioForm) inventarioForm.addEventListener('submit', guardarInventario);
+
+  const btnAplicarFiltrosInv = document.getElementById('btnAplicarFiltrosInv');
+  if (btnAplicarFiltrosInv) btnAplicarFiltrosInv.addEventListener('click', () => carregarInventario());
+
+  const qaNovoInventario = document.getElementById('qaNovoInventario');
+  if (qaNovoInventario) {
+    qaNovoInventario.addEventListener('click', () => {
+      if (isReadOnly()) { showNotification('Sem permissões para criar itens.', 'error'); return; }
+      setActiveSection('inventario');
+      resetForm('inventarioForm');
+      toggleSection('formularioInventario', true);
+      editingInventarioId = null;
+      document.getElementById('formularioInventario')?.scrollIntoView({ behavior: 'smooth' });
+    });
+  }
+
+  const qaExportInventario = document.getElementById('qaExportInventario');
+  if (qaExportInventario) {
+    qaExportInventario.addEventListener('click', () => {
+      void exportarInventarioPdf();
+    });
+  }
+
   document.querySelectorAll('.main-nav .nav-link').forEach(link => {
     link.addEventListener('click', (e) => {
       e.preventDefault();
-      const target = (e.currentTarget as HTMLElement).dataset.target as 'resumo' | 'faturas' | 'receitas' | 'eventos' | undefined;
+      const target = (e.currentTarget as HTMLElement).dataset.target as 'resumo' | 'faturas' | 'receitas' | 'eventos' | 'inventario' | undefined;
       if (!target) return;
       setActiveSection(target);
     });
@@ -1442,8 +1670,9 @@ async function startApp() {
   aplicarDepartamentosFiltro();
   aplicarCategoriasFiltroReceita();
   setupEventListeners();
-  await Promise.all([carregarMovimentos(), carregarEventosSelect(), carregarEventosResumo()]);
+  await Promise.all([carregarMovimentos(), carregarEventosSelect(), carregarEventosResumo(), carregarInventario()]);
   await Promise.all([carregarFaturas(), carregarReceitas()]);
+  atualizarSelectFaturaInventario();
   setActiveSection('resumo');
 }
 

@@ -56,10 +56,22 @@ async function ensureReceitaEventoColumn() {
   }
 }
 
+async function ensureInventarioValidadeColumn() {
+  const qi = sequelize.getQueryInterface();
+  const desc = await qi.describeTable('inventarios');
+  if (!desc.dataValidade) {
+    await qi.addColumn('inventarios', 'dataValidade', {
+      type: DataTypes.DATEONLY,
+      allowNull: true
+    });
+  }
+}
+
 
 sequelize.sync()
   .then(async () => {
     await ensureReceitaEventoColumn();
+    await ensureInventarioValidadeColumn();
     console.log('Base de dados sincronizada');
   })
 
@@ -73,6 +85,7 @@ import eventoRoutes from './routes/evento';
 import receitaRoutes from './routes/receita';
 import movimentoRoutes from './routes/movimento';
 import relatorioRoutes from './routes/relatorio';
+import inventarioRoutes from './routes/inventario';
 app.use(requireAuth);
 app.use(guardWrite);
 app.use('/faturas', faturaRoutes);
@@ -80,6 +93,7 @@ app.use('/eventos', eventoRoutes);
 app.use('/receitas', receitaRoutes);
 app.use('/movimentos', movimentoRoutes);
 app.use('/relatorios', relatorioRoutes);
+app.use('/inventario', inventarioRoutes);
 
 
 // Inicia o servidor se chamado diretamente (PT-PT)

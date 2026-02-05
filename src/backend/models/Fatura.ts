@@ -75,6 +75,11 @@ function createFaturaModel(sequelize: Sequelize) {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: { model: 'eventos', key: 'id' }
+    },
+    inventarioId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: { model: 'inventarios', key: 'id' }
     }
   });
 

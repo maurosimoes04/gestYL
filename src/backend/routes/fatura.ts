@@ -28,12 +28,13 @@ const DESPESAS_FOLDER_ID = process.env.GDRIVE_DESPESAS_FOLDER_ID || '1hPjxhbAXu0
 // GET /faturas - Lista faturas com filtros (PT-PT)
 router.get('/', async (req, res) => {
   try {
-    const { q, departamento, tipo, estado, dateFrom, dateTo, limit, offset, eventoId } = req.query as any;
+    const { q, departamento, tipo, estado, dateFrom, dateTo, limit, offset, eventoId, inventarioId } = req.query as any;
     const where: any = {};
     if (departamento) where.departamento = departamento;
     if (tipo) where.tipo = tipo;
     if (estado) where.estado = estado;
     if (eventoId) where.eventoId = eventoId;
+    if (inventarioId) where.inventarioId = inventarioId;
     if (q) {
       where[Op.or] = [
         { titulo: { [Op.like]: `%${q}%` } },
@@ -75,6 +76,8 @@ router.post('/', upload.single('anexo'), async (req, res) => {
   try {
     const payload = { ...req.body } as any;
     if (req.body.eventoId) payload.eventoId = req.body.eventoId;
+    if (req.body.inventarioId) payload.inventarioId = req.body.inventarioId;
+    if (req.body.inventarioId) payload.inventarioId = req.body.inventarioId;
     if (req.file) {
       const driveFile = await uploadBufferToDrive({
         buffer: req.file.buffer,

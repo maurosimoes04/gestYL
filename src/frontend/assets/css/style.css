@@ -242,6 +242,12 @@ body {
   color: #dc2626;
 }
 
+/* INVENTÁRIO */
+.low-stock {
+  color: #b91c1c;
+  font-weight: 700;
+}
+
 body.auth-locked main,
 body.auth-locked header {
   filter: blur(3px);
@@ -606,6 +612,12 @@ button,
   gap: 8px;
   transition: transform var(--transition), box-shadow var(--transition);
   text-decoration: none;
+}
+
+.ghost-action {
+  background: transparent;
+  color: var(--text-dark);
+  border: 1px solid #e2e8f0;
 }
 
 button:hover,
