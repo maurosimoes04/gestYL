@@ -4,6 +4,7 @@ import cors from 'cors';
 import path from 'path';
 import authRoutes from './routes/auth';
 import { requireAuth, guardWrite } from './middleware/auth';
+import { auditRoutes } from './middleware/auditMiddleware';
 
 const app = express();
 
@@ -20,6 +21,9 @@ app.get('/set-password', (_req, res) => {
 app.get('/reset-password', (_req, res) => {
   res.sendFile(path.join(frontendPath, 'reset-password.html'));
 });
+app.get('/admin', (_req, res) => {
+  res.sendFile(path.join(frontendPath, 'admin.html'));
+});
 
 // Rotas públicas de autenticação
 app.use('/auth', authRoutes);
@@ -34,12 +38,12 @@ import inventarioRoutes from './routes/inventario';
 
 app.use(requireAuth);
 app.use(guardWrite);
-app.use('/faturas', faturaRoutes);
-app.use('/eventos', eventoRoutes);
-app.use('/receitas', receitaRoutes);
-app.use('/movimentos', movimentoRoutes);
+app.use('/faturas', auditRoutes('fatura'), faturaRoutes);
+app.use('/eventos', auditRoutes('evento'), eventoRoutes);
+app.use('/receitas', auditRoutes('receita'), receitaRoutes);
+app.use('/movimentos', auditRoutes('movimento'), movimentoRoutes);
 app.use('/relatorios', relatorioRoutes);
-app.use('/inventario', inventarioRoutes);
+app.use('/inventario', auditRoutes('inventario'), inventarioRoutes);
 
 app.get('/', (_req, res) => {
   res.send('API Gestor de Faturas ativa');

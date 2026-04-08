@@ -118,3 +118,20 @@ model Receita {
 
   @@map("receitas")
 }
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    String?  @db.Uuid
+  email     String?
+  action    String   // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, etc.
+  entity    String?  // fatura, receita, evento, inventario, movimento, user
+  entityId  String?
+  details   Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

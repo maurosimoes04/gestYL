@@ -1,6 +1,7 @@
 import express from 'express';
 import { supabaseAdmin } from '../config/supabase';
 import { prisma } from '../config/prisma';
+import { logAudit } from '../services/audit';
 import { requireAuth } from '../middleware/auth';
 
 const router = express.Router();
@@ -22,6 +23,8 @@ router.post('/login', async (req, res) => {
     return res.status(403).json({ error: 'Conta desativada' });
   }
 
+  await logAudit({ action: 'LOGIN', entity: 'session', details: { email: profile.email, role: profile.role }, req });
+
   return res.json({
     token: data.session.access_token,
     refreshToken: data.session.refresh_token,
@@ -34,7 +37,7 @@ router.post('/login', async (req, res) => {
 
 // Logout
 router.post('/logout', requireAuth, async (req, res) => {
-  // Supabase invalida a sessão no lado do cliente; opcionalmente podemos revogar
+  await logAudit({ action: 'LOGOUT', entity: 'session', req });
   return res.json({ ok: true });
 });
 
@@ -142,9 +145,40 @@ router.delete('/users/:id', requireAuth, async (req, res) => {
   }
 
   const id = req.params.id as string;
+  const { logAudit: logAuditFn } = await import('../services/audit');
+  await logAuditFn({ action: 'DELETE', entity: 'user', entityId: id, req });
   await supabaseAdmin.auth.admin.deleteUser(id);
   await prisma.profile.delete({ where: { id } });
   return res.json({ message: 'Utilizador removido' });
+});
+
+// --- Auditoria (apenas admin) ---
+router.get('/audit', requireAuth, async (req, res) => {
+  if ((req as any).authRole !== 'admin') {
+    return res.status(403).json({ error: 'Apenas administradores' });
+  }
+
+  const { entity, userId, limit: lim, offset: off, dateFrom, dateTo } = req.query as any;
+  const where: any = {};
+  if (entity) where.entity = entity;
+  if (userId) where.userId = userId;
+  if (dateFrom || dateTo) {
+    where.createdAt = {};
+    if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+    if (dateTo) where.createdAt.lte = new Date(dateTo);
+  }
+
+  const [logs, total] = await Promise.all([
+    prisma.auditLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: parseInt(lim || '50', 10),
+      skip: parseInt(off || '0', 10),
+    }),
+    prisma.auditLog.count({ where }),
+  ]);
+
+  return res.json({ logs, total });
 });
 
 export default router;

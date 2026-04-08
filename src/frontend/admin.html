@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Gestão Financeira YL</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/admin.css">
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="main-header">
+    <div class="header-inner">
+      <a href="/" class="logo-block">
+        <img src="https://tnmycajugdovbnqydyvx.supabase.co/storage/v1/object/public/IMAGENS/logo.png" alt="Gestão Financeira YL" class="logo">
+      </a>
+      <nav class="header-nav">
+        <a href="/" class="nav-link">← Voltar ao sistema</a>
+        <span class="nav-badge">Admin</span>
+      </nav>
+      <button id="btnLogout" class="logout-btn">Terminar sessão</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- TABS -->
+    <div class="tabs">
+      <button class="tab active" data-tab="users">👥 Utilizadores</button>
+      <button class="tab" data-tab="audit">📋 Auditoria</button>
+    </div>
+
+    <!-- RESUMO -->
+    <section class="card fade-in">
+      <h2>👥 Utilizadores</h2>
+      <p class="subtitle" id="userCount">A carregar...</p>
+
+      <!-- FORM NOVO UTILIZADOR -->
+      <div class="invite-form" id="inviteForm">
+        <h3>Convidar utilizador</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="inviteEmail">Email</label>
+            <input id="inviteEmail" type="email" placeholder="email@exemplo.com" required>
+          </div>
+          <div class="form-group">
+            <label for="inviteNome">Nome</label>
+            <input id="inviteNome" type="text" placeholder="Nome completo">
+          </div>
+          <div class="form-group">
+            <label for="inviteRole">Perfil</label>
+            <select id="inviteRole">
+              <option value="fiscal">Fiscal (leitura)</option>
+              <option value="direcao">Direção (leitura + escrita)</option>
+              <option value="admin">Admin (tudo)</option>
+            </select>
+          </div>
+          <button id="btnInvite" class="btn-primary">Enviar convite</button>
+        </div>
+        <p class="form-msg" id="inviteMsg"></p>
+      </div>
+    </section>
+
+    <!-- TABELA DE UTILIZADORES -->
+    <section class="card fade-in" id="sectionUsers">
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Nome</th>
+              <th>Perfil</th>
+              <th>Estado</th>
+              <th>Criado em</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="usersTable">
+            <tr><td colspan="6">A carregar...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- AUDITORIA -->
+    <section class="card fade-in" id="sectionAudit" hidden>
+      <h2>📋 Registo de Auditoria</h2>
+      <div class="audit-filters">
+        <select id="auditEntity">
+          <option value="">Todas as entidades</option>
+          <option value="fatura">Faturas</option>
+          <option value="receita">Receitas</option>
+          <option value="evento">Eventos</option>
+          <option value="inventario">Inventário</option>
+          <option value="movimento">Movimentos</option>
+          <option value="user">Utilizadores</option>
+          <option value="session">Sessões</option>
+        </select>
+        <input type="date" id="auditFrom" placeholder="De">
+        <input type="date" id="auditTo" placeholder="Até">
+        <button id="btnAuditFilter" class="btn-primary">Filtrar</button>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Data/Hora</th>
+              <th>Utilizador</th>
+              <th>Ação</th>
+              <th>Entidade</th>
+              <th>ID</th>
+              <th>IP</th>
+              <th>Detalhes</th>
+            </tr>
+          </thead>
+          <tbody id="auditTable">
+            <tr><td colspan="7">A carregar...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <button id="auditPrev" disabled>← Anterior</button>
+        <span id="auditPageInfo">Página 1</span>
+        <button id="auditNext">Seguinte →</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- MODAL EDITAR -->
+  <div class="modal-backdrop" id="editModal" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Editar utilizador</h3>
+        <button class="modal-close" id="editModalClose">✖</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="editUserId">
+        <div class="form-group">
+          <label for="editNome">Nome</label>
+          <input id="editNome" type="text">
+        </div>
+        <div class="form-group">
+          <label for="editRole">Perfil</label>
+          <select id="editRole">
+            <option value="fiscal">Fiscal</option>
+            <option value="direcao">Direção</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="editAtivo">Estado</label>
+          <select id="editAtivo">
+            <option value="true">Ativo</option>
+            <option value="false">Desativado</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="btnSaveEdit" class="btn-primary">Guardar</button>
+        <button id="btnCancelEdit" class="btn-ghost">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTIFICATION -->
+  <div id="notification" class="notification" hidden></div>
+
+  <script>
+    const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+      ? 'http://localhost:3000' : 'https://gestor.younglink.net';
+    const API_AUTH = `${API_BASE}/auth`;
+    const token = localStorage.getItem('authToken') || '';
+    const role = localStorage.getItem('authRole') || '';
+
+    if (!token || role !== 'admin') {
+      window.location.href = '/';
+    }
+
+    function headers(json = true) {
+      const h = { 'Authorization': `Bearer ${token}` };
+      if (json) h['Content-Type'] = 'application/json';
+      return h;
+    }
+
+    function notify(msg, type = 'success') {
+      const el = document.getElementById('notification');
+      el.textContent = msg;
+      el.className = `notification ${type}`;
+      el.removeAttribute('hidden');
+      setTimeout(() => el.setAttribute('hidden', 'true'), 3500);
+    }
+
+    function roleLabel(r) {
+      return { admin: '🔑 Admin', direcao: '✏️ Direção', fiscal: '👁️ Fiscal' }[r] || r;
+    }
+
+    function roleBadgeClass(r) {
+      return { admin: 'badge-admin', direcao: 'badge-direcao', fiscal: 'badge-fiscal' }[r] || '';
+    }
+
+    async function loadUsers() {
+      try {
+        const resp = await fetch(`${API_AUTH}/users`, { headers: headers(false) });
+        if (!resp.ok) throw new Error();
+        const users = await resp.json();
+        document.getElementById('userCount').textContent = `${users.length} utilizador(es) registado(s)`;
+        const tbody = document.getElementById('usersTable');
+        if (!users.length) {
+          tbody.innerHTML = '<tr><td colspan="6">Nenhum utilizador.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = users.map(u => `
+          <tr>
+            <td>${u.email}</td>
+            <td>${u.nome || '-'}</td>
+            <td><span class="badge ${roleBadgeClass(u.role)}">${roleLabel(u.role)}</span></td>
+            <td><span class="status ${u.ativo ? 'status-ativo' : 'status-inativo'}">${u.ativo ? 'Ativo' : 'Desativado'}</span></td>
+            <td>${new Date(u.createdAt).toLocaleDateString('pt-PT')}</td>
+            <td class="actions-cell">
+              <button onclick="openEdit('${u.id}','${u.nome || ''}','${u.role}',${u.ativo})" class="btn-icon" title="Editar">✏️</button>
+              <button onclick="removeUser('${u.id}','${u.email}')" class="btn-icon btn-danger" title="Remover">🗑️</button>
+            </td>
+          </tr>
+        `).join('');
+      } catch {
+        document.getElementById('usersTable').innerHTML = '<tr><td colspan="6">Erro ao carregar utilizadores.</td></tr>';
+      }
+    }
+
+    // Convidar
+    document.getElementById('btnInvite').addEventListener('click', async () => {
+      const email = document.getElementById('inviteEmail').value.trim();
+      const nome = document.getElementById('inviteNome').value.trim();
+      const inviteRole = document.getElementById('inviteRole').value;
+      const msg = document.getElementById('inviteMsg');
+      if (!email) { msg.textContent = 'Email é obrigatório.'; msg.className = 'form-msg error'; return; }
+
+      try {
+        const resp = await fetch(`${API_AUTH}/users`, {
+          method: 'POST',
+          headers: headers(),
+          body: JSON.stringify({ email, nome, role: inviteRole })
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Erro');
+        msg.textContent = `Convite enviado para ${email}`;
+        msg.className = 'form-msg success';
+        document.getElementById('inviteEmail').value = '';
+        document.getElementById('inviteNome').value = '';
+        await loadUsers();
+      } catch (e) {
+        msg.textContent = e.message || 'Erro ao enviar convite.';
+        msg.className = 'form-msg error';
+      }
+    });
+
+    // Editar
+    function openEdit(id, nome, userRole, ativo) {
+      document.getElementById('editUserId').value = id;
+      document.getElementById('editNome').value = nome;
+      document.getElementById('editRole').value = userRole;
+      document.getElementById('editAtivo').value = String(ativo);
+      document.getElementById('editModal').removeAttribute('hidden');
+    }
+
+    function closeEdit() {
+      document.getElementById('editModal').setAttribute('hidden', 'true');
+    }
+
+    document.getElementById('editModalClose').addEventListener('click', closeEdit);
+    document.getElementById('btnCancelEdit').addEventListener('click', closeEdit);
+    document.getElementById('editModal').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('editModal')) closeEdit();
+    });
+
+    document.getElementById('btnSaveEdit').addEventListener('click', async () => {
+      const id = document.getElementById('editUserId').value;
+      const nome = document.getElementById('editNome').value.trim();
+      const editRole = document.getElementById('editRole').value;
+      const ativo = document.getElementById('editAtivo').value === 'true';
+      try {
+        const resp = await fetch(`${API_AUTH}/users/${id}`, {
+          method: 'PUT',
+          headers: headers(),
+          body: JSON.stringify({ nome, role: editRole, ativo })
+        });
+        if (!resp.ok) throw new Error();
+        notify('Utilizador atualizado.');
+        closeEdit();
+        await loadUsers();
+      } catch {
+        notify('Erro ao atualizar.', 'error');
+      }
+    });
+
+    // Remover
+    async function removeUser(id, email) {
+      if (!confirm(`Remover ${email}? Esta ação é irreversível.`)) return;
+      try {
+        const resp = await fetch(`${API_AUTH}/users/${id}`, { method: 'DELETE', headers: headers(false) });
+        if (!resp.ok) throw new Error();
+        notify('Utilizador removido.');
+        await loadUsers();
+      } catch {
+        notify('Erro ao remover.', 'error');
+      }
+    }
+
+    // Logout
+    document.getElementById('btnLogout').addEventListener('click', () => {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('authRole');
+      window.location.href = '/';
+    });
+
+    // Init
+    loadUsers();
+
+    // --- TABS ---
+    const tabs = document.querySelectorAll('.tab');
+    const usersSections = [document.querySelector('.card:nth-of-type(1)'), document.getElementById('sectionUsers')];
+    const auditSection = document.getElementById('sectionAudit');
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const target = tab.dataset.tab;
+        if (target === 'users') {
+          usersSections.forEach(s => { if (s) s.removeAttribute('hidden'); });
+          auditSection.setAttribute('hidden', 'true');
+        } else {
+          usersSections.forEach(s => { if (s) s.setAttribute('hidden', 'true'); });
+          auditSection.removeAttribute('hidden');
+          loadAudit();
+        }
+      });
+    });
+
+    // --- AUDITORIA ---
+    let auditPage = 0;
+    const auditLimit = 30;
+
+    function actionLabel(a) {
+      return { CREATE: '🟢 Criar', UPDATE: '🟡 Editar', DELETE: '🔴 Remover', LOGIN: '🔑 Login', LOGOUT: '🚪 Logout' }[a] || a;
+    }
+
+    function entityLabel(e) {
+      return { fatura: 'Fatura', receita: 'Receita', evento: 'Evento', inventario: 'Inventário', movimento: 'Movimento', user: 'Utilizador', session: 'Sessão' }[e] || e || '-';
+    }
+
+    async function loadAudit() {
+      const entity = document.getElementById('auditEntity').value;
+      const dateFrom = document.getElementById('auditFrom').value;
+      const dateTo = document.getElementById('auditTo').value;
+      const params = new URLSearchParams({ limit: String(auditLimit), offset: String(auditPage * auditLimit) });
+      if (entity) params.append('entity', entity);
+      if (dateFrom) params.append('dateFrom', dateFrom);
+      if (dateTo) params.append('dateTo', dateTo);
+
+      try {
+        const resp = await fetch(`${API_AUTH}/audit?${params}`, { headers: headers(false) });
+        if (!resp.ok) throw new Error();
+        const { logs, total } = await resp.json();
+        const tbody = document.getElementById('auditTable');
+        if (!logs.length) {
+          tbody.innerHTML = '<tr><td colspan="7">Sem registos.</td></tr>';
+        } else {
+          tbody.innerHTML = logs.map(l => `
+            <tr>
+              <td>${new Date(l.createdAt).toLocaleString('pt-PT')}</td>
+              <td>${l.email || '-'}</td>
+              <td>${actionLabel(l.action)}</td>
+              <td>${entityLabel(l.entity)}</td>
+              <td>${l.entityId || '-'}</td>
+              <td>${l.ip || '-'}</td>
+              <td class="audit-row-details" title="${l.details ? JSON.stringify(l.details).replace(/"/g, '&quot;') : ''}">${l.details ? JSON.stringify(l.details).slice(0, 60) : '-'}</td>
+            </tr>
+          `).join('');
+        }
+        const totalPages = Math.ceil(total / auditLimit);
+        document.getElementById('auditPageInfo').textContent = `Página ${auditPage + 1} de ${totalPages || 1} (${total} registos)`;
+        document.getElementById('auditPrev').disabled = auditPage === 0;
+        document.getElementById('auditNext').disabled = auditPage >= totalPages - 1;
+      } catch {
+        document.getElementById('auditTable').innerHTML = '<tr><td colspan="7">Erro ao carregar auditoria.</td></tr>';
+      }
+    }
+
+    document.getElementById('btnAuditFilter').addEventListener('click', () => { auditPage = 0; loadAudit(); });
+    document.getElementById('auditPrev').addEventListener('click', () => { if (auditPage > 0) { auditPage--; loadAudit(); } });
+    document.getElementById('auditNext').addEventListener('click', () => { auditPage++; loadAudit(); });
+  </script>
+</body>
+</html>
