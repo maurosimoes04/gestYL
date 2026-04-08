@@ -8,7 +8,7 @@ import { uploadBufferToDrive, deleteFromDrive } from '../services/googleDrive';
 const Receita = createReceitaModel(sequelize);
 const router = express.Router();
 
-const RECEITAS_FOLDER_ID = process.env.GDRIVE_RECEITAS_FOLDER_ID || '1de2J02zus3HnP3uW2ib7DWkgMQkDwIO7';
+const RECEITAS_FOLDER_ID = process.env.GDRIVE_RECEITAS_FOLDER_ID!;
 
 // Listar receitas (com filtros básicos)
 router.get('/', async (req, res) => {

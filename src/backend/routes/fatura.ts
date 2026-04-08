@@ -22,7 +22,7 @@ const FaturaModel = createFaturaModel(sequelize);
 
 import upload from '../middleware/upload';
 
-const DESPESAS_FOLDER_ID = process.env.GDRIVE_DESPESAS_FOLDER_ID || '1hPjxhbAXu0PzaZ7mqc5M-GbDetOjtwvB';
+const DESPESAS_FOLDER_ID = process.env.GDRIVE_DESPESAS_FOLDER_ID!; 
 
 
 // GET /faturas - Lista faturas com filtros (PT-PT)
