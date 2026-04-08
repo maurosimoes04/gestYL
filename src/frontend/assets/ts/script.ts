@@ -10,6 +10,7 @@ const API_RECEITAS = `${API_BASE}/receitas`;
 const API_MOVIMENTOS = `${API_BASE}/movimentos`; 
 const API_AUTH = `${API_BASE}/auth`; 
 const API_INVENTARIO = `${API_BASE}/inventario`; 
+const API_DEPARTAMENTOS = `${API_BASE}/departamentos`;
 const RECEITA_CATEGORIAS = [
   'Quotas',
   'Patrocínios/Doações',
@@ -18,14 +19,7 @@ const RECEITA_CATEGORIAS = [
   'Reembolsos',
   'Outros'
 ];
-const ALLOWED_DEPARTAMENTOS = [
-  'Cultural',
-  'Marketing e Multimédia',
-  'Desporto',
-  'Parcerias e Colaborações',
-  'Educação',
-  'Despesas Extraordinárias'
-];
+let departamentosCache: string[] = [];
 
 const SECTION_GROUPS: Record<string, string[]> = {
   resumo: ['dashboard', 'dashboardAno', 'insights'],
@@ -341,6 +335,32 @@ function setActiveSection(target: 'resumo' | 'faturas' | 'receitas' | 'eventos' 
   document.getElementById(firstId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// --- Departamentos: carregar da API ---
+async function carregarDepartamentos() {
+  try {
+    const resp = await fetch(API_DEPARTAMENTOS);
+    const deps = await resp.json();
+    departamentosCache = (deps as any[]).filter((d: any) => d.ativo).map((d: any) => d.nome);
+
+    // Preencher selects de departamento
+    const selects = ['departamento', 'eventoDepartamento', 'filterDepartamento'];
+    selects.forEach(id => {
+      const select = document.getElementById(id) as HTMLSelectElement | null;
+      if (!select) return;
+      const current = select.value;
+      const placeholder = id === 'filterDepartamento' ? '🏢 Todos' : 'Selecionar...';
+      select.innerHTML = `<option value="">${placeholder}</option>`;
+      departamentosCache.forEach(dep => {
+        const opt = document.createElement('option');
+        opt.value = dep;
+        opt.textContent = dep;
+        select.appendChild(opt);
+      });
+      if (current) select.value = current;
+    });
+  } catch {}
+}
+
 // --- Eventos: carregar, criar, editar e remover ---
 async function carregarEventosSelect() {
   try {
@@ -524,15 +544,7 @@ async function carregarEventosResumo() {
 
 // --- Faturas: carregar e criar ---
 function aplicarDepartamentosFiltro() {
-  const select = document.getElementById('filterDepartamento') as HTMLSelectElement | null;
-  if (!select) return;
-  if (select.options.length > 1) return; // já preenchido
-  ALLOWED_DEPARTAMENTOS.forEach(dep => {
-    const opt = document.createElement('option');
-    opt.value = dep;
-    opt.textContent = dep;
-    select.appendChild(opt);
-  });
+  // Departamentos são carregados dinamicamente via carregarDepartamentos()
 }
 
 function aplicarCategoriasFiltroReceita() {
@@ -1638,6 +1650,7 @@ function atualizarDashboards(faturas: any[], movimentos: any[] = movimentosCache
 }
 
 async function startApp() {
+  await carregarDepartamentos();
   aplicarDepartamentosFiltro();
   aplicarCategoriasFiltroReceita();
   setupEventListeners();
