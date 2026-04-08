@@ -14,12 +14,20 @@ app.use(express.json());
 const frontendPath = path.join(process.cwd(), 'src', 'frontend');
 app.use(express.static(frontendPath));
 
-// Páginas de auth (set-password, reset-password)
+// Páginas públicas
+app.get('/login', (_req, res) => {
+  res.sendFile(path.join(frontendPath, 'login.html'));
+});
 app.get('/set-password', (_req, res) => {
   res.sendFile(path.join(frontendPath, 'set-password.html'));
 });
 app.get('/reset-password', (_req, res) => {
   res.sendFile(path.join(frontendPath, 'reset-password.html'));
+});
+
+// Páginas protegidas (verificação feita no JS do cliente)
+app.get('/user', (_req, res) => {
+  res.sendFile(path.join(frontendPath, 'user.html'));
 });
 app.get('/admin', (_req, res) => {
   res.sendFile(path.join(frontendPath, 'admin.html'));
@@ -46,7 +54,7 @@ app.use('/relatorios', relatorioRoutes);
 app.use('/inventario', auditRoutes('inventario'), inventarioRoutes);
 
 app.get('/', (_req, res) => {
-  res.send('API Gestor de Faturas ativa');
+  res.redirect('/login');
 });
 
 export default app;

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — Gestão Financeira YL</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/login.css">
+</head>
+<body>
+  <div class="login-card">
+    <img src="https://tnmycajugdovbnqydyvx.supabase.co/storage/v1/object/public/IMAGENS/logo.png" alt="Gestão Financeira YL" class="login-logo">
+    <h1>Área restrita</h1>
+    <p class="login-subtitle">Aceda com as credenciais fornecidas pela equipa.</p>
+    <form id="loginForm" class="login-form">
+      <label for="loginEmail">Email</label>
+      <input id="loginEmail" name="email" type="email" autocomplete="email" required>
+      <label for="loginPass">Password</label>
+      <input id="loginPass" name="password" type="password" autocomplete="current-password" required>
+      <button type="submit" class="login-btn" id="loginBtn">Entrar</button>
+    </form>
+    <p class="msg" id="msg"></p>
+    <p class="login-hint">
+      <a href="/forgot-password" class="login-link">Esqueceu a password?</a>
+    </p>
+  </div>
+
+  <script>
+    const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+      ? 'http://localhost:3000' : 'https://gestor.younglink.net';
+
+    // Se já tem sessão válida, redirecionar
+    (async () => {
+      const token = localStorage.getItem('authToken');
+      const role = localStorage.getItem('authRole');
+      if (token) {
+        try {
+          const resp = await fetch(`${API_BASE}/auth/status`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.role) localStorage.setItem('authRole', data.role);
+            window.location.href = data.role === 'admin' ? '/admin' : '/user';
+            return;
+          }
+        } catch {}
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('authRole');
+      }
+    })();
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('loginEmail').value.trim();
+      const password = document.getElementById('loginPass').value;
+      const msg = document.getElementById('msg');
+      const btn = document.getElementById('loginBtn');
+
+      if (!email || !password) {
+        msg.textContent = 'Preencha email e password.';
+        msg.className = 'msg error';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'A entrar...';
+      msg.textContent = '';
+
+      try {
+        const resp = await fetch(`${API_BASE}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          throw new Error(data.error || 'Credenciais inválidas');
+        }
+
+        const data = await resp.json();
+        localStorage.setItem('authToken', data.token);
+        localStorage.setItem('authRole', data.role);
+
+        msg.textContent = 'Sessão iniciada! A redirecionar...';
+        msg.className = 'msg success';
+
+        setTimeout(() => {
+          window.location.href = data.role === 'admin' ? '/admin' : '/user';
+        }, 500);
+      } catch (err) {
+        msg.textContent = err.message || 'Credenciais inválidas ou servidor indisponível.';
+        msg.className = 'msg error';
+        btn.disabled = false;
+        btn.textContent = 'Entrar';
+      }
+    });
+  </script>
+</body>
+</html>

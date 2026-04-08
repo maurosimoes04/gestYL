@@ -66,21 +66,11 @@ const nativeFetch = window.fetch.bind(window);
 };
 
 function showAuthScreen() {
-  const authEl = document.getElementById('authScreen');
-  if (authEl) {
-    authEl.removeAttribute('hidden');
-    authEl.style.display = 'flex';
-  }
-  document.body.classList.add('auth-locked');
+  window.location.href = '/login';
 }
 
 function hideAuthScreen() {
-  const authEl = document.getElementById('authScreen');
-  if (authEl) {
-    authEl.setAttribute('hidden', 'true');
-    authEl.style.display = 'none';
-  }
-  document.body.classList.remove('auth-locked');
+  // Nada a fazer — já estamos na página correta
 }
 
 function setAuthToken(token: string) {
@@ -122,35 +112,8 @@ function isReadOnly() {
 }
 
 async function handleLogin(e: SubmitEvent) {
+  // Login é feito na página /login
   e.preventDefault();
-  const email = getValue('loginUser').trim();
-  const password = getValue('loginPass');
-  if (!email || !password) {
-    showNotification('Preencha email e password.', 'error');
-    return;
-  }
-  try {
-    const resp = await nativeFetch(`${API_AUTH}/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-    if (!resp.ok) throw new Error('Login inválido');
-    const data = await resp.json();
-    setAuthToken(data.token);
-    setAuthRole(data.role);
-    isAuthenticated = true;
-    if (data.role === 'admin') {
-      window.location.href = '/admin';
-      return;
-    }
-    hideAuthScreen();
-    updateAuthUI();
-    showNotification('Sessão iniciada com sucesso!', 'success');
-    await startApp();
-  } catch {
-    showNotification('Credenciais inválidas ou servidor indisponível.', 'error');
-  }
 }
 
 function handleLogout(showMessage = true) {
@@ -160,9 +123,7 @@ function handleLogout(showMessage = true) {
   isAuthenticated = false;
   localStorage.removeItem('authToken');
   localStorage.removeItem('authRole');
-  updateAuthUI();
-  showAuthScreen();
-  if (showMessage) showNotification('Sessão terminada.', 'success');
+  window.location.href = '/login';
 }
 
 async function validateSession(): Promise<boolean> {
@@ -191,15 +152,14 @@ async function bootstrapAuth() {
   const valid = await validateSession();
   if (valid) {
     isAuthenticated = true;
-    if (authRole === 'admin' && !window.location.pathname.startsWith('/admin')) {
+    if (authRole === 'admin') {
       window.location.href = '/admin';
       return;
     }
-    hideAuthScreen();
     updateAuthUI();
     await startApp();
   } else {
-    showAuthScreen();
+    window.location.href = '/login';
   }
 }
 

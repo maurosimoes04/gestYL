@@ -174,7 +174,7 @@
     const role = localStorage.getItem('authRole') || '';
 
     if (!token || role !== 'admin') {
-      window.location.href = '/';
+      window.location.href = '/login';
     }
 
     function headers(json = true) {
@@ -311,7 +311,7 @@
     document.getElementById('btnLogout').addEventListener('click', () => {
       localStorage.removeItem('authToken');
       localStorage.removeItem('authRole');
-      window.location.href = '/';
+      window.location.href = '/login';
     });
 
     // Init
