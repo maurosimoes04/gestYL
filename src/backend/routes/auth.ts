@@ -86,21 +86,19 @@ router.get('/users', requireAuth, async (req, res) => {
   return res.json(profiles);
 });
 
-// Criar utilizador
+// Criar utilizador (envia convite por email)
 router.post('/users', requireAuth, async (req, res) => {
   if ((req as any).authRole !== 'admin') {
     return res.status(403).json({ error: 'Apenas administradores' });
   }
 
-  const { email, password, nome, role } = req.body || {};
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email e password são obrigatórios' });
+  const { email, nome, role } = req.body || {};
+  if (!email) {
+    return res.status(400).json({ error: 'Email é obrigatório' });
   }
 
-  const { data, error } = await supabaseAdmin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
+  const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+    redirectTo: `${process.env.APP_URL || 'https://gestor.younglink.net'}/set-password`,
   });
   if (error) return res.status(400).json({ error: error.message });
 

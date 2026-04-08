@@ -13,6 +13,14 @@ app.use(express.json());
 const frontendPath = path.join(process.cwd(), 'src', 'frontend');
 app.use(express.static(frontendPath));
 
+// Páginas de auth (set-password, reset-password)
+app.get('/set-password', (_req, res) => {
+  res.sendFile(path.join(frontendPath, 'set-password.html'));
+});
+app.get('/reset-password', (_req, res) => {
+  res.sendFile(path.join(frontendPath, 'reset-password.html'));
+});
+
 // Rotas públicas de autenticação
 app.use('/auth', authRoutes);
 
