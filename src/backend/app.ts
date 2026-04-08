@@ -13,6 +13,7 @@ app.use(express.json());
 
 const frontendPath = path.join(process.cwd(), 'src', 'frontend');
 app.use(express.static(frontendPath));
+app.get('/favicon.ico', (_req, res) => res.status(204).end());
 
 // Páginas públicas
 app.get('/login', (_req, res) => {
@@ -31,6 +32,11 @@ app.get('/user', (_req, res) => {
 });
 app.get('/admin', (_req, res) => {
   res.sendFile(path.join(frontendPath, 'admin.html'));
+});
+
+// Redirect raiz para login
+app.get('/', (_req, res) => {
+  res.redirect('/login');
 });
 
 // Rotas públicas de autenticação
@@ -52,10 +58,6 @@ app.use('/receitas', auditRoutes('receita'), receitaRoutes);
 app.use('/movimentos', auditRoutes('movimento'), movimentoRoutes);
 app.use('/relatorios', relatorioRoutes);
 app.use('/inventario', auditRoutes('inventario'), inventarioRoutes);
-
-app.get('/', (_req, res) => {
-  res.redirect('/login');
-});
 
 export default app;
 
