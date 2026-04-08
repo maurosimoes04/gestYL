@@ -1,91 +1,29 @@
-
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-/**
- * Projeto: Gestão de Faturas - Backend
- * Versão: 1.0
- * Descrição: Aplicação principal Express para servir API e frontend.
- * Autor: Mauro Simões
- * Data: 20/11/2025
- */
-
 import path from 'path';
 import authRoutes from './routes/auth';
 import { requireAuth, guardWrite } from './middleware/auth';
 
 const app = express();
 
-
 app.use(cors());
-
-// Ativa CORS para todas as rotas (PT-PT)
-
-
-
-// Permite análise de JSON no corpo dos pedidos (PT-PT)
 app.use(express.json());
-
-
-// Serve ficheiros estáticos do frontend (PT-PT)
-
-
 
 const frontendPath = path.join(process.cwd(), 'src', 'frontend');
 app.use(express.static(frontendPath));
 
-app.use('/IMAGENS', express.static(path.join(process.cwd(), 'IMAGENS')));
-
 // Rotas públicas de autenticação
 app.use('/auth', authRoutes);
 
-// Sincroniza a base de dados (PT-PT)
-
-
-import { sequelize } from './config/database';
-import { DataTypes } from 'sequelize';
-
-async function ensureReceitaEventoColumn() {
-  const qi = sequelize.getQueryInterface();
-  const desc = await qi.describeTable('receitas');
-  if (!desc.eventoId) {
-    await qi.addColumn('receitas', 'eventoId', {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      references: { model: 'eventos', key: 'id' }
-    });
-  }
-}
-
-async function ensureInventarioValidadeColumn() {
-  const qi = sequelize.getQueryInterface();
-  const desc = await qi.describeTable('inventarios');
-  if (!desc.dataValidade) {
-    await qi.addColumn('inventarios', 'dataValidade', {
-      type: DataTypes.DATEONLY,
-      allowNull: true
-    });
-  }
-}
-
-
-sequelize.sync()
-  .then(async () => {
-    await ensureReceitaEventoColumn();
-    await ensureInventarioValidadeColumn();
-    console.log('Base de dados sincronizada');
-  })
-
-// Endpoint de estado (PT-PT)
-  .catch((err: any) => console.error('Erro ao sincronizar BD:', err));
-
-
-
+// Rotas protegidas
 import faturaRoutes from './routes/fatura';
 import eventoRoutes from './routes/evento';
 import receitaRoutes from './routes/receita';
 import movimentoRoutes from './routes/movimento';
 import relatorioRoutes from './routes/relatorio';
 import inventarioRoutes from './routes/inventario';
+
 app.use(requireAuth);
 app.use(guardWrite);
 app.use('/faturas', faturaRoutes);
@@ -95,16 +33,11 @@ app.use('/movimentos', movimentoRoutes);
 app.use('/relatorios', relatorioRoutes);
 app.use('/inventario', inventarioRoutes);
 
-
-// Inicia o servidor se chamado diretamente (PT-PT)
-
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.send('API Gestor de Faturas ativa');
 });
 
-
 export default app;
-
 
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;

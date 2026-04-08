@@ -13,7 +13,10 @@
     "start": "node dist/backend/app.js",
     "seed": "ts-node src/backend/seeds/seedFaturas.ts",
     "seed:demo": "ts-node src/backend/seeds/seedDemo.ts",
-    "db:reset": "ts-node src/backend/seeds/resetDb.ts"
+    "db:reset": "ts-node src/backend/seeds/resetDb.ts",
+    "db:migrate-supabase": "ts-node scripts/migrateToSupabase.ts",
+    "prisma:migrate": "npx prisma migrate dev --config prisma/prisma.config.ts",
+    "prisma:generate": "npx prisma generate"
   },
   "keywords": [
     "gestor",
@@ -27,26 +30,35 @@
   "author": "DAW 2024/2025",
   "license": "MIT",
   "dependencies": {
+    "@prisma/adapter-pg": "^7.7.0",
+    "@prisma/client": "^7.7.0",
+    "@supabase/supabase-js": "^2.102.1",
     "cors": "^2.8.6",
+    "dotenv": "^17.4.1",
     "express": "^4.22.1",
     "googleapis": "^144.0.0",
     "multer": "^2.0.2",
     "pdfkit": "^0.17.2",
+    "pg": "^8.20.0",
     "sequelize": "^6.37.7",
     "sqlite3": "^5.1.6",
     "undici-types": "^7.19.1",
     "uuid": "^13.0.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/multer": "^2.0.0",
     "@types/node": "^24.10.10",
     "@types/pdfkit": "^0.17.4",
+    "@types/pg": "^8.20.0",
     "@types/sequelize": "^4.28.20",
     "@types/uuid": "^10.0.0",
+    "better-sqlite3": "^12.8.0",
     "concurrently": "^9.2.1",
     "esbuild": "^0.27.2",
+    "prisma": "^7.7.0",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.3"
   }

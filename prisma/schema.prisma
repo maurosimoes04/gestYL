@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  admin
+  direcao
+  fiscal
+}
+
+model Profile {
+  id        String   @id @db.Uuid // matches Supabase auth.users.id
+  email     String   @unique
+  nome      String?
+  role      Role     @default(fiscal)
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("profiles")
+}
+
+model Evento {
+  id           Int       @id @default(autoincrement())
+  nome         String
+  descricao    String?
+  data_inicio  DateTime?
+  data_fim     DateTime?
+  departamento String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  faturas  Fatura[]
+  receitas Receita[]
+
+  @@map("eventos")
+}
+
+model Fatura {
+  id           Int       @id @default(autoincrement())
+  titulo       String
+  valor        Decimal   @db.Decimal(10, 2)
+  data         DateTime  @db.Date
+  departamento String
+  tipo         String    @default("Fatura")
+  numero       String?
+  anexo        Json?
+  detalhes     Json?
+  estado       String
+  descricao    String?
+  eventoId     Int?
+  inventarioId Int?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  evento     Evento?     @relation(fields: [eventoId], references: [id])
+  inventario Inventario? @relation(fields: [inventarioId], references: [id])
+
+  @@map("Faturas")
+}
+
+model Inventario {
+  id               Int       @id @default(autoincrement())
+  tipo             String
+  nome             String
+  categoria        String?
+  quantidade       Float     @default(0)
+  unidade          String?
+  localizacao      String?
+  estado           String?
+  custoUnitario    Float?
+  dataAquisicao    DateTime? @db.Date
+  dataValidade     DateTime? @db.Date
+  quantidadeMinima Float?
+  notas            String?
+  faturaId         Int?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  faturas Fatura[]
+
+  @@map("inventarios")
+}
+
+model Movimento {
+  id         Int      @id @default(autoincrement())
+  tipo       String
+  conta      String
+  valor      Decimal  @db.Decimal(10, 2)
+  data       DateTime @db.Date
+  referencia String?
+  descricao  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("movimentos")
+}
+
+model Receita {
+  id           Int      @id @default(autoincrement())
+  titulo       String
+  valor        Decimal  @db.Decimal(10, 2)
+  data         DateTime @db.Date
+  categoria    String
+  estado       String   @default("Previsto")
+  financiador  String?
+  anexo        Json?
+  observacoes  String?
+  eventoId     Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  evento Evento? @relation(fields: [eventoId], references: [id])
+
+  @@map("receitas")
+}

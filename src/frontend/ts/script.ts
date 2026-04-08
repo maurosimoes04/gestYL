@@ -15,7 +15,7 @@ function showNotif(message: string, type: 'success' | 'error' = 'success') {
 
 import { listarEventos, criarEvento } from './eventoApi';
 
-const API_URL = 'http://localhost:3000/faturas';
+const API_URL = 'https://gestor.younglink.net/faturas';
 
 declare const Chart: any;
 let chartInstance: any = null;

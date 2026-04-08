@@ -3,7 +3,7 @@
 // --- Constantes e estado global ---
 const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
   ? 'http://localhost:3000'
-  : window.location.origin;
+  : 'https://gestor.younglink.net';
 const API_EVENTOS = `${API_BASE}/eventos`;
 const API_FATURAS = `${API_BASE}/faturas`;
 const API_RECEITAS = `${API_BASE}/receitas`; 

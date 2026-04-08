@@ -1,287 +1,97 @@
-/**
- * Projeto: Gestão de Faturas - Backend
- * Versão: 1.0
- * Descrição: Rotas Express para operações CRUD de faturas.
- * Autor: Mauro Simões
- * Data: 21/11/2025
- */
-
 import express from 'express';
 import path from 'path';
-import { Op } from 'sequelize';
 import PDFDocument from 'pdfkit';
-
+import { prisma } from '../config/prisma';
+import { Prisma } from '@prisma/client';
 import { uploadBufferToDrive, deleteFromDrive } from '../services/googleDrive';
-
-const router = express.Router();
-
-
-import { sequelize } from '../config/database';
-import createFaturaModel from '../models/Fatura';
-const FaturaModel = createFaturaModel(sequelize);
-
 import upload from '../middleware/upload';
 
-const DESPESAS_FOLDER_ID = process.env.GDRIVE_DESPESAS_FOLDER_ID!; 
+const router = express.Router();
+const DESPESAS_FOLDER_ID = process.env.GDRIVE_DESPESAS_FOLDER_ID!;
 
-
-// GET /faturas - Lista faturas com filtros (PT-PT)
+// GET /faturas
 router.get('/', async (req, res) => {
   try {
     const { q, departamento, tipo, estado, dateFrom, dateTo, limit, offset, eventoId, inventarioId } = req.query as any;
-    const where: any = {};
+    const where: Prisma.FaturaWhereInput = {};
     if (departamento) where.departamento = departamento;
     if (tipo) where.tipo = tipo;
     if (estado) where.estado = estado;
-    if (eventoId) where.eventoId = eventoId;
-    if (inventarioId) where.inventarioId = inventarioId;
+    if (eventoId) where.eventoId = Number(eventoId);
+    if (inventarioId) where.inventarioId = Number(inventarioId);
     if (q) {
-      where[Op.or] = [
-        { titulo: { [Op.like]: `%${q}%` } },
-        { descricao: { [Op.like]: `%${q}%` } }
+      where.OR = [
+        { titulo: { contains: q, mode: 'insensitive' } },
+        { descricao: { contains: q, mode: 'insensitive' } },
       ];
     }
     if (dateFrom || dateTo) {
       where.data = {};
-      if (dateFrom) where.data[Op.gte] = dateFrom;
-      if (dateTo) where.data[Op.lte] = dateTo;
+      if (dateFrom) where.data.gte = new Date(dateFrom);
+      if (dateTo) where.data.lte = new Date(dateTo);
     }
 
-    const opts: any = { where, order: [['data', 'DESC']] };
-    if (limit) opts.limit = parseInt(limit, 10);
-    if (offset) opts.offset = parseInt(offset, 10);
-
-    const faturas = await FaturaModel.findAll(opts);
+    const faturas = await prisma.fatura.findMany({
+      where,
+      orderBy: { data: 'desc' },
+      ...(limit && { take: parseInt(limit, 10) }),
+      ...(offset && { skip: parseInt(offset, 10) }),
+    });
     res.json(faturas);
   } catch (error) {
     res.status(500).json({ erro: 'Erro ao obter faturas' });
   }
 });
 
-
-// GET /faturas/:id - Detalhe de uma fatura (PT-PT)
-router.get('/:id', async (req, res) => {
+// GET /faturas/export/pdf
+router.get('/export/pdf', async (_req, res) => {
   try {
-    const fatura: any = await FaturaModel.findByPk(req.params.id) as any;
-    if (fatura) res.json(fatura);
-    else res.status(404).json({ erro: 'Fatura não encontrada' });
-  } catch (error) {
-    res.status(500).json({ erro: 'Erro ao obter fatura' });
-  }
-});
-
-
-// POST /faturas - Cria nova fatura (PT-PT)
-router.post('/', upload.single('anexo'), async (req, res) => {
-  try {
-    const payload = { ...req.body } as any;
-    if (req.body.eventoId) payload.eventoId = req.body.eventoId;
-    if (req.body.inventarioId) payload.inventarioId = req.body.inventarioId;
-    if (req.body.inventarioId) payload.inventarioId = req.body.inventarioId;
-    if (req.file) {
-      const driveFile = await uploadBufferToDrive({
-        buffer: req.file.buffer,
-        filename: req.file.originalname,
-        mimeType: req.file.mimetype,
-        folderId: DESPESAS_FOLDER_ID
-      });
-
-      payload.anexo = {
-        originalName: req.file.originalname,
-        mimeType: req.file.mimetype,
-        size: req.file.size,
-        driveFileId: driveFile.id,
-        driveWebViewLink: driveFile.webViewLink,
-        driveWebContentLink: driveFile.webContentLink
-      };
-    }
-    const novaFatura = await FaturaModel.create(payload);
-    res.status(201).json(novaFatura);
-  } catch (error) {
-    console.error('Erro criar fatura:', error.message || error);
-    res.status(400).json({ erro: 'Erro ao criar fatura' });
-  }
-});
-
-
-router.put('/:id', upload.single('anexo'), async (req, res) => {
-  try {
-    // Ensure id is a string (handle string[] case)
-    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const fatura: any = await FaturaModel.findByPk(id) as any;
-    if (!fatura) return res.status(404).json({ erro: 'Fatura não encontrada' });
-    const payload = { ...req.body } as any;
-    if (req.file) {
-      if (fatura.anexo?.driveFileId) await deleteFromDrive(fatura.anexo.driveFileId);
-
-      const driveFile = await uploadBufferToDrive({
-        buffer: req.file.buffer,
-        filename: req.file.originalname,
-        mimeType: req.file.mimetype,
-        folderId: DESPESAS_FOLDER_ID
-      });
-
-      payload.anexo = {
-        originalName: req.file.originalname,
-        mimeType: req.file.mimetype,
-        size: req.file.size,
-        driveFileId: driveFile.id,
-        driveWebViewLink: driveFile.webViewLink,
-        driveWebContentLink: driveFile.webContentLink
-      };
-    }
-    await fatura.update(payload);
-    res.json(fatura);
-  } catch (error) {
-    console.error('Erro atualizar fatura:', error.message || error);
-    res.status(400).json({ erro: 'Erro ao atualizar fatura' });
-  }
-});
-
-
-router.delete('/:id', async (req, res) => {
-  try {
-    const fatura: any = await FaturaModel.findByPk(req.params.id) as any;
-    if (fatura) {
-      if (fatura.anexo?.driveFileId) {
-        try {
-          await deleteFromDrive(fatura.anexo.driveFileId);
-        } catch (driveErr) {
-          console.error('Falha ao apagar anexo no Drive:', driveErr);
-        }
-      }
-      await fatura.destroy();
-      res.json({ mensagem: 'Fatura eliminada com sucesso' });
-    } else res.status(404).json({ erro: 'Fatura não encontrada' });
-  } catch (error) {
-    console.error('Erro ao eliminar fatura:', error);
-    res.status(500).json({ erro: 'Erro ao eliminar fatura' });
-  }
-});
-
-
-/**
- * Exporta um relatório em PDF com resumo do mês, totais por tipo/estado,
- * lista de faturas e inclui informações de consolidação.
- */
-router.get('/export/pdf', async (req, res) => {
-  try {
-    const faturas: any = await FaturaModel.findAll({ order: [['data', 'DESC']] });
-
-    // Calcular dados do dashboard
+    const faturas = await prisma.fatura.findMany({ orderBy: { data: 'desc' } });
     const agora = new Date();
     const mesAtual = agora.getMonth();
     const anoAtual = agora.getFullYear();
 
-    const faturasMesAtual = faturas.filter((f: any) => {
+    const faturasMesAtual = faturas.filter((f) => {
       const d = new Date(f.data);
       return d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
     });
 
-    const totalMesAtual = faturasMesAtual.reduce((sum: number, f: any) => sum + parseFloat(f.valor), 0);
-    const totalRecorrentes = faturasMesAtual
-      .filter((f: any) => f.tipo?.includes('Recorrente'))
-      .reduce((sum: number, f: any) => sum + parseFloat(f.valor), 0);
-    const totalExtraordinarias = faturasMesAtual
-      .filter((f: any) => f.tipo?.includes('Extraordinária'))
-      .reduce((sum: number, f: any) => sum + parseFloat(f.valor), 0);
-    const totalPagas = faturasMesAtual
-      .filter((f: any) => f.estado === 'Paga')
-      .reduce((sum: number, f: any) => sum + parseFloat(f.valor), 0);
-    const totalPendentes = faturasMesAtual
-      .filter((f: any) => f.estado === 'Pendente')
-      .reduce((sum: number, f: any) => sum + parseFloat(f.valor), 0);
+    const toNum = (v: any) => Number(v) || 0;
+    const totalMesAtual = faturasMesAtual.reduce((s, f) => s + toNum(f.valor), 0);
+    const totalRecorrentes = faturasMesAtual.filter((f) => f.tipo?.includes('Recorrente')).reduce((s, f) => s + toNum(f.valor), 0);
+    const totalExtraordinarias = faturasMesAtual.filter((f) => f.tipo?.includes('Extraordinária')).reduce((s, f) => s + toNum(f.valor), 0);
+    const totalPagas = faturasMesAtual.filter((f) => f.estado === 'Paga').reduce((s, f) => s + toNum(f.valor), 0);
+    const totalPendentes = faturasMesAtual.filter((f) => f.estado === 'Pendente').reduce((s, f) => s + toNum(f.valor), 0);
 
-    // Departamento com maior gasto
-    const departamentosMap: any = {};
-    faturasMesAtual.forEach((f: any) => {
-      departamentosMap[f.departamento] = (departamentosMap[f.departamento] || 0) + parseFloat(f.valor);
+    const departamentosMap: Record<string, number> = {};
+    faturasMesAtual.forEach((f) => {
+      departamentosMap[f.departamento] = (departamentosMap[f.departamento] || 0) + toNum(f.valor);
     });
-    const departamentoTop = Object.entries(departamentosMap).reduce((a: any, b: any) => 
-      (b[1] as number) > (a[1] as number) ? b : a, ['', 0])[0];
+    const departamentoTop = Object.entries(departamentosMap).reduce((a, b) => (b[1] > a[1] ? b : a), ['', 0])[0];
 
-    // Criar PDF
     const doc = new PDFDocument({ margin: 40 });
     res.header('Content-Type', 'application/pdf');
     res.attachment('relatorio-despesas.pdf');
     doc.pipe(res);
 
-    // Título
     doc.fontSize(24).font('Helvetica-Bold').text('Relatório de Despesas', { align: 'center' });
     doc.fontSize(10).font('Helvetica').text(`Gerado em: ${new Date().toLocaleDateString('pt-PT')}`, { align: 'center' });
     doc.moveDown(1);
-
-    // Seção Dashboard
     doc.fontSize(16).font('Helvetica-Bold').text('Resumo do Mês Atual');
     doc.moveDown(0.3);
 
-    // Cards info
     const dashboardData = [
       `Total Gasto: ${totalMesAtual.toFixed(2)} €`,
       `Recorrentes: ${totalRecorrentes.toFixed(2)} €`,
       `Extraordinárias: ${totalExtraordinarias.toFixed(2)} €`,
       `Pagas: ${totalPagas.toFixed(2)} €`,
       `Pendentes: ${totalPendentes.toFixed(2)} €`,
-      `Departamento Top: ${departamentoTop || 'N/A'} (${departamentosMap[departamentoTop]?.toFixed(2) || '0.00'} € )`
+      `Departamento Top: ${departamentoTop || 'N/A'} (${(departamentosMap[departamentoTop] ?? 0).toFixed(2)} €)`,
     ];
-
     doc.fontSize(11).font('Helvetica');
-    dashboardData.forEach(item => {
-      doc.text(`  ${item}`);
-    });
-
+    dashboardData.forEach((item) => doc.text(`  ${item}`));
     doc.moveDown(1);
-
-    // Seção Lista de Faturas
-    doc.fontSize(16).font('Helvetica-Bold').text('Faturas do Mês');
-    doc.moveDown(0.3);
-
-    if (faturasMesAtual.length === 0) {
-      doc.fontSize(11).font('Helvetica').text('  Nenhuma fatura registada neste mês.');
-    } else {
-      // Cabeçalho da tabela
-      const tableTop = doc.y;
-      const col1 = 40;
-      const col2 = 180;
-      const col3 = 300;
-      const col4 = 400;
-      const col5 = 480;
-      const rowHeight = 20;
-
-      doc.fontSize(9).font('Helvetica-Bold');
-      doc.text('Título', col1, tableTop);
-      doc.text('Departamento', col2, tableTop);
-      doc.text('Tipo', col3, tableTop);
-      doc.text('Valor', col4, tableTop);
-      doc.text('Estado', col5, tableTop);
-
-      // Linha separadora
-      doc.moveTo(col1 - 10, tableTop + rowHeight - 5).lineTo(550, tableTop + rowHeight - 5).stroke();
-      doc.moveDown(1);
-
-      // Linhas de dados
-      doc.fontSize(8).font('Helvetica');
-      faturasMesAtual.forEach((f: any) => {
-        const currentY = doc.y;
-        const tipoSimplificado = f.tipo?.replace(/Despesas?\s*/gi, '') || '';
-        doc.text(f.titulo.substring(0, 30), col1, currentY, { width: 130 });
-        doc.text(f.departamento.substring(0, 20), col2, currentY, { width: 110 });
-        doc.text(tipoSimplificado.substring(0, 15), col3, currentY, { width: 90 });
-        doc.text(`${parseFloat(f.valor).toFixed(2)} €`, col4, currentY);
-        doc.text(f.estado, col5, currentY);
-        doc.moveDown(1);
-      });
-    }
-
-    doc.moveDown(1);
-
-    // Rodapé
-    doc.fontSize(8).font('Helvetica').text(
-      '---',
-      { align: 'center' }
-    );
-    doc.text('Relatório gerado automaticamente pelo Gestor de Despesas', { align: 'center' });
-
+    doc.fontSize(8).font('Helvetica').text('Relatório gerado automaticamente pelo Gestor de Despesas', { align: 'center' });
     doc.end();
   } catch (error) {
     console.error('Erro ao gerar PDF:', error);
@@ -289,21 +99,118 @@ router.get('/export/pdf', async (req, res) => {
   }
 });
 
-
-router.get('/:id/anexo', async (req, res) => {
+// GET /faturas/:id
+router.get('/:id', async (req, res) => {
   try {
-    const fatura: any = await FaturaModel.findByPk(req.params.id) as any;
-    if (!fatura || !fatura.anexo) return res.status(404).json({ erro: 'Anexo não encontrado' });
-    const link = fatura.anexo.driveWebContentLink || fatura.anexo.driveWebViewLink;
-    if (link) return res.redirect(link);
+    const fatura = await prisma.fatura.findUnique({ where: { id: Number(req.params.id) } });
+    if (fatura) res.json(fatura);
+    else res.status(404).json({ erro: 'Fatura não encontrada' });
+  } catch (error) {
+    res.status(500).json({ erro: 'Erro ao obter fatura' });
+  }
+});
 
-    if (fatura.anexo.path) {
-      const filePath = path.join(__dirname, '..', fatura.anexo.path);
-      return res.sendFile(path.resolve(filePath));
+// POST /faturas
+router.post('/', upload.single('anexo'), async (req, res) => {
+  try {
+    const payload: any = { ...req.body };
+    if (payload.eventoId) payload.eventoId = Number(payload.eventoId);
+    if (payload.inventarioId) payload.inventarioId = Number(payload.inventarioId);
+    if (req.file) {
+      const driveFile = await uploadBufferToDrive({
+        buffer: req.file.buffer,
+        filename: req.file.originalname,
+        mimeType: req.file.mimetype,
+        folderId: DESPESAS_FOLDER_ID,
+      });
+      payload.anexo = {
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        size: req.file.size,
+        driveFileId: driveFile.id,
+        driveWebViewLink: driveFile.webViewLink,
+        driveWebContentLink: driveFile.webContentLink,
+      };
+    }
+    const novaFatura = await prisma.fatura.create({ data: payload });
+    res.status(201).json(novaFatura);
+  } catch (error: any) {
+    console.error('Erro criar fatura:', error.message || error);
+    res.status(400).json({ erro: 'Erro ao criar fatura' });
+  }
+});
+
+// PUT /faturas/:id
+router.put('/:id', upload.single('anexo'), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const fatura = await prisma.fatura.findUnique({ where: { id } });
+    if (!fatura) return res.status(404).json({ erro: 'Fatura não encontrada' });
+
+    const payload: any = { ...req.body };
+    if (payload.eventoId) payload.eventoId = Number(payload.eventoId);
+    if (payload.inventarioId) payload.inventarioId = Number(payload.inventarioId);
+
+    if (req.file) {
+      const oldAnexo = fatura.anexo as any;
+      if (oldAnexo?.driveFileId) await deleteFromDrive(oldAnexo.driveFileId);
+
+      const driveFile = await uploadBufferToDrive({
+        buffer: req.file.buffer,
+        filename: req.file.originalname,
+        mimeType: req.file.mimetype,
+        folderId: DESPESAS_FOLDER_ID,
+      });
+      payload.anexo = {
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        size: req.file.size,
+        driveFileId: driveFile.id,
+        driveWebViewLink: driveFile.webViewLink,
+        driveWebContentLink: driveFile.webContentLink,
+      };
     }
 
-    return res.status(404).json({ erro: 'Link do anexo indisponível' });
+    const updated = await prisma.fatura.update({ where: { id }, data: payload });
+    res.json(updated);
+  } catch (error: any) {
+    console.error('Erro atualizar fatura:', error.message || error);
+    res.status(400).json({ erro: 'Erro ao atualizar fatura' });
+  }
+});
+
+// DELETE /faturas/:id
+router.delete('/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const fatura = await prisma.fatura.findUnique({ where: { id } });
+    if (!fatura) return res.status(404).json({ erro: 'Fatura não encontrada' });
+
+    const anexo = fatura.anexo as any;
+    if (anexo?.driveFileId) {
+      try { await deleteFromDrive(anexo.driveFileId); } catch (e) { console.error('Falha ao apagar anexo no Drive:', e); }
+    }
+
+    await prisma.fatura.delete({ where: { id } });
+    res.json({ mensagem: 'Fatura eliminada com sucesso' });
   } catch (error) {
+    console.error('Erro ao eliminar fatura:', error);
+    res.status(500).json({ erro: 'Erro ao eliminar fatura' });
+  }
+});
+
+// GET /faturas/:id/anexo
+router.get('/:id/anexo', async (req, res) => {
+  try {
+    const fatura = await prisma.fatura.findUnique({ where: { id: Number(req.params.id) } });
+    if (!fatura || !fatura.anexo) return res.status(404).json({ erro: 'Anexo não encontrado' });
+
+    const anexo = fatura.anexo as any;
+    const link = anexo.driveWebContentLink || anexo.driveWebViewLink;
+    if (link) return res.redirect(link);
+    if (anexo.path) return res.sendFile(path.resolve(path.join(__dirname, '..', anexo.path)));
+    return res.status(404).json({ erro: 'Link do anexo indisponível' });
+  } catch (error: any) {
     console.error('Erro servir anexo:', error.message || error);
     res.status(500).json({ erro: 'Erro ao servir anexo' });
   }

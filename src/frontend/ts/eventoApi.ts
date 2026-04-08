@@ -1,4 +1,4 @@
-const EVENTO_API_URL = 'http://localhost:3000/eventos';
+const EVENTO_API_URL = 'https://gestor.younglink.net/eventos';
 
 export async function listarEventos() {
   const res = await fetch(EVENTO_API_URL);
