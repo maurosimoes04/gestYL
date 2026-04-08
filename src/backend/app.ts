@@ -12,8 +12,8 @@ app.use(cors());
 app.use(express.json());
 
 const frontendPath = path.join(process.cwd(), 'src', 'frontend');
-app.use(express.static(frontendPath));
 app.get('/favicon.ico', (_req, res) => res.status(204).end());
+app.use(express.static(frontendPath));
 
 // Páginas públicas
 app.get('/login', (_req, res) => {
