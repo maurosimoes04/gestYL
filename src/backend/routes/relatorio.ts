@@ -55,9 +55,12 @@ router.get('/pdf', async (req, res) => {
     const tipo: TipoRelatorio = (req.query.tipo as TipoRelatorio) || 'ambos';
     const { inicio, fim, label: periodoLabel } = parsePeriodo(req.query);
 
+    type FaturaRow = Awaited<ReturnType<typeof prisma.fatura.findMany>>[number];
+    type ReceitaRow = Awaited<ReturnType<typeof prisma.receita.findMany>>[number];
+
     const [faturas, receitas, eventos] = await Promise.all([
-      tipo === 'receitas' ? Promise.resolve([]) : prisma.fatura.findMany({ where: { data: { gte: new Date(inicio), lte: new Date(fim) } }, orderBy: { data: 'desc' } }),
-      tipo === 'despesas' ? Promise.resolve([]) : prisma.receita.findMany({ where: { data: { gte: new Date(inicio), lte: new Date(fim) } }, orderBy: { data: 'desc' } }),
+      tipo === 'receitas' ? Promise.resolve([] as FaturaRow[]) : prisma.fatura.findMany({ where: { data: { gte: new Date(inicio), lte: new Date(fim) } }, orderBy: { data: 'desc' } }),
+      tipo === 'despesas' ? Promise.resolve([] as ReceitaRow[]) : prisma.receita.findMany({ where: { data: { gte: new Date(inicio), lte: new Date(fim) } }, orderBy: { data: 'desc' } }),
       prisma.evento.findMany(),
     ]);
 

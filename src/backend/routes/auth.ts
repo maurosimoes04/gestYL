@@ -124,7 +124,7 @@ router.put('/users/:id', requireAuth, async (req, res) => {
 
   const { role, ativo, nome } = req.body || {};
   const profile = await prisma.profile.update({
-    where: { id: req.params.id },
+    where: { id: req.params.id as string },
     data: {
       ...(role !== undefined && { role }),
       ...(ativo !== undefined && { ativo }),
@@ -140,8 +140,9 @@ router.delete('/users/:id', requireAuth, async (req, res) => {
     return res.status(403).json({ error: 'Apenas administradores' });
   }
 
-  await supabaseAdmin.auth.admin.deleteUser(req.params.id);
-  await prisma.profile.delete({ where: { id: req.params.id } });
+  const id = req.params.id as string;
+  await supabaseAdmin.auth.admin.deleteUser(id);
+  await prisma.profile.delete({ where: { id } });
   return res.json({ message: 'Utilizador removido' });
 });
 
