@@ -66,11 +66,14 @@ router.post('/reset-password', async (req, res) => {
     return res.status(400).json({ error: 'Token e nova password são obrigatórios' });
   }
 
-  const { error } = await supabaseAdmin.auth.admin.updateUserById(
-    // Primeiro obtemos o user pelo token
-    (await supabaseAdmin.auth.getUser(accessToken)).data.user?.id || '',
-    { password: newPassword }
-  );
+  const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
+  if (userError || !userData.user?.id) {
+    return res.status(401).json({ error: 'Token inválido ou expirado' });
+  }
+
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(userData.user.id, {
+    password: newPassword,
+  });
   if (error) return res.status(400).json({ error: 'Erro ao atualizar password' });
   return res.json({ message: 'Password atualizada com sucesso' });
 });
