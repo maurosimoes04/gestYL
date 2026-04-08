@@ -18,7 +18,10 @@
       <label for="loginEmail">Email</label>
       <input id="loginEmail" name="email" type="email" autocomplete="email" required>
       <label for="loginPass">Password</label>
-      <input id="loginPass" name="password" type="password" autocomplete="current-password" required>
+      <div class="pw-wrap">
+        <input id="loginPass" name="password" type="password" autocomplete="current-password" required>
+        <button type="button" class="pw-toggle" onclick="togglePw('loginPass', this)" aria-label="Mostrar password">👁️</button>
+      </div>
       <button type="submit" class="login-btn" id="loginBtn">Entrar</button>
     </form>
     <p class="msg" id="msg"></p>
@@ -28,6 +31,13 @@
   </div>
 
   <script>
+    function togglePw(id, btn) {
+      const input = document.getElementById(id);
+      const isPassword = input.type === 'password';
+      input.type = isPassword ? 'text' : 'password';
+      btn.textContent = isPassword ? '🙈' : '👁️';
+    }
+
     const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
       ? 'http://localhost:3000' : 'https://gestor.younglink.net';
 
