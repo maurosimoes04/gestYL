@@ -28,6 +28,7 @@
     <!-- TABS -->
     <div class="tabs">
       <button class="tab active" data-tab="users">👥 Utilizadores</button>
+      <button class="tab" data-tab="departamentos">🏢 Departamentos</button>
       <button class="tab" data-tab="audit">📋 Auditoria</button>
     </div>
 
@@ -83,6 +84,37 @@
       </div>
     </section>
 
+    <!-- DEPARTAMENTOS -->
+    <section class="card fade-in" id="sectionDepartamentos" hidden>
+      <h2>🏢 Departamentos</h2>
+      <div class="invite-form" id="depForm">
+        <h3>Novo departamento</h3>
+        <div class="form-row">
+          <div class="form-group" style="flex:2">
+            <label for="depNome">Nome</label>
+            <input id="depNome" type="text" placeholder="Nome do departamento" required>
+          </div>
+          <button id="btnAddDep" class="btn-primary">Adicionar</button>
+        </div>
+        <p class="form-msg" id="depMsg"></p>
+      </div>
+      <div class="table-wrapper" style="margin-top:16px">
+        <table>
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Estado</th>
+              <th>Criado em</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="depTable">
+            <tr><td colspan="4">A carregar...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- AUDITORIA -->
     <section class="card fade-in" id="sectionAudit" hidden>
       <h2>📋 Registo de Auditoria</h2>
@@ -127,7 +159,7 @@
     </section>
   </main>
 
-  <!-- MODAL EDITAR -->
+  <!-- MODAL EDITAR USER -->
   <div class="modal-backdrop" id="editModal" hidden>
     <div class="modal-card">
       <div class="modal-header">
@@ -159,6 +191,34 @@
       <div class="modal-actions">
         <button id="btnSaveEdit" class="btn-primary">Guardar</button>
         <button id="btnCancelEdit" class="btn-ghost">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL EDITAR DEPARTAMENTO -->
+  <div class="modal-backdrop" id="editDepModal" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Editar departamento</h3>
+        <button class="modal-close" id="editDepModalClose">✖</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="editDepId">
+        <div class="form-group">
+          <label for="editDepNome">Nome</label>
+          <input id="editDepNome" type="text">
+        </div>
+        <div class="form-group">
+          <label for="editDepAtivo">Estado</label>
+          <select id="editDepAtivo">
+            <option value="true">Ativo</option>
+            <option value="false">Desativado</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="btnSaveDepEdit" class="btn-primary">Guardar</button>
+        <button id="btnCancelDepEdit" class="btn-ghost">Cancelar</button>
       </div>
     </div>
   </div>
@@ -320,6 +380,7 @@
     // --- TABS ---
     const tabs = document.querySelectorAll('.tab');
     const usersSections = [document.querySelector('.card:nth-of-type(1)'), document.getElementById('sectionUsers')];
+    const depSection = document.getElementById('sectionDepartamentos');
     const auditSection = document.getElementById('sectionAudit');
 
     tabs.forEach(tab => {
@@ -327,16 +388,111 @@
         tabs.forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
         const target = tab.dataset.tab;
+        usersSections.forEach(s => { if (s) s.setAttribute('hidden', 'true'); });
+        depSection.setAttribute('hidden', 'true');
+        auditSection.setAttribute('hidden', 'true');
         if (target === 'users') {
           usersSections.forEach(s => { if (s) s.removeAttribute('hidden'); });
-          auditSection.setAttribute('hidden', 'true');
+        } else if (target === 'departamentos') {
+          depSection.removeAttribute('hidden');
+          loadDeps();
         } else {
-          usersSections.forEach(s => { if (s) s.setAttribute('hidden', 'true'); });
           auditSection.removeAttribute('hidden');
           loadAudit();
         }
       });
     });
+
+    // --- DEPARTAMENTOS ---
+    const API_DEP = `${API_BASE}/departamentos`;
+
+    async function loadDeps() {
+      try {
+        const resp = await fetch(API_DEP, { headers: headers(false) });
+        if (!resp.ok) throw new Error();
+        const deps = await resp.json();
+        const tbody = document.getElementById('depTable');
+        if (!deps.length) {
+          tbody.innerHTML = '<tr><td colspan="4">Nenhum departamento.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = deps.map(d => `
+          <tr>
+            <td>${d.nome}</td>
+            <td><span class="status ${d.ativo ? 'status-ativo' : 'status-inativo'}">${d.ativo ? 'Ativo' : 'Desativado'}</span></td>
+            <td>${new Date(d.createdAt).toLocaleDateString('pt-PT')}</td>
+            <td class="actions-cell">
+              <button onclick="openDepEdit(${d.id},'${d.nome.replace(/'/g, "\\'")}',${d.ativo})" class="btn-icon" title="Editar">✏️</button>
+              <button onclick="removeDep(${d.id},'${d.nome.replace(/'/g, "\\'")}')" class="btn-icon btn-danger" title="Remover">🗑️</button>
+            </td>
+          </tr>
+        `).join('');
+      } catch {
+        document.getElementById('depTable').innerHTML = '<tr><td colspan="4">Erro ao carregar.</td></tr>';
+      }
+    }
+
+    document.getElementById('btnAddDep').addEventListener('click', async () => {
+      const nome = document.getElementById('depNome').value.trim();
+      const depMsg = document.getElementById('depMsg');
+      if (!nome) { depMsg.textContent = 'Nome é obrigatório.'; depMsg.className = 'form-msg error'; return; }
+      try {
+        const resp = await fetch(API_DEP, {
+          method: 'POST', headers: headers(), body: JSON.stringify({ nome })
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Erro');
+        depMsg.textContent = `Departamento "${nome}" criado.`;
+        depMsg.className = 'form-msg success';
+        document.getElementById('depNome').value = '';
+        await loadDeps();
+      } catch (e) {
+        depMsg.textContent = e.message || 'Erro ao criar.';
+        depMsg.className = 'form-msg error';
+      }
+    });
+
+    function openDepEdit(id, nome, ativo) {
+      document.getElementById('editDepId').value = id;
+      document.getElementById('editDepNome').value = nome;
+      document.getElementById('editDepAtivo').value = String(ativo);
+      document.getElementById('editDepModal').removeAttribute('hidden');
+    }
+
+    function closeDepEdit() {
+      document.getElementById('editDepModal').setAttribute('hidden', 'true');
+    }
+
+    document.getElementById('editDepModalClose').addEventListener('click', closeDepEdit);
+    document.getElementById('btnCancelDepEdit').addEventListener('click', closeDepEdit);
+    document.getElementById('editDepModal').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('editDepModal')) closeDepEdit();
+    });
+
+    document.getElementById('btnSaveDepEdit').addEventListener('click', async () => {
+      const id = document.getElementById('editDepId').value;
+      const nome = document.getElementById('editDepNome').value.trim();
+      const ativo = document.getElementById('editDepAtivo').value === 'true';
+      try {
+        const resp = await fetch(`${API_DEP}/${id}`, {
+          method: 'PUT', headers: headers(), body: JSON.stringify({ nome, ativo })
+        });
+        if (!resp.ok) throw new Error();
+        notify('Departamento atualizado.');
+        closeDepEdit();
+        await loadDeps();
+      } catch { notify('Erro ao atualizar.', 'error'); }
+    });
+
+    async function removeDep(id, nome) {
+      if (!confirm(`Remover "${nome}"? Esta ação é irreversível.`)) return;
+      try {
+        const resp = await fetch(`${API_DEP}/${id}`, { method: 'DELETE', headers: headers(false) });
+        if (!resp.ok) throw new Error();
+        notify('Departamento removido.');
+        await loadDeps();
+      } catch { notify('Erro ao remover.', 'error'); }
+    }
 
     // --- AUDITORIA ---
     let auditPage = 0;

@@ -19,7 +19,15 @@ router.get('/', async (req, res) => {
       if (dateFrom) where.data.gte = new Date(dateFrom);
       if (dateTo) where.data.lte = new Date(dateTo);
     }
-    if (q) where.titulo = { contains: q, mode: 'insensitive' };
+    if (q) {
+      where.OR = [
+        { titulo: { contains: q, mode: 'insensitive' } },
+        { categoria: { contains: q, mode: 'insensitive' } },
+        { estado: { contains: q, mode: 'insensitive' } },
+        { financiador: { contains: q, mode: 'insensitive' } },
+        { observacoes: { contains: q, mode: 'insensitive' } },
+      ];
+    }
     const receitas = await prisma.receita.findMany({ where, orderBy: { data: 'desc' } });
     res.json(receitas);
   } catch (err) {
@@ -30,7 +38,10 @@ router.get('/', async (req, res) => {
 router.post('/', upload.single('anexo'), async (req, res) => {
   try {
     const payload: any = { ...req.body };
+    if (payload.valor) payload.valor = parseFloat(payload.valor);
+    if (payload.data) payload.data = new Date(payload.data);
     if (payload.eventoId) payload.eventoId = Number(payload.eventoId);
+    else delete payload.eventoId;
     if (req.file) {
       const driveFile = await uploadBufferToDrive({
         buffer: req.file.buffer,
@@ -85,7 +96,10 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     if (!receita) return res.status(404).json({ error: 'Receita não encontrada' });
 
     const payload: any = { ...req.body };
+    if (payload.valor) payload.valor = parseFloat(payload.valor);
+    if (payload.data) payload.data = new Date(payload.data);
     if (payload.eventoId) payload.eventoId = Number(payload.eventoId);
+    else delete payload.eventoId;
     if (req.file) {
       const oldAnexo = receita.anexo as any;
       if (oldAnexo?.driveFileId) await deleteFromDrive(oldAnexo.driveFileId);

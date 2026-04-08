@@ -23,6 +23,10 @@ router.get('/', async (req, res) => {
       where.OR = [
         { titulo: { contains: q, mode: 'insensitive' } },
         { descricao: { contains: q, mode: 'insensitive' } },
+        { departamento: { contains: q, mode: 'insensitive' } },
+        { tipo: { contains: q, mode: 'insensitive' } },
+        { numero: { contains: q, mode: 'insensitive' } },
+        { estado: { contains: q, mode: 'insensitive' } },
       ];
     }
     if (dateFrom || dateTo) {
@@ -114,8 +118,12 @@ router.get('/:id', async (req, res) => {
 router.post('/', upload.single('anexo'), async (req, res) => {
   try {
     const payload: any = { ...req.body };
+    if (payload.valor) payload.valor = parseFloat(payload.valor);
+    if (payload.data) payload.data = new Date(payload.data);
     if (payload.eventoId) payload.eventoId = Number(payload.eventoId);
+    else delete payload.eventoId;
     if (payload.inventarioId) payload.inventarioId = Number(payload.inventarioId);
+    else delete payload.inventarioId;
     if (req.file) {
       const driveFile = await uploadBufferToDrive({
         buffer: req.file.buffer,
@@ -148,8 +156,12 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     if (!fatura) return res.status(404).json({ erro: 'Fatura não encontrada' });
 
     const payload: any = { ...req.body };
+    if (payload.valor) payload.valor = parseFloat(payload.valor);
+    if (payload.data) payload.data = new Date(payload.data);
     if (payload.eventoId) payload.eventoId = Number(payload.eventoId);
+    else delete payload.eventoId;
     if (payload.inventarioId) payload.inventarioId = Number(payload.inventarioId);
+    else delete payload.inventarioId;
 
     if (req.file) {
       const oldAnexo = fatura.anexo as any;

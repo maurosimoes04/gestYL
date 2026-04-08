@@ -6,11 +6,13 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   if (process.env.AUTH_DISABLED === 'true') return next();
 
   const header = req.headers.authorization;
-  if (!header?.startsWith('Bearer ')) {
+  const queryToken = req.query.token as string | undefined;
+  const bearerToken = header?.startsWith('Bearer ') ? header.slice(7) : null;
+  const token = bearerToken || queryToken;
+
+  if (!token) {
     return res.status(401).json({ error: 'Não autorizado' });
   }
-
-  const token = header.slice(7);
   const { data, error } = await supabaseAdmin.auth.getUser(token);
   if (error || !data.user) {
     return res.status(401).json({ error: 'Sessão inválida' });

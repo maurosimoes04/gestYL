@@ -49,6 +49,7 @@ import receitaRoutes from './routes/receita';
 import movimentoRoutes from './routes/movimento';
 import relatorioRoutes from './routes/relatorio';
 import inventarioRoutes from './routes/inventario';
+import departamentoRoutes from './routes/departamento';
 
 app.use(requireAuth);
 app.use(guardWrite);
@@ -58,6 +59,7 @@ app.use('/receitas', auditRoutes('receita'), receitaRoutes);
 app.use('/movimentos', auditRoutes('movimento'), movimentoRoutes);
 app.use('/relatorios', relatorioRoutes);
 app.use('/inventario', auditRoutes('inventario'), inventarioRoutes);
+app.use('/departamentos', auditRoutes('departamento'), departamentoRoutes);
 
 export default app;
 

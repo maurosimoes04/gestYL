@@ -119,6 +119,16 @@ model Receita {
   @@map("receitas")
 }
 
+model Departamento {
+  id        Int      @id @default(autoincrement())
+  nome      String   @unique
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("departamentos")
+}
+
 model AuditLog {
   id        Int      @id @default(autoincrement())
   userId    String?  @db.Uuid
