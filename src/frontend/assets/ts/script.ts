@@ -140,6 +140,10 @@ async function handleLogin(e: SubmitEvent) {
     setAuthToken(data.token);
     setAuthRole(data.role);
     isAuthenticated = true;
+    if (data.role === 'admin') {
+      window.location.href = '/admin';
+      return;
+    }
     hideAuthScreen();
     updateAuthUI();
     showNotification('Sessão iniciada com sucesso!', 'success');
@@ -187,6 +191,10 @@ async function bootstrapAuth() {
   const valid = await validateSession();
   if (valid) {
     isAuthenticated = true;
+    if (authRole === 'admin' && !window.location.pathname.startsWith('/admin')) {
+      window.location.href = '/admin';
+      return;
+    }
     hideAuthScreen();
     updateAuthUI();
     await startApp();
