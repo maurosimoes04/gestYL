@@ -50,7 +50,7 @@ let receitasCache: any[] = [];
 let movimentosCache: any[] = [];
 let inventarioCache: any[] = [];
 let authToken = localStorage.getItem('authToken') || '';
-let authRole: 'direcao' | 'fiscal' | '' = (localStorage.getItem('authRole') as any) || '';
+let authRole: 'admin' | 'direcao' | 'fiscal' | '' = (localStorage.getItem('authRole') as any) || '';
 let isAuthenticated = false;
 let listenersBound = false;
 
@@ -88,7 +88,7 @@ function setAuthToken(token: string) {
   localStorage.setItem('authToken', token);
 }
 
-function setAuthRole(role: 'direcao' | 'fiscal') {
+function setAuthRole(role: 'admin' | 'direcao' | 'fiscal') {
   authRole = role;
   localStorage.setItem('authRole', role);
 }
@@ -99,7 +99,7 @@ function updateAuthUI() {
     if (isAuthenticated) btnLogout.removeAttribute('hidden');
     else btnLogout.setAttribute('hidden', 'true');
   }
-  const hasWrite = authRole === 'direcao';
+  const hasWrite = authRole === 'direcao' || authRole === 'admin';
   const writeButtons = [
     'btnEscolherEvento', 'btnEscolherFatura', 'qaNovaFatura', 'qaNovoEvento',
     'qaNovoEventoReceitas', 'qaNovaReceita', 'btnNovaReceita', 'qaNovoInventario'
@@ -123,17 +123,17 @@ function isReadOnly() {
 
 async function handleLogin(e: SubmitEvent) {
   e.preventDefault();
-  const username = getValue('loginUser').trim();
+  const email = getValue('loginUser').trim();
   const password = getValue('loginPass');
-  if (!username || !password) {
-    showNotification('Preencha utilizador e password.', 'error');
+  if (!email || !password) {
+    showNotification('Preencha email e password.', 'error');
     return;
   }
   try {
     const resp = await nativeFetch(`${API_AUTH}/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({ email, password })
     });
     if (!resp.ok) throw new Error('Login inválido');
     const data = await resp.json();
