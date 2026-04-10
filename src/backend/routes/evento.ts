@@ -5,7 +5,12 @@ const router = express.Router();
 
 router.post('/', async (req, res) => {
   try {
-    const evento = await prisma.evento.create({ data: req.body });
+    const payload: any = { ...req.body };
+    if (payload.data_inicio) payload.data_inicio = new Date(payload.data_inicio);
+    else delete payload.data_inicio;
+    if (payload.data_fim) payload.data_fim = new Date(payload.data_fim);
+    else delete payload.data_fim;
+    const evento = await prisma.evento.create({ data: payload });
     res.status(201).json(evento);
   } catch (err) {
     res.status(400).json({ error: 'Erro ao criar evento', details: err });
@@ -33,9 +38,12 @@ router.get('/:id', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
+    const payload: any = { ...req.body };
+    if (payload.data_inicio) payload.data_inicio = new Date(payload.data_inicio);
+    if (payload.data_fim) payload.data_fim = new Date(payload.data_fim);
     const evento = await prisma.evento.update({
       where: { id: Number(req.params.id) },
-      data: req.body,
+      data: payload,
     });
     res.json(evento);
   } catch (err) {

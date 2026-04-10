@@ -40,7 +40,17 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const novo = await prisma.inventario.create({ data: req.body });
+    const payload: any = { ...req.body };
+    if (payload.quantidade) payload.quantidade = parseFloat(payload.quantidade);
+    if (payload.custoUnitario) payload.custoUnitario = parseFloat(payload.custoUnitario);
+    if (payload.quantidadeMinima) payload.quantidadeMinima = parseFloat(payload.quantidadeMinima);
+    if (payload.dataAquisicao) payload.dataAquisicao = new Date(payload.dataAquisicao);
+    else delete payload.dataAquisicao;
+    if (payload.dataValidade) payload.dataValidade = new Date(payload.dataValidade);
+    else delete payload.dataValidade;
+    if (payload.faturaId) payload.faturaId = Number(payload.faturaId);
+    else delete payload.faturaId;
+    const novo = await prisma.inventario.create({ data: payload });
     res.status(201).json(novo);
   } catch (err) {
     res.status(400).json({ error: 'Erro ao criar item', details: err });
@@ -49,9 +59,16 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
+    const payload: any = { ...req.body };
+    if (payload.quantidade) payload.quantidade = parseFloat(payload.quantidade);
+    if (payload.custoUnitario) payload.custoUnitario = parseFloat(payload.custoUnitario);
+    if (payload.quantidadeMinima) payload.quantidadeMinima = parseFloat(payload.quantidadeMinima);
+    if (payload.dataAquisicao) payload.dataAquisicao = new Date(payload.dataAquisicao);
+    if (payload.dataValidade) payload.dataValidade = new Date(payload.dataValidade);
+    if (payload.faturaId) payload.faturaId = Number(payload.faturaId);
     const item = await prisma.inventario.update({
       where: { id: Number(req.params.id) },
-      data: req.body,
+      data: payload,
     });
     res.json(item);
   } catch (err) {

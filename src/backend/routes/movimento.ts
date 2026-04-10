@@ -24,7 +24,10 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const movimento = await prisma.movimento.create({ data: req.body });
+    const payload: any = { ...req.body };
+    if (payload.valor) payload.valor = parseFloat(payload.valor);
+    if (payload.data) payload.data = new Date(payload.data);
+    const movimento = await prisma.movimento.create({ data: payload });
     res.status(201).json(movimento);
   } catch (err) {
     res.status(400).json({ error: 'Erro ao criar movimento', details: err });
@@ -33,9 +36,12 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
+    const payload: any = { ...req.body };
+    if (payload.valor) payload.valor = parseFloat(payload.valor);
+    if (payload.data) payload.data = new Date(payload.data);
     const mov = await prisma.movimento.update({
       where: { id: Number(req.params.id) },
-      data: req.body,
+      data: payload,
     });
     res.json(mov);
   } catch (err) {
