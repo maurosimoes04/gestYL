@@ -117,7 +117,12 @@ router.get('/:id', async (req, res) => {
 // POST /faturas
 router.post('/', upload.single('anexo'), async (req, res) => {
   try {
-    const payload: any = { ...req.body };
+    const raw: any = { ...req.body };
+    // Limpar campos vazios do FormData
+    const payload: any = {};
+    for (const [k, v] of Object.entries(raw)) {
+      if (v !== '' && v !== null && v !== undefined) payload[k] = v;
+    }
     if (payload.valor) payload.valor = parseFloat(payload.valor);
     if (payload.data) payload.data = new Date(payload.data);
     if (payload.eventoId) payload.eventoId = Number(payload.eventoId);
@@ -144,7 +149,8 @@ router.post('/', upload.single('anexo'), async (req, res) => {
     res.status(201).json(novaFatura);
   } catch (error: any) {
     console.error('Erro criar fatura:', error.message || error);
-    res.status(400).json({ erro: 'Erro ao criar fatura' });
+    console.error('Prisma details:', JSON.stringify(error.meta || error.code || '', null, 2));
+    res.status(400).json({ erro: 'Erro ao criar fatura', details: error.message });
   }
 });
 
@@ -155,7 +161,11 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     const fatura = await prisma.fatura.findUnique({ where: { id } });
     if (!fatura) return res.status(404).json({ erro: 'Fatura não encontrada' });
 
-    const payload: any = { ...req.body };
+    const raw: any = { ...req.body };
+    const payload: any = {};
+    for (const [k, v] of Object.entries(raw)) {
+      if (v !== '' && v !== null && v !== undefined) payload[k] = v;
+    }
     if (payload.valor) payload.valor = parseFloat(payload.valor);
     if (payload.data) payload.data = new Date(payload.data);
     if (payload.eventoId) payload.eventoId = Number(payload.eventoId);

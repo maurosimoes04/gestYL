@@ -37,7 +37,11 @@ router.get('/', async (req, res) => {
 
 router.post('/', upload.single('anexo'), async (req, res) => {
   try {
-    const payload: any = { ...req.body };
+    const raw: any = { ...req.body };
+    const payload: any = {};
+    for (const [k, v] of Object.entries(raw)) {
+      if (v !== '' && v !== null && v !== undefined) payload[k] = v;
+    }
     if (payload.valor) payload.valor = parseFloat(payload.valor);
     if (payload.data) payload.data = new Date(payload.data);
     if (payload.eventoId) payload.eventoId = Number(payload.eventoId);
@@ -95,7 +99,11 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     const receita = await prisma.receita.findUnique({ where: { id } });
     if (!receita) return res.status(404).json({ error: 'Receita não encontrada' });
 
-    const payload: any = { ...req.body };
+    const raw: any = { ...req.body };
+    const payload: any = {};
+    for (const [k, v] of Object.entries(raw)) {
+      if (v !== '' && v !== null && v !== undefined) payload[k] = v;
+    }
     if (payload.valor) payload.valor = parseFloat(payload.valor);
     if (payload.data) payload.data = new Date(payload.data);
     if (payload.eventoId) payload.eventoId = Number(payload.eventoId);
