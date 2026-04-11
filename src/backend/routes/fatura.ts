@@ -129,28 +129,36 @@ router.post('/', upload.single('anexo'), async (req, res) => {
     else delete payload.eventoId;
     if (payload.inventarioId) payload.inventarioId = Number(payload.inventarioId);
     else delete payload.inventarioId;
-    if (req.file) {
-      const driveFile = await uploadBufferToDrive({
-        buffer: req.file.buffer,
-        filename: req.file.originalname,
-        mimeType: req.file.mimetype,
-        folderId: DESPESAS_FOLDER_ID,
-      });
-      payload.anexo = {
-        originalName: req.file.originalname,
-        mimeType: req.file.mimetype,
-        size: req.file.size,
-        driveFileId: driveFile.id,
-        driveWebViewLink: driveFile.webViewLink,
-        driveWebContentLink: driveFile.webContentLink,
-      };
+    if (req.file && DESPESAS_FOLDER_ID) {
+      try {
+        const driveFile = await uploadBufferToDrive({
+          buffer: req.file.buffer,
+          filename: req.file.originalname,
+          mimeType: req.file.mimetype,
+          folderId: DESPESAS_FOLDER_ID,
+        });
+        payload.anexo = {
+          originalName: req.file.originalname,
+          mimeType: req.file.mimetype,
+          size: req.file.size,
+          driveFileId: driveFile.id,
+          driveWebViewLink: driveFile.webViewLink,
+          driveWebContentLink: driveFile.webContentLink,
+        };
+      } catch (driveErr: any) {
+        console.error('Erro upload Drive:', driveErr.message);
+        // Continua sem anexo
+      }
     }
     const novaFatura = await prisma.fatura.create({ data: payload });
     res.status(201).json(novaFatura);
   } catch (error: any) {
     console.error('Erro criar fatura:', error.message || error);
-    console.error('Prisma details:', JSON.stringify(error.meta || error.code || '', null, 2));
-    res.status(400).json({ erro: 'Erro ao criar fatura', details: error.message });
+    const msg = error.code === 'P2002' ? 'Já existe uma fatura com estes dados'
+      : error.code === 'P2003' ? 'Evento ou inventário referenciado não existe'
+      : error.message?.includes('Argument') ? 'Campos obrigatórios em falta (título, valor, data, departamento, estado)'
+      : error.message || 'Erro desconhecido ao criar fatura';
+    res.status(400).json({ erro: 'Erro ao criar fatura', details: msg });
   }
 });
 
@@ -173,31 +181,38 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     if (payload.inventarioId) payload.inventarioId = Number(payload.inventarioId);
     else delete payload.inventarioId;
 
-    if (req.file) {
-      const oldAnexo = fatura.anexo as any;
-      if (oldAnexo?.driveFileId) await deleteFromDrive(oldAnexo.driveFileId);
+    if (req.file && DESPESAS_FOLDER_ID) {
+      try {
+        const oldAnexo = fatura.anexo as any;
+        if (oldAnexo?.driveFileId) await deleteFromDrive(oldAnexo.driveFileId);
 
-      const driveFile = await uploadBufferToDrive({
-        buffer: req.file.buffer,
-        filename: req.file.originalname,
-        mimeType: req.file.mimetype,
-        folderId: DESPESAS_FOLDER_ID,
-      });
-      payload.anexo = {
-        originalName: req.file.originalname,
-        mimeType: req.file.mimetype,
-        size: req.file.size,
-        driveFileId: driveFile.id,
-        driveWebViewLink: driveFile.webViewLink,
-        driveWebContentLink: driveFile.webContentLink,
-      };
+        const driveFile = await uploadBufferToDrive({
+          buffer: req.file.buffer,
+          filename: req.file.originalname,
+          mimeType: req.file.mimetype,
+          folderId: DESPESAS_FOLDER_ID,
+        });
+        payload.anexo = {
+          originalName: req.file.originalname,
+          mimeType: req.file.mimetype,
+          size: req.file.size,
+          driveFileId: driveFile.id,
+          driveWebViewLink: driveFile.webViewLink,
+          driveWebContentLink: driveFile.webContentLink,
+        };
+      } catch (driveErr: any) {
+        console.error('Erro upload Drive:', driveErr.message);
+      }
     }
 
     const updated = await prisma.fatura.update({ where: { id }, data: payload });
     res.json(updated);
   } catch (error: any) {
     console.error('Erro atualizar fatura:', error.message || error);
-    res.status(400).json({ erro: 'Erro ao atualizar fatura' });
+    const msg = error.code === 'P2003' ? 'Evento ou inventário referenciado não existe'
+      : error.message?.includes('Argument') ? 'Campos inválidos no pedido'
+      : error.message || 'Erro desconhecido ao atualizar fatura';
+    res.status(400).json({ erro: 'Erro ao atualizar fatura', details: msg });
   }
 });
 

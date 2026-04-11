@@ -46,26 +46,34 @@ router.post('/', upload.single('anexo'), async (req, res) => {
     if (payload.data) payload.data = new Date(payload.data);
     if (payload.eventoId) payload.eventoId = Number(payload.eventoId);
     else delete payload.eventoId;
-    if (req.file) {
-      const driveFile = await uploadBufferToDrive({
-        buffer: req.file.buffer,
-        filename: req.file.originalname,
-        mimeType: req.file.mimetype,
-        folderId: RECEITAS_FOLDER_ID,
-      });
-      payload.anexo = {
-        originalName: req.file.originalname,
-        mimeType: req.file.mimetype,
-        size: req.file.size,
-        driveFileId: driveFile.id,
-        driveWebViewLink: driveFile.webViewLink,
-        driveWebContentLink: driveFile.webContentLink,
-      };
+    if (req.file && RECEITAS_FOLDER_ID) {
+      try {
+        const driveFile = await uploadBufferToDrive({
+          buffer: req.file.buffer,
+          filename: req.file.originalname,
+          mimeType: req.file.mimetype,
+          folderId: RECEITAS_FOLDER_ID,
+        });
+        payload.anexo = {
+          originalName: req.file.originalname,
+          mimeType: req.file.mimetype,
+          size: req.file.size,
+          driveFileId: driveFile.id,
+          driveWebViewLink: driveFile.webViewLink,
+          driveWebContentLink: driveFile.webContentLink,
+        };
+      } catch (driveErr: any) {
+        console.error('Erro upload Drive receita:', driveErr.message);
+      }
     }
     const receita = await prisma.receita.create({ data: payload });
     res.status(201).json(receita);
-  } catch (err) {
-    res.status(400).json({ error: 'Erro ao criar receita', details: err });
+  } catch (err: any) {
+    console.error('Erro criar receita:', err.message || err);
+    const msg = err.code === 'P2003' ? 'Evento referenciado não existe'
+      : err.message?.includes('Argument') ? 'Campos obrigatórios em falta (título, valor, data, categoria, estado)'
+      : err.message || 'Erro desconhecido ao criar receita';
+    res.status(400).json({ error: 'Erro ao criar receita', details: msg });
   }
 });
 
@@ -108,29 +116,37 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     if (payload.data) payload.data = new Date(payload.data);
     if (payload.eventoId) payload.eventoId = Number(payload.eventoId);
     else delete payload.eventoId;
-    if (req.file) {
-      const oldAnexo = receita.anexo as any;
-      if (oldAnexo?.driveFileId) await deleteFromDrive(oldAnexo.driveFileId);
+    if (req.file && RECEITAS_FOLDER_ID) {
+      try {
+        const oldAnexo = receita.anexo as any;
+        if (oldAnexo?.driveFileId) await deleteFromDrive(oldAnexo.driveFileId);
 
-      const driveFile = await uploadBufferToDrive({
-        buffer: req.file.buffer,
-        filename: req.file.originalname,
-        mimeType: req.file.mimetype,
-        folderId: RECEITAS_FOLDER_ID,
-      });
-      payload.anexo = {
-        originalName: req.file.originalname,
-        mimeType: req.file.mimetype,
-        size: req.file.size,
-        driveFileId: driveFile.id,
-        driveWebViewLink: driveFile.webViewLink,
-        driveWebContentLink: driveFile.webContentLink,
-      };
+        const driveFile = await uploadBufferToDrive({
+          buffer: req.file.buffer,
+          filename: req.file.originalname,
+          mimeType: req.file.mimetype,
+          folderId: RECEITAS_FOLDER_ID,
+        });
+        payload.anexo = {
+          originalName: req.file.originalname,
+          mimeType: req.file.mimetype,
+          size: req.file.size,
+          driveFileId: driveFile.id,
+          driveWebViewLink: driveFile.webViewLink,
+          driveWebContentLink: driveFile.webContentLink,
+        };
+      } catch (driveErr: any) {
+        console.error('Erro upload Drive receita:', driveErr.message);
+      }
     }
     const updated = await prisma.receita.update({ where: { id }, data: payload });
     res.json(updated);
-  } catch (err) {
-    res.status(400).json({ error: 'Erro ao atualizar receita', details: err });
+  } catch (err: any) {
+    console.error('Erro atualizar receita:', err.message || err);
+    const msg = err.code === 'P2003' ? 'Evento referenciado não existe'
+      : err.message?.includes('Argument') ? 'Campos inválidos no pedido'
+      : err.message || 'Erro desconhecido ao atualizar receita';
+    res.status(400).json({ error: 'Erro ao atualizar receita', details: msg });
   }
 });
 

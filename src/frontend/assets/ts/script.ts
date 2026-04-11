@@ -445,7 +445,10 @@ async function guardarEvento(e: SubmitEvent) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    if (!resp.ok) throw new Error('Falha ao guardar');
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => ({}));
+      throw new Error(errData.details || errData.error || 'Erro ao guardar evento');
+    }
     showNotification(editingEventoId ? 'Evento atualizado com sucesso!' : 'Evento criado com sucesso!', 'success');
     resetForm('eventoForm');
     toggleSection('formularioEvento', false);
@@ -453,8 +456,8 @@ async function guardarEvento(e: SubmitEvent) {
     const btn = document.getElementById('eventoSubmitButton') as HTMLButtonElement | null;
     if (btn) btn.textContent = '💾 Guardar';
     await Promise.all([carregarEventosResumo(), carregarEventosSelect()]);
-  } catch {
-    showNotification('❌ Erro ao guardar evento', 'error');
+  } catch (err: any) {
+    showNotification(`❌ ${err.message || 'Erro ao guardar evento'}`, 'error');
   }
 }
 
@@ -679,7 +682,10 @@ async function guardarFatura(e: SubmitEvent) {
       method,
       body: formData
     });
-    if (!resp.ok) throw new Error('Erro ao guardar fatura');
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => ({}));
+      throw new Error(errData.details || errData.erro || 'Erro ao guardar fatura');
+    }
     showNotification(editingFaturaId ? 'Fatura atualizada com sucesso!' : 'Fatura criada com sucesso!', 'success');
     resetForm('faturaForm');
     toggleSection('formularioFatura', false);
@@ -687,8 +693,8 @@ async function guardarFatura(e: SubmitEvent) {
     const btn = document.getElementById('btnSalvarFatura') as HTMLButtonElement | null;
     if (btn) btn.textContent = '💾 Guardar';
     await Promise.all([carregarFaturas(), carregarEventosResumo(), carregarMovimentos()]);
-  } catch {
-    showNotification('❌ Erro ao guardar fatura', 'error');
+  } catch (err: any) {
+    showNotification(`❌ ${err.message || 'Erro ao guardar fatura'}`, 'error');
   }
 }
 
@@ -808,7 +814,10 @@ async function guardarReceita(e: SubmitEvent) {
       method,
       body: formData
     });
-    if (!resp.ok) throw new Error('Erro ao guardar receita');
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => ({}));
+      throw new Error(errData.details || errData.error || 'Erro ao guardar receita');
+    }
     showNotification(editingReceitaId ? 'Receita atualizada com sucesso!' : 'Receita criada com sucesso!', 'success');
     resetForm('receitaForm');
     toggleSection('formularioReceita', false);
@@ -816,8 +825,8 @@ async function guardarReceita(e: SubmitEvent) {
     const btn = document.getElementById('btnSalvarReceita') as HTMLButtonElement | null;
     if (btn) btn.textContent = '💾 Guardar';
     await Promise.all([carregarReceitas(), carregarMovimentos()]);
-  } catch {
-    showNotification('❌ Erro ao guardar receita', 'error');
+  } catch (err: any) {
+    showNotification(`❌ ${err.message || 'Erro ao guardar receita'}`, 'error');
   }
 }
 

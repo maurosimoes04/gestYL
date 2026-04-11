@@ -12,8 +12,11 @@ router.post('/', async (req, res) => {
     else delete payload.data_fim;
     const evento = await prisma.evento.create({ data: payload });
     res.status(201).json(evento);
-  } catch (err) {
-    res.status(400).json({ error: 'Erro ao criar evento', details: err });
+  } catch (err: any) {
+    console.error('Erro criar evento:', err.message || err);
+    const msg = err.message?.includes('Argument') ? 'Campos obrigatórios em falta (nome)'
+      : err.message || 'Erro desconhecido ao criar evento';
+    res.status(400).json({ error: 'Erro ao criar evento', details: msg });
   }
 });
 
@@ -46,8 +49,9 @@ router.put('/:id', async (req, res) => {
       data: payload,
     });
     res.json(evento);
-  } catch (err) {
-    res.status(400).json({ error: 'Erro ao atualizar evento', details: err });
+  } catch (err: any) {
+    console.error('Erro atualizar evento:', err.message || err);
+    res.status(400).json({ error: 'Erro ao atualizar evento', details: err.message || 'Erro desconhecido' });
   }
 });
 
