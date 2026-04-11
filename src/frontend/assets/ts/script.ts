@@ -369,13 +369,16 @@ async function carregarEventosSelect() {
     const selectFatura = document.getElementById('eventoFatura') as HTMLSelectElement | null;
     const selectReceita = document.getElementById('eventoReceita') as HTMLSelectElement | null;
     const selectFiltroReceita = document.getElementById('filterReceitaEvento') as HTMLSelectElement | null;
+    const selectFiltroDespesa = document.getElementById('filterEvento') as HTMLSelectElement | null;
     const optsList = eventosCache
       .map((ev: any) => `<option value="${ev.id}">${ev.nome}</option>`)
       .join('');
     const opts = '<option value="">Nenhum evento</option>' + optsList;
+    const optsFilter = '<option value="">🎉 Todos os eventos</option>' + optsList;
     if (selectFatura) selectFatura.innerHTML = opts;
     if (selectReceita) selectReceita.innerHTML = opts;
-    if (selectFiltroReceita) selectFiltroReceita.innerHTML = '<option value="">🎉 Todos os eventos</option>' + optsList;
+    if (selectFiltroReceita) selectFiltroReceita.innerHTML = optsFilter;
+    if (selectFiltroDespesa) selectFiltroDespesa.innerHTML = optsFilter;
   } catch {
     // Silencia erros neste ponto para não bloquear o fluxo principal
   }
@@ -586,11 +589,13 @@ async function carregarFaturas() {
   const q = getValue('filterQ');
   const departamento = getValue('filterDepartamento');
   const estado = getValue('filterEstado');
+  const eventoId = getValue('filterEvento');
   if (from) params.append('dateFrom', from);
   if (to) params.append('dateTo', to);
   if (q) params.append('q', q);
   if (departamento) params.append('departamento', departamento);
   if (estado) params.append('estado', estado);
+  if (eventoId) params.append('eventoId', eventoId);
 
   try {
     const resp = await fetch(`${API_FATURAS}?${params.toString()}`);
