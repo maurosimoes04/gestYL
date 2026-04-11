@@ -686,7 +686,11 @@ async function guardarFatura(e: SubmitEvent) {
       const errData = await resp.json().catch(() => ({}));
       throw new Error(errData.details || errData.erro || 'Erro ao guardar fatura');
     }
+    const result = await resp.json();
     showNotification(editingFaturaId ? 'Fatura atualizada com sucesso!' : 'Fatura criada com sucesso!', 'success');
+    if (result._warnings?.length) {
+      result._warnings.forEach((w: string) => showNotification(`⚠️ ${w}`, 'error'));
+    }
     resetForm('faturaForm');
     toggleSection('formularioFatura', false);
     editingFaturaId = null;
@@ -818,7 +822,11 @@ async function guardarReceita(e: SubmitEvent) {
       const errData = await resp.json().catch(() => ({}));
       throw new Error(errData.details || errData.error || 'Erro ao guardar receita');
     }
+    const result = await resp.json();
     showNotification(editingReceitaId ? 'Receita atualizada com sucesso!' : 'Receita criada com sucesso!', 'success');
+    if (result._warnings?.length) {
+      result._warnings.forEach((w: string) => showNotification(`⚠️ ${w}`, 'error'));
+    }
     resetForm('receitaForm');
     toggleSection('formularioReceita', false);
     editingReceitaId = null;

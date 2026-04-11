@@ -46,6 +46,7 @@ router.post('/', upload.single('anexo'), async (req, res) => {
     if (payload.data) payload.data = new Date(payload.data);
     if (payload.eventoId) payload.eventoId = Number(payload.eventoId);
     else delete payload.eventoId;
+    let driveError = '';
     if (req.file && RECEITAS_FOLDER_ID) {
       try {
         const driveFile = await uploadBufferToDrive({
@@ -63,10 +64,16 @@ router.post('/', upload.single('anexo'), async (req, res) => {
           driveWebContentLink: driveFile.webContentLink,
         };
       } catch (driveErr: any) {
-        console.error('Erro upload Drive receita:', driveErr.message);
+        driveError = driveErr.message || 'Erro desconhecido';
+        console.error('Erro upload Drive receita:', driveError);
       }
+    } else if (req.file && !RECEITAS_FOLDER_ID) {
+      driveError = 'Pasta do Google Drive não configurada (GDRIVE_RECEITAS_FOLDER_ID)';
     }
     const receita = await prisma.receita.create({ data: payload });
+    const warnings: string[] = [];
+    if (req.file && !payload.anexo) warnings.push(`Anexo não guardado: ${driveError}`);
+    res.status(201).json({ ...receita, _warnings: warnings.length ? warnings : undefined });
     res.status(201).json(receita);
   } catch (err: any) {
     console.error('Erro criar receita:', err.message || err);
@@ -116,6 +123,7 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     if (payload.data) payload.data = new Date(payload.data);
     if (payload.eventoId) payload.eventoId = Number(payload.eventoId);
     else delete payload.eventoId;
+    let driveError = '';
     if (req.file && RECEITAS_FOLDER_ID) {
       try {
         const oldAnexo = receita.anexo as any;
@@ -136,11 +144,16 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
           driveWebContentLink: driveFile.webContentLink,
         };
       } catch (driveErr: any) {
-        console.error('Erro upload Drive receita:', driveErr.message);
+        driveError = driveErr.message || 'Erro desconhecido';
+        console.error('Erro upload Drive receita:', driveError);
       }
+    } else if (req.file && !RECEITAS_FOLDER_ID) {
+      driveError = 'Pasta do Google Drive não configurada (GDRIVE_RECEITAS_FOLDER_ID)';
     }
     const updated = await prisma.receita.update({ where: { id }, data: payload });
-    res.json(updated);
+    const warnings: string[] = [];
+    if (req.file && !payload.anexo) warnings.push(`Anexo não guardado: ${driveError}`);
+    res.json({ ...updated, _warnings: warnings.length ? warnings : undefined });
   } catch (err: any) {
     console.error('Erro atualizar receita:', err.message || err);
     const msg = err.code === 'P2003' ? 'Evento referenciado não existe'

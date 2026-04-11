@@ -129,6 +129,7 @@ router.post('/', upload.single('anexo'), async (req, res) => {
     else delete payload.eventoId;
     if (payload.inventarioId) payload.inventarioId = Number(payload.inventarioId);
     else delete payload.inventarioId;
+    let driveError = '';
     if (req.file && DESPESAS_FOLDER_ID) {
       try {
         const driveFile = await uploadBufferToDrive({
@@ -146,12 +147,16 @@ router.post('/', upload.single('anexo'), async (req, res) => {
           driveWebContentLink: driveFile.webContentLink,
         };
       } catch (driveErr: any) {
-        console.error('Erro upload Drive:', driveErr.message);
-        // Continua sem anexo
+        driveError = driveErr.message || 'Erro desconhecido';
+        console.error('Erro upload Drive:', driveError);
       }
+    } else if (req.file && !DESPESAS_FOLDER_ID) {
+      driveError = 'Pasta do Google Drive não configurada (GDRIVE_DESPESAS_FOLDER_ID)';
     }
     const novaFatura = await prisma.fatura.create({ data: payload });
-    res.status(201).json(novaFatura);
+    const warnings: string[] = [];
+    if (req.file && !payload.anexo) warnings.push(`Anexo não guardado: ${driveError}`);
+    res.status(201).json({ ...novaFatura, _warnings: warnings.length ? warnings : undefined });
   } catch (error: any) {
     console.error('Erro criar fatura:', error.message || error);
     const msg = error.code === 'P2002' ? 'Já existe uma fatura com estes dados'
@@ -181,6 +186,7 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     if (payload.inventarioId) payload.inventarioId = Number(payload.inventarioId);
     else delete payload.inventarioId;
 
+    let driveError = '';
     if (req.file && DESPESAS_FOLDER_ID) {
       try {
         const oldAnexo = fatura.anexo as any;
@@ -201,12 +207,17 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
           driveWebContentLink: driveFile.webContentLink,
         };
       } catch (driveErr: any) {
-        console.error('Erro upload Drive:', driveErr.message);
+        driveError = driveErr.message || 'Erro desconhecido';
+        console.error('Erro upload Drive:', driveError);
       }
+    } else if (req.file && !DESPESAS_FOLDER_ID) {
+      driveError = 'Pasta do Google Drive não configurada (GDRIVE_DESPESAS_FOLDER_ID)';
     }
 
     const updated = await prisma.fatura.update({ where: { id }, data: payload });
-    res.json(updated);
+    const warnings: string[] = [];
+    if (req.file && !payload.anexo) warnings.push(`Anexo não guardado: ${driveError}`);
+    res.json({ ...updated, _warnings: warnings.length ? warnings : undefined });
   } catch (error: any) {
     console.error('Erro atualizar fatura:', error.message || error);
     const msg = error.code === 'P2003' ? 'Evento ou inventário referenciado não existe'
