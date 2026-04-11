@@ -506,8 +506,12 @@ async function carregarEventosResumo() {
       const dataInicio = formatDia(dataInicioRaw);
       const dataFim = formatDia(dataFimRaw);
       const intervalo = dataInicio && dataFim ? `${dataInicio} a ${dataFim}` : (dataInicio || dataFim || 'Sem data');
-      const actions = isReadOnly() ? '' : `
+      const actions = isReadOnly() ? `
         <div class="evento-actions">
+          <button class="btn-detalhe-evento" data-id="${ev.id}" title="Ver detalhes">🔍 Detalhes</button>
+        </div>` : `
+        <div class="evento-actions">
+          <button class="btn-detalhe-evento" data-id="${ev.id}" title="Ver detalhes">🔍 Detalhes</button>
           <button class="btn-editar-evento" data-id="${ev.id}" title="Editar evento">✏️ Editar</button>
           <button class="btn-remover-evento" data-id="${ev.id}" title="Remover evento">🗑️ Remover</button>
         </div>`;
@@ -528,6 +532,13 @@ async function carregarEventosResumo() {
         ${actions}
       </div>`;
     }).join('');
+    // Botão detalhes (sempre visível)
+    eventosLista.querySelectorAll('.btn-detalhe-evento').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+        if (id) abrirDetalheEvento(parseInt(id));
+      });
+    });
     if (!isReadOnly()) {
       eventosLista.querySelectorAll('.btn-editar-evento').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -547,6 +558,59 @@ async function carregarEventosResumo() {
   }
 }
 (window as any).carregarEventosResumo = carregarEventosResumo;
+
+// --- Detalhes Evento ---
+async function abrirDetalheEvento(id: number) {
+  try {
+    const resp = await fetch(`${API_EVENTOS}/${id}/details`);
+    if (!resp.ok) throw new Error('Erro ao obter detalhes');
+    const { evento, faturas, receitas, resumo } = await resp.json();
+
+    (document.getElementById('eventoDetailTitle') as HTMLElement).textContent = `🎉 ${evento.nome}`;
+    (document.getElementById('eventoDetailDesc') as HTMLElement).textContent = evento.descricao || '';
+    const deptEl = document.getElementById('eventoDetailDept') as HTMLElement;
+    deptEl.textContent = evento.departamento ? `🏢 ${evento.departamento}` : '';
+
+    // Dashboard
+    const dash = document.getElementById('eventoDetailDashboard') as HTMLElement;
+    const saldoClass = resumo.saldo >= 0 ? 'color:#16a34a' : 'color:#dc2626';
+    dash.innerHTML = `
+      <div class="summary-card"><div class="label">Receitas</div><div class="value" style="color:#16a34a">${formatCurrency(resumo.totalReceitas)}</div></div>
+      <div class="summary-card"><div class="label">Despesas</div><div class="value" style="color:#dc2626">${formatCurrency(resumo.totalDespesas)}</div></div>
+      <div class="summary-card"><div class="label">Saldo</div><div class="value" style="${saldoClass}">${formatCurrency(resumo.saldo)}</div></div>
+    `;
+
+    // Receitas
+    const recTbody = document.getElementById('eventoDetailReceitas') as HTMLElement;
+    recTbody.innerHTML = receitas.length
+      ? receitas.map((r: any) => `<tr><td>${r.titulo}</td><td>${r.categoria}</td><td>${formatDate(r.data)}</td><td>${formatCurrency(r.valor)}</td></tr>`).join('')
+      : '<tr><td colspan="4">Sem receitas associadas.</td></tr>';
+
+    // Faturas
+    const fatTbody = document.getElementById('eventoDetailFaturas') as HTMLElement;
+    fatTbody.innerHTML = faturas.length
+      ? faturas.map((f: any) => `<tr><td>${f.titulo}</td><td>${f.departamento}</td><td>${formatDate(f.data)}</td><td>${formatCurrency(f.valor)}</td></tr>`).join('')
+      : '<tr><td colspan="4">Sem despesas associadas.</td></tr>';
+
+    // PDF button
+    const pdfBtn = document.getElementById('eventoDetailPdf') as HTMLButtonElement;
+    pdfBtn.onclick = () => {
+      const pdfUrl = `${API_EVENTOS}/${id}/pdf${authToken ? `?token=${authToken}` : ''}`;
+      window.open(pdfUrl, '_blank');
+    };
+
+    // Show modal
+    const modal = document.getElementById('eventoDetailModal') as HTMLElement;
+    modal.removeAttribute('hidden');
+  } catch {
+    showNotification('❌ Erro ao carregar detalhes do evento', 'error');
+  }
+}
+
+function fecharDetalheEvento() {
+  const modal = document.getElementById('eventoDetailModal') as HTMLElement;
+  modal.setAttribute('hidden', 'true');
+}
 
 // --- Faturas: carregar e criar ---
 function aplicarDepartamentosFiltro() {
@@ -1018,6 +1082,13 @@ async function guardarInventario(e: SubmitEvent) {
 function setupEventListeners() {
   if (listenersBound) return;
   listenersBound = true;
+
+  // Modal detalhes evento
+  document.getElementById('eventoDetailClose')?.addEventListener('click', fecharDetalheEvento);
+  document.getElementById('eventoDetailCloseBtn')?.addEventListener('click', fecharDetalheEvento);
+  document.getElementById('eventoDetailModal')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('eventoDetailModal')) fecharDetalheEvento();
+  });
 
   setupExportRelatorio();
   const btnNovoEvento = document.getElementById('btnEscolherEvento');
