@@ -1,5 +1,4 @@
 import express from 'express';
-import PDFDocument from 'pdfkit';
 import { prisma } from '../config/prisma';
 import { getLogoBuffer } from '../utils/logo';
 
@@ -87,6 +86,7 @@ router.get('/:id/details', async (req, res) => {
 // GET /eventos/:id/pdf — relatório PDF do evento
 router.get('/:id/pdf', async (req, res) => {
   try {
+    const { default: PDFDocument } = await import('pdfkit');
     const id = Number(req.params.id);
     const evento = await prisma.evento.findUnique({ where: { id } });
     if (!evento) return res.status(404).json({ error: 'Evento não encontrado' });
@@ -133,6 +133,40 @@ router.get('/:id/pdf', async (req, res) => {
       doc.moveTo(startX, doc.y - 1).lineTo(startX + tableWidth, doc.y - 1).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
     };
 
+    const col3Widths = [300, 120, 100];
+    const drawRow3 = (
+      label: string,
+      value: string,
+      linkLabel: string,
+      link?: string,
+      fill?: string,
+      color?: string,
+      bold = false
+    ) => {
+      const y = doc.y;
+      if (fill) doc.rect(startX, y, tableWidth, rowHeight).fill(fill);
+      doc.fillColor(color || '#0f172a').font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(10);
+      doc.text(label, startX + 10, y + 6, { width: col3Widths[0] - 16, align: 'left' });
+      doc.text(value, startX + col3Widths[0] + 10, y + 6, { width: col3Widths[1] - 20, align: 'right' });
+      const linkX = startX + col3Widths[0] + col3Widths[1] + 10;
+      if (link) {
+        doc.fillColor('#2563eb');
+        doc.text(linkLabel, linkX, y + 6, {
+          width: col3Widths[2] - 20,
+          align: 'left',
+          link,
+          underline: true,
+        });
+        doc.fillColor(color || '#0f172a');
+      } else {
+        doc.text(linkLabel, linkX, y + 6, { width: col3Widths[2] - 20, align: 'left' });
+      }
+      doc.y = y + rowHeight;
+      doc.moveTo(startX, doc.y - 1).lineTo(startX + tableWidth, doc.y - 1).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
+    };
+
+    const getAnexoLink = (anexo: any) => anexo?.driveWebViewLink || anexo?.driveWebContentLink || '';
+
     drawRow('Total de Receitas', fmt(totalReceitas), '#e2fee3', '#15803d', true);
     drawRow('Total de Despesas', fmt(totalDespesas), '#ffe2e5', '#b91c1c', true);
     drawRow('Saldo', fmt(saldo), saldo >= 0 ? '#dcfce7' : '#fee2e2', saldo >= 0 ? '#166534' : '#b91c1c', true);
@@ -151,9 +185,15 @@ router.get('/:id/pdf', async (req, res) => {
     if (receitas.length > 0) {
       doc.fontSize(12).font('Helvetica-Bold').text('Receitas');
       doc.moveDown(0.3);
-      drawRow('Título', 'Valor', '#f1f5f9', '#0f172a', true);
+      drawRow3('Título', 'Valor', 'Anexo', undefined, '#f1f5f9', '#0f172a', true);
       receitas.forEach((r) => {
-        drawRow(`${fmtDate(r.data)} — ${r.titulo} (${r.categoria})`, fmt(toNum(r.valor)));
+        const link = getAnexoLink(r.anexo);
+        drawRow3(
+          `${fmtDate(r.data)} — ${r.titulo} (${r.categoria})`,
+          fmt(toNum(r.valor)),
+          link ? 'Abrir' : '-',
+          link || undefined
+        );
       });
       doc.moveDown(1).fillColor('#0f172a').strokeColor('#0f172a');
     }
@@ -162,9 +202,15 @@ router.get('/:id/pdf', async (req, res) => {
     if (faturas.length > 0) {
       doc.fontSize(12).font('Helvetica-Bold').text('Despesas');
       doc.moveDown(0.3);
-      drawRow('Título', 'Valor', '#f1f5f9', '#0f172a', true);
+      drawRow3('Título', 'Valor', 'Anexo', undefined, '#f1f5f9', '#0f172a', true);
       faturas.forEach((f) => {
-        drawRow(`${fmtDate(f.data)} — ${f.titulo} (${f.departamento})`, fmt(toNum(f.valor)));
+        const link = getAnexoLink(f.anexo);
+        drawRow3(
+          `${fmtDate(f.data)} — ${f.titulo} (${f.departamento})`,
+          fmt(toNum(f.valor)),
+          link ? 'Abrir' : '-',
+          link || undefined
+        );
       });
       doc.moveDown(1).fillColor('#0f172a').strokeColor('#0f172a');
     }

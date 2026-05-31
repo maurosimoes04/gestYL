@@ -1,6 +1,10 @@
 import { prisma } from '../config/prisma';
 import { Request } from 'express';
 
+if (process.env.BOOT_DEBUG === 'true') {
+  console.log('Audit: modulo carregado');
+}
+
 interface AuditEntry {
   action: string;
   entity?: string;

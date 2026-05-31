@@ -549,6 +549,49 @@
     </div>
   </div>
 
+  <!-- Modal Partilhar Evento -->
+  <div id="shareEventoModal" class="modal-backdrop" hidden>
+    <div class="modal-card" style="width:min(520px,95vw);">
+      <div class="modal-header">
+        <h3 id="shareEventoTitle">🔗 Partilhar Evento</h3>
+        <button type="button" class="modal-close" id="shareEventoClose" aria-label="Fechar">✖</button>
+      </div>
+      <form id="shareEventoForm" class="styled-form">
+        <input type="hidden" id="shareEventoId">
+
+        <label>👤 Destinatário (email/entidade)</label>
+        <input id="shareEventoDestinatario" placeholder="ex: municipio@exemplo.pt">
+
+        <label>📝 Justificação *</label>
+        <textarea id="shareEventoJustificacao" required></textarea>
+
+        <label>⏳ Validade (dias)</label>
+        <input id="shareEventoDias" type="number" min="1" value="30">
+
+        <div id="shareEventoResult" class="form-msg" hidden></div>
+        <div id="shareEventoLinkWrap" hidden>
+          <label>🔗 Link gerado</label>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input id="shareEventoLink" readonly style="flex:1;">
+            <button type="button" id="shareEventoCopy" class="ghost-action">Copiar</button>
+          </div>
+        </div>
+        <div id="shareEventoPassWrap" hidden style="margin-top:10px;">
+          <label>🔐 Password gerada</label>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input id="shareEventoPass" readonly style="flex:1;">
+            <button type="button" id="shareEventoCopyPass" class="ghost-action">Copiar</button>
+          </div>
+        </div>
+
+        <div class="form-btns">
+          <button type="submit" class="main-action">Gerar link</button>
+          <button type="button" id="shareEventoCancel">Cancelar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Modal Exportar Relatório -->
   <div id="exportModal" class="modal-backdrop" hidden>
     <div class="modal-card">

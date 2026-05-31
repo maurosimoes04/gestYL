@@ -29,6 +29,7 @@
     <div class="tabs">
       <button class="tab active" data-tab="users">👥 Utilizadores</button>
       <button class="tab" data-tab="departamentos">🏢 Departamentos</button>
+      <button class="tab" data-tab="shares">🔗 Partilhas</button>
       <button class="tab" data-tab="audit">📋 Auditoria</button>
     </div>
 
@@ -115,6 +116,36 @@
       </div>
     </section>
 
+    <!-- PARTILHAS EXTERNAS -->
+    <section class="card fade-in" id="sectionShares" hidden>
+      <h2>🔗 Partilhas externas</h2>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Evento</th>
+              <th>Partilhado por</th>
+              <th>Destinatário</th>
+              <th>Justificação</th>
+              <th>Password</th>
+              <th>Expira</th>
+              <th>Estado</th>
+              <th>Criado em</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="sharesTable">
+            <tr><td colspan="9">A carregar...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <button id="sharesPrev" disabled>← Anterior</button>
+        <span id="sharesPageInfo">Página 1</span>
+        <button id="sharesNext">Seguinte →</button>
+      </div>
+    </section>
+
     <!-- AUDITORIA -->
     <section class="card fade-in" id="sectionAudit" hidden>
       <h2>📋 Registo de Auditoria</h2>
@@ -126,6 +157,7 @@
           <option value="evento">Eventos</option>
           <option value="inventario">Inventário</option>
           <option value="movimento">Movimentos</option>
+          <option value="share">Partilhas</option>
           <option value="user">Utilizadores</option>
           <option value="session">Sessões</option>
         </select>
@@ -230,6 +262,7 @@
     const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
       ? 'http://localhost:3000' : 'https://gestor.younglink.net';
     const API_AUTH = `${API_BASE}/auth`;
+    const API_SHARES = `${API_BASE}/shares`;
     const token = localStorage.getItem('authToken') || '';
     const role = localStorage.getItem('authRole') || '';
 
@@ -381,6 +414,7 @@
     const tabs = document.querySelectorAll('.tab');
     const usersSections = [document.querySelector('.card:nth-of-type(1)'), document.getElementById('sectionUsers')];
     const depSection = document.getElementById('sectionDepartamentos');
+    const shareSection = document.getElementById('sectionShares');
     const auditSection = document.getElementById('sectionAudit');
 
     tabs.forEach(tab => {
@@ -390,12 +424,16 @@
         const target = tab.dataset.tab;
         usersSections.forEach(s => { if (s) s.setAttribute('hidden', 'true'); });
         depSection.setAttribute('hidden', 'true');
+        shareSection.setAttribute('hidden', 'true');
         auditSection.setAttribute('hidden', 'true');
         if (target === 'users') {
           usersSections.forEach(s => { if (s) s.removeAttribute('hidden'); });
         } else if (target === 'departamentos') {
           depSection.removeAttribute('hidden');
           loadDeps();
+        } else if (target === 'shares') {
+          shareSection.removeAttribute('hidden');
+          loadShares();
         } else {
           auditSection.removeAttribute('hidden');
           loadAudit();
@@ -494,6 +532,82 @@
       } catch { notify('Erro ao remover.', 'error'); }
     }
 
+    // --- PARTILHAS ---
+    let sharesPage = 0;
+    const sharesLimit = 20;
+
+    function escapeHtml(text) {
+      return String(text || '').replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[ch]));
+    }
+
+    function shareStatus(share) {
+      if (share.revokedAt) return 'Revogada';
+      if (share.expiresAt && new Date(share.expiresAt) < new Date()) return 'Expirada';
+      return 'Ativa';
+    }
+
+    async function loadShares() {
+      try {
+        const params = new URLSearchParams({ limit: String(sharesLimit), offset: String(sharesPage * sharesLimit) });
+        const resp = await fetch(`${API_SHARES}?${params.toString()}`, { headers: headers(false) });
+        if (!resp.ok) throw new Error();
+        const { shares, total } = await resp.json();
+        const tbody = document.getElementById('sharesTable');
+        if (!shares.length) {
+          tbody.innerHTML = '<tr><td colspan="9">Sem partilhas.</td></tr>';
+        } else {
+          tbody.innerHTML = shares.map(s => {
+            const status = shareStatus(s);
+            const canRevoke = status === 'Ativa';
+            return `
+              <tr>
+                <td>${escapeHtml(s.evento?.nome || '-')}</td>
+                <td>${escapeHtml(s.createdByEmail || '-')}</td>
+                <td>${escapeHtml(s.destinatario || '-')}</td>
+                <td title="${escapeHtml(s.justificacao)}">${escapeHtml(s.justificacao).slice(0, 60) || '-'}</td>
+                <td>${escapeHtml(s.passwordPlain || '-')}</td>
+                <td>${s.expiresAt ? new Date(s.expiresAt).toLocaleDateString('pt-PT') : '-'}</td>
+                <td>${status}</td>
+                <td>${s.createdAt ? new Date(s.createdAt).toLocaleDateString('pt-PT') : '-'}</td>
+                <td class="actions-cell">
+                  ${canRevoke ? `<button class="btn-icon btn-danger" onclick="revokeShare(${s.id})" title="Revogar">🛑</button>` : '-'}
+                </td>
+              </tr>
+            `;
+          }).join('');
+        }
+        const totalPages = Math.ceil(total / sharesLimit);
+        document.getElementById('sharesPageInfo').textContent = `Página ${sharesPage + 1} de ${totalPages || 1} (${total} registos)`;
+        document.getElementById('sharesPrev').disabled = sharesPage === 0;
+        document.getElementById('sharesNext').disabled = sharesPage >= totalPages - 1;
+      } catch {
+        document.getElementById('sharesTable').innerHTML = '<tr><td colspan="8">Erro ao carregar partilhas.</td></tr>';
+      }
+    }
+
+    async function revokeShare(id) {
+      if (!confirm('Revogar esta partilha?')) return;
+      try {
+        const resp = await fetch(`${API_SHARES}/${id}/revoke`, { method: 'POST', headers: headers(false) });
+        if (!resp.ok) throw new Error();
+        notify('Partilha revogada.');
+        await loadShares();
+      } catch {
+        notify('Erro ao revogar.', 'error');
+      }
+    }
+
+    document.getElementById('sharesPrev').addEventListener('click', () => {
+      if (sharesPage > 0) { sharesPage--; loadShares(); }
+    });
+    document.getElementById('sharesNext').addEventListener('click', () => { sharesPage++; loadShares(); });
+
     // --- AUDITORIA ---
     let auditPage = 0;
     const auditLimit = 30;
@@ -503,7 +617,7 @@
     }
 
     function entityLabel(e) {
-      return { fatura: 'Fatura', receita: 'Receita', evento: 'Evento', inventario: 'Inventário', movimento: 'Movimento', user: 'Utilizador', session: 'Sessão' }[e] || e || '-';
+      return { fatura: 'Fatura', receita: 'Receita', evento: 'Evento', inventario: 'Inventário', movimento: 'Movimento', share: 'Partilha', user: 'Utilizador', session: 'Sessão' }[e] || e || '-';
     }
 
     async function loadAudit() {

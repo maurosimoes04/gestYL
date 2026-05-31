@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Partilha de Evento</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <header class="main-header">
+    <div class="header-inner">
+      <a href="/" class="logo-block">
+        <img src="https://tnmycajugdovbnqydyvx.supabase.co/storage/v1/object/public/IMAGENS/logo.png" alt="Gestão Financeira YL" class="logo">
+      </a>
+      <nav class="main-nav">
+        <span class="nav-link active">Partilha de Evento</span>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <h2>🔐 Acesso ao evento</h2>
+      <p class="text-muted" style="margin-bottom:12px;">Insira a password para visualizar os dados do evento.</p>
+      <form id="shareAccessForm" class="styled-form" style="max-width:420px;">
+        <label>Password</label>
+        <input id="sharePassword" type="password" required>
+        <div class="form-btns">
+          <button type="submit" class="main-action">Aceder</button>
+        </div>
+        <p id="shareAccessMsg" class="form-msg" hidden></p>
+      </form>
+    </section>
+
+    <section id="shareEventoWrap" hidden>
+      <h2 id="shareEventoNome">Evento</h2>
+      <p id="shareEventoDesc" style="color:var(--text-muted);"></p>
+      <p id="shareEventoDept" style="font-size:0.95rem;"></p>
+
+      <div class="dashboard-grid" id="shareEventoResumo" style="margin-top:16px;"></div>
+
+      <h3 style="margin-top:18px;">💰 Receitas</h3>
+      <div class="table-wrapper" style="margin-top:8px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Título</th>
+              <th>Categoria</th>
+              <th>Data</th>
+              <th>Valor</th>
+              <th>Anexo</th>
+            </tr>
+          </thead>
+          <tbody id="shareReceitas"></tbody>
+        </table>
+      </div>
+
+      <h3 style="margin-top:18px;">📊 Despesas</h3>
+      <div class="table-wrapper" style="margin-top:8px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Título</th>
+              <th>Departamento</th>
+              <th>Data</th>
+              <th>Valor</th>
+              <th>Anexo</th>
+            </tr>
+          </thead>
+          <tbody id="shareDespesas"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="assets/js/share-evento.js"></script>
+</body>
+</html>

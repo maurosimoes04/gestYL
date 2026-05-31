@@ -1,5 +1,4 @@
 import express from 'express';
-import PDFDocument from 'pdfkit';
 import { prisma } from '../config/prisma';
 import { Prisma } from '@prisma/client';
 import { getLogoBuffer } from '../utils/logo';
@@ -88,6 +87,7 @@ router.delete('/:id', async (req, res) => {
 // Exportar inventário em PDF
 router.get('/export/pdf', async (_req, res) => {
   try {
+    const { default: PDFDocument } = await import('pdfkit');
     const itens = await prisma.inventario.findMany({ orderBy: [{ tipo: 'asc' }, { nome: 'asc' }] });
     const doc = new PDFDocument({ margin: 40, layout: 'landscape', size: 'A4' });
     res.setHeader('Content-Type', 'application/pdf');

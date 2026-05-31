@@ -2,7 +2,6 @@ import express from 'express';
 import { prisma } from '../config/prisma';
 import { Prisma } from '@prisma/client';
 import upload from '../middleware/upload';
-import { uploadBufferToDrive, deleteFromDrive } from '../services/googleDrive';
 
 const router = express.Router();
 const RECEITAS_FOLDER_ID = process.env.GDRIVE_RECEITAS_FOLDER_ID!;
@@ -49,6 +48,7 @@ router.post('/', upload.single('anexo'), async (req, res) => {
     let driveError = '';
     if (req.file && RECEITAS_FOLDER_ID) {
       try {
+        const { uploadBufferToDrive } = await import('../services/googleDrive');
         const driveFile = await uploadBufferToDrive({
           buffer: req.file.buffer,
           filename: req.file.originalname,
@@ -126,6 +126,7 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     let driveError = '';
     if (req.file && RECEITAS_FOLDER_ID) {
       try {
+        const { uploadBufferToDrive, deleteFromDrive } = await import('../services/googleDrive');
         const oldAnexo = receita.anexo as any;
         if (oldAnexo?.driveFileId) await deleteFromDrive(oldAnexo.driveFileId);
 
@@ -171,7 +172,12 @@ router.delete('/:id', async (req, res) => {
 
     const anexo = receita.anexo as any;
     if (anexo?.driveFileId) {
-      try { await deleteFromDrive(anexo.driveFileId); } catch (e) { console.error('Falha ao apagar anexo no Drive (receita):', e); }
+      try {
+        const { deleteFromDrive } = await import('../services/googleDrive');
+        await deleteFromDrive(anexo.driveFileId);
+      } catch (e) {
+        console.error('Falha ao apagar anexo no Drive (receita):', e);
+      }
     }
     await prisma.receita.delete({ where: { id } });
     res.json({ message: 'Receita removida com sucesso' });

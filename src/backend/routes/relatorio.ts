@@ -1,5 +1,4 @@
 import express from 'express';
-import PDFDocument from 'pdfkit';
 import { prisma } from '../config/prisma';
 import { getLogoBuffer } from '../utils/logo';
 
@@ -93,6 +92,7 @@ function toArray(obj: Record<string, number>) {
 
 router.get('/pdf', async (req, res) => {
   try {
+    const { default: PDFDocument } = await import('pdfkit');
     const tipo: TipoRelatorio = (req.query.tipo as TipoRelatorio) || 'ambos';
     const { inicio, fim, label: periodoLabel } = parsePeriodo(req.query);
 

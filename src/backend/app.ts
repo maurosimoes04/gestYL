@@ -1,10 +1,24 @@
-import 'dotenv/config';
+require('dotenv/config');
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
-import authRoutes from './routes/auth';
-import { requireAuth, guardWrite } from './middleware/auth';
-import { auditRoutes } from './middleware/auditMiddleware';
+
+const bootLog = (...args: any[]) => {
+  if (process.env.BOOT_DEBUG === 'true') console.log(...args);
+};
+
+bootLog('App: carregar auth routes');
+const authRoutes = require('./routes/auth').default;
+bootLog('App: auth routes carregadas');
+bootLog('App: carregar middleware auth');
+const { requireAuth, guardWrite } = require('./middleware/auth');
+bootLog('App: middleware auth carregado');
+bootLog('App: carregar middleware audit');
+const { auditRoutes } = require('./middleware/auditMiddleware');
+bootLog('App: middleware audit carregado');
+bootLog('App: carregar share routes');
+const { sharePublicRouter, sharePrivateRouter } = require('./routes/share');
+bootLog('App: share routes carregadas');
 
 const app = express();
 
@@ -39,20 +53,41 @@ app.get('/', (_req, res) => {
   res.redirect('/login');
 });
 
+// Partilha publica de eventos
+app.get('/share/evento/:token', (_req, res) => {
+  res.sendFile(path.join(frontendPath, 'share-evento.html'));
+});
+app.use('/share', sharePublicRouter);
+
 // Rotas públicas de autenticação
 app.use('/auth', authRoutes);
 
 // Rotas protegidas
-import faturaRoutes from './routes/fatura';
-import eventoRoutes from './routes/evento';
-import receitaRoutes from './routes/receita';
-import movimentoRoutes from './routes/movimento';
-import relatorioRoutes from './routes/relatorio';
-import inventarioRoutes from './routes/inventario';
-import departamentoRoutes from './routes/departamento';
+bootLog('App: carregar fatura routes');
+const faturaRoutes = require('./routes/fatura').default;
+bootLog('App: fatura routes carregadas');
+bootLog('App: carregar evento routes');
+const eventoRoutes = require('./routes/evento').default;
+bootLog('App: evento routes carregadas');
+bootLog('App: carregar receita routes');
+const receitaRoutes = require('./routes/receita').default;
+bootLog('App: receita routes carregadas');
+bootLog('App: carregar movimento routes');
+const movimentoRoutes = require('./routes/movimento').default;
+bootLog('App: movimento routes carregadas');
+bootLog('App: carregar relatorio routes');
+const relatorioRoutes = require('./routes/relatorio').default;
+bootLog('App: relatorio routes carregadas');
+bootLog('App: carregar inventario routes');
+const inventarioRoutes = require('./routes/inventario').default;
+bootLog('App: inventario routes carregadas');
+bootLog('App: carregar departamento routes');
+const departamentoRoutes = require('./routes/departamento').default;
+bootLog('App: departamento routes carregadas');
 
 app.use(requireAuth);
 app.use(guardWrite);
+app.use('/shares', sharePrivateRouter);
 app.use('/faturas', auditRoutes('fatura'), faturaRoutes);
 app.use('/eventos', auditRoutes('evento'), eventoRoutes);
 app.use('/receitas', auditRoutes('receita'), receitaRoutes);
@@ -62,10 +97,3 @@ app.use('/inventario', auditRoutes('inventario'), inventarioRoutes);
 app.use('/departamentos', auditRoutes('departamento'), departamentoRoutes);
 
 export default app;
-
-if (require.main === module) {
-  const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => {
-    console.log(`Servidor a correr na porta ${PORT}`);
-  });
-}

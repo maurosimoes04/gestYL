@@ -36,6 +36,7 @@ model Evento {
 
   faturas  Fatura[]
   receitas Receita[]
+  shares   EventoShare[]
 
   @@map("eventos")
 }
@@ -144,4 +145,29 @@ model AuditLog {
   @@index([entity])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+model EventoShare {
+  id                     Int       @id @default(autoincrement())
+  token                  String    @unique
+  eventoId               Int
+  createdById            String?   @db.Uuid
+  createdByEmail         String?
+  destinatario           String?
+  justificacao           String
+  passwordPlain          String
+  passwordHash           String
+  passwordSalt           String
+  accessTokenHash        String?
+  accessTokenExpiresAt   DateTime?
+  expiresAt              DateTime
+  revokedAt              DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  evento Evento @relation(fields: [eventoId], references: [id])
+
+  @@index([eventoId])
+  @@index([expiresAt])
+  @@map("evento_shares")
 }

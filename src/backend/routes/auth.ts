@@ -1,8 +1,21 @@
 import express from 'express';
-import { supabaseAdmin } from '../config/supabase';
-import { prisma } from '../config/prisma';
-import { logAudit } from '../services/audit';
-import { requireAuth } from '../middleware/auth';
+
+const bootLog = (...args: any[]) => {
+  if (process.env.BOOT_DEBUG === 'true') console.log(...args);
+};
+
+bootLog('Auth: carregar supabase');
+const { supabaseAdmin } = require('../config/supabase');
+bootLog('Auth: supabase carregado');
+bootLog('Auth: carregar prisma');
+const { prisma } = require('../config/prisma');
+bootLog('Auth: prisma carregado');
+bootLog('Auth: carregar audit');
+const { logAudit } = require('../services/audit');
+bootLog('Auth: audit carregado');
+bootLog('Auth: carregar middleware auth');
+const { requireAuth } = require('../middleware/auth');
+bootLog('Auth: middleware auth carregado');
 
 const router = express.Router();
 

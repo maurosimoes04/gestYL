@@ -4,13 +4,13 @@
   "description": "Gestão Financeira YL: controlo de despesas, receitas e eventos com TypeScript, Express, Prisma e Supabase",
   "main": "dist/backend/app.js",
   "scripts": {
-    "dev:backend": "ts-node-dev --respawn --transpile-only src/backend/app.ts",
+    "dev:backend": "ts-node-dev --respawn --transpile-only src/backend/server.ts",
     "dev:frontend": "esbuild src/frontend/assets/ts/script.ts --bundle --outfile=src/frontend/assets/js/script.js --sourcemap --watch",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "build:frontend": "npx esbuild src/frontend/assets/ts/script.ts --bundle --outfile=src/frontend/assets/js/script.js --minify",
     "build:backend": "npx prisma generate && tsc -p tsconfig.json",
     "build": "npm run build:backend && npm run build:frontend",
-    "start": "node dist/backend/app.js",
+    "start": "node dist/backend/server.js",
     "db:migrate-supabase": "ts-node scripts/migrateToSupabase.ts",
     "prisma:migrate": "npx prisma migrate dev --config prisma/prisma.config.ts",
     "prisma:generate": "npx prisma generate"

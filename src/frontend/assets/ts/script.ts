@@ -11,6 +11,7 @@ const API_MOVIMENTOS = `${API_BASE}/movimentos`;
 const API_AUTH = `${API_BASE}/auth`; 
 const API_INVENTARIO = `${API_BASE}/inventario`; 
 const API_DEPARTAMENTOS = `${API_BASE}/departamentos`;
+const API_SHARES = `${API_BASE}/shares`;
 const RECEITA_CATEGORIAS = [
   'Quotas',
   'Patrocínios/Doações',
@@ -38,6 +39,7 @@ let editingEventoId: number | null = null;
 let editingFaturaId: number | null = null;
 let editingReceitaId: number | null = null;
 let editingInventarioId: number | null = null;
+let sharingEventoId: number | null = null;
 let eventosCache: any[] = [];
 let faturasCache: any[] = [];
 let receitasCache: any[] = [];
@@ -512,6 +514,7 @@ async function carregarEventosResumo() {
         </div>` : `
         <div class="evento-actions">
           <button class="btn-detalhe-evento" data-id="${ev.id}" title="Ver detalhes">🔍 Detalhes</button>
+          <button class="btn-partilhar-evento" data-id="${ev.id}" title="Partilhar evento">🔗 Partilhar</button>
           <button class="btn-editar-evento" data-id="${ev.id}" title="Editar evento">✏️ Editar</button>
           <button class="btn-remover-evento" data-id="${ev.id}" title="Remover evento">🗑️ Remover</button>
         </div>`;
@@ -540,6 +543,12 @@ async function carregarEventosResumo() {
       });
     });
     if (!isReadOnly()) {
+      eventosLista.querySelectorAll('.btn-partilhar-evento').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+          if (id) abrirPartilhaEvento(parseInt(id));
+        });
+      });
       eventosLista.querySelectorAll('.btn-editar-evento').forEach(btn => {
         btn.addEventListener('click', (e) => {
           const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
@@ -610,6 +619,76 @@ async function abrirDetalheEvento(id: number) {
 function fecharDetalheEvento() {
   const modal = document.getElementById('eventoDetailModal') as HTMLElement;
   modal.setAttribute('hidden', 'true');
+}
+
+function abrirPartilhaEvento(id: number) {
+  if (isReadOnly()) { showNotification('Sem permissões para partilhar eventos.', 'error'); return; }
+  const modal = document.getElementById('shareEventoModal') as HTMLElement | null;
+  if (!modal) return;
+  const evento = eventosCache.find((ev: any) => ev.id === id);
+  const title = document.getElementById('shareEventoTitle');
+  if (title) title.textContent = `🔗 Partilhar Evento${evento?.nome ? `: ${evento.nome}` : ''}`;
+  const idField = document.getElementById('shareEventoId') as HTMLInputElement | null;
+  if (idField) idField.value = String(id);
+  sharingEventoId = id;
+  setValue('shareEventoDestinatario', '');
+  setValue('shareEventoJustificacao', '');
+  setValue('shareEventoDias', '30');
+  const result = document.getElementById('shareEventoResult');
+  if (result) result.setAttribute('hidden', 'true');
+  const linkWrap = document.getElementById('shareEventoLinkWrap');
+  if (linkWrap) linkWrap.setAttribute('hidden', 'true');
+  const passWrap = document.getElementById('shareEventoPassWrap');
+  if (passWrap) passWrap.setAttribute('hidden', 'true');
+  modal.removeAttribute('hidden');
+}
+
+function fecharPartilhaEvento() {
+  const modal = document.getElementById('shareEventoModal') as HTMLElement | null;
+  if (modal) modal.setAttribute('hidden', 'true');
+  sharingEventoId = null;
+}
+
+function setPartilhaMensagem(msg: string, type: 'success' | 'error') {
+  const result = document.getElementById('shareEventoResult');
+  if (!result) return;
+  result.textContent = msg;
+  result.className = `form-msg ${type}`;
+  result.removeAttribute('hidden');
+}
+
+async function gerarPartilhaEvento(e: SubmitEvent) {
+  e.preventDefault();
+  if (isReadOnly()) { showNotification('Sem permissões para partilhar eventos.', 'error'); return; }
+  const eventoId = sharingEventoId || Number(getValue('shareEventoId'));
+  if (!eventoId) { setPartilhaMensagem('Evento inválido.', 'error'); return; }
+  const destinatario = getValue('shareEventoDestinatario').trim();
+  const justificacao = getValue('shareEventoJustificacao').trim();
+  const dias = parseInt(getValue('shareEventoDias') || '30', 10);
+
+  if (!justificacao) { setPartilhaMensagem('Justificação é obrigatória.', 'error'); return; }
+
+  try {
+    const resp = await fetch(API_SHARES, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventoId, destinatario, justificacao, expiresInDays: dias })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.error || 'Erro ao criar partilha');
+
+    const linkWrap = document.getElementById('shareEventoLinkWrap');
+    const linkInput = document.getElementById('shareEventoLink') as HTMLInputElement | null;
+    if (linkWrap) linkWrap.removeAttribute('hidden');
+    if (linkInput) linkInput.value = data.link || '';
+    const passWrap = document.getElementById('shareEventoPassWrap');
+    const passInput = document.getElementById('shareEventoPass') as HTMLInputElement | null;
+    if (passWrap) passWrap.removeAttribute('hidden');
+    if (passInput) passInput.value = data.password || '';
+    setPartilhaMensagem('Link gerado com sucesso.', 'success');
+  } catch (err: any) {
+    setPartilhaMensagem(err.message || 'Erro ao criar partilha.', 'error');
+  }
 }
 
 // --- Faturas: carregar e criar ---
@@ -1088,6 +1167,44 @@ function setupEventListeners() {
   document.getElementById('eventoDetailCloseBtn')?.addEventListener('click', fecharDetalheEvento);
   document.getElementById('eventoDetailModal')?.addEventListener('click', (e) => {
     if (e.target === document.getElementById('eventoDetailModal')) fecharDetalheEvento();
+  });
+
+  // Modal partilha evento
+  document.getElementById('shareEventoClose')?.addEventListener('click', fecharPartilhaEvento);
+  document.getElementById('shareEventoCancel')?.addEventListener('click', fecharPartilhaEvento);
+  document.getElementById('shareEventoModal')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('shareEventoModal')) fecharPartilhaEvento();
+  });
+  document.getElementById('shareEventoForm')?.addEventListener('submit', gerarPartilhaEvento as any);
+  document.getElementById('shareEventoCopy')?.addEventListener('click', () => {
+    const input = document.getElementById('shareEventoLink') as HTMLInputElement | null;
+    if (!input?.value) return;
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(input.value).then(() => {
+        setPartilhaMensagem('Link copiado.', 'success');
+      }).catch(() => {
+        setPartilhaMensagem('Não foi possível copiar o link.', 'error');
+      });
+    } else {
+      input.select();
+      document.execCommand('copy');
+      setPartilhaMensagem('Link copiado.', 'success');
+    }
+  });
+  document.getElementById('shareEventoCopyPass')?.addEventListener('click', () => {
+    const input = document.getElementById('shareEventoPass') as HTMLInputElement | null;
+    if (!input?.value) return;
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(input.value).then(() => {
+        setPartilhaMensagem('Password copiada.', 'success');
+      }).catch(() => {
+        setPartilhaMensagem('Não foi possível copiar a password.', 'error');
+      });
+    } else {
+      input.select();
+      document.execCommand('copy');
+      setPartilhaMensagem('Password copiada.', 'success');
+    }
   });
 
   setupExportRelatorio();

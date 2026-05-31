@@ -1,10 +1,17 @@
 import express from 'express';
 import path from 'path';
-import PDFDocument from 'pdfkit';
-import { prisma } from '../config/prisma';
 import { Prisma } from '@prisma/client';
-import { uploadBufferToDrive, deleteFromDrive } from '../services/googleDrive';
-import upload from '../middleware/upload';
+
+const bootLog = (...args: any[]) => {
+  if (process.env.BOOT_DEBUG === 'true') console.log(...args);
+};
+
+bootLog('Fatura: carregar prisma');
+const { prisma } = require('../config/prisma');
+bootLog('Fatura: prisma carregado');
+bootLog('Fatura: carregar upload');
+const upload = require('../middleware/upload').default;
+bootLog('Fatura: upload carregado');
 
 const router = express.Router();
 const DESPESAS_FOLDER_ID = process.env.GDRIVE_DESPESAS_FOLDER_ID!;
@@ -50,6 +57,7 @@ router.get('/', async (req, res) => {
 // GET /faturas/export/pdf
 router.get('/export/pdf', async (_req, res) => {
   try {
+    const { default: PDFDocument } = await import('pdfkit');
     const faturas = await prisma.fatura.findMany({ orderBy: { data: 'desc' } });
     const agora = new Date();
     const mesAtual = agora.getMonth();
@@ -132,6 +140,7 @@ router.post('/', upload.single('anexo'), async (req, res) => {
     let driveError = '';
     if (req.file && DESPESAS_FOLDER_ID) {
       try {
+        const { uploadBufferToDrive } = await import('../services/googleDrive');
         const driveFile = await uploadBufferToDrive({
           buffer: req.file.buffer,
           filename: req.file.originalname,
@@ -189,6 +198,7 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     let driveError = '';
     if (req.file && DESPESAS_FOLDER_ID) {
       try {
+        const { uploadBufferToDrive, deleteFromDrive } = await import('../services/googleDrive');
         const oldAnexo = fatura.anexo as any;
         if (oldAnexo?.driveFileId) await deleteFromDrive(oldAnexo.driveFileId);
 
@@ -236,7 +246,12 @@ router.delete('/:id', async (req, res) => {
 
     const anexo = fatura.anexo as any;
     if (anexo?.driveFileId) {
-      try { await deleteFromDrive(anexo.driveFileId); } catch (e) { console.error('Falha ao apagar anexo no Drive:', e); }
+      try {
+        const { deleteFromDrive } = await import('../services/googleDrive');
+        await deleteFromDrive(anexo.driveFileId);
+      } catch (e) {
+        console.error('Falha ao apagar anexo no Drive:', e);
+      }
     }
 
     await prisma.fatura.delete({ where: { id } });
