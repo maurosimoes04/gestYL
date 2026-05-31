@@ -2,7 +2,7 @@ const token = window.location.pathname.split('/').pop();
 
 function formatCurrency(value) {
   const num = Number(value || 0);
-  return `€ ${num.toFixed(2)}`;
+  return `${num.toFixed(2)} €`;
 }
 
 function formatDate(value) {
@@ -56,10 +56,30 @@ function renderTable(rows, targetId, cols, anexoLabel) {
   }).join('');
 }
 
+function showExpired() {
+  document.getElementById('shareAccessSection')?.setAttribute('hidden', 'true');
+  document.getElementById('shareEventoWrap')?.setAttribute('hidden', 'true');
+  document.getElementById('shareExpiredSection')?.removeAttribute('hidden');
+}
+
+function showLogin() {
+  document.getElementById('shareExpiredSection')?.setAttribute('hidden', 'true');
+  document.getElementById('shareEventoWrap')?.setAttribute('hidden', 'true');
+  document.getElementById('shareAccessSection')?.removeAttribute('hidden');
+  document.getElementById('sharePassword').value = '';
+  document.getElementById('shareAccessMsg')?.setAttribute('hidden', 'true');
+}
+
+document.getElementById('shareReauthBtn')?.addEventListener('click', showLogin);
+
 document.getElementById('shareAccessForm')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const password = document.getElementById('sharePassword').value;
-  if (!password) { setAccessMsg('Password é obrigatória.', 'error'); return; }
+  if (!password) { setAccessMsg('Password obrigatoria.', 'error'); return; }
+
+  const btn = document.getElementById('shareAccessBtn');
+  const originalText = btn?.textContent;
+  if (btn) { btn.textContent = 'A validar...'; btn.disabled = true; }
 
   try {
     const resp = await fetch(`/share/evento/${token}/access`, {
@@ -68,12 +88,29 @@ document.getElementById('shareAccessForm')?.addEventListener('submit', async (e)
       body: JSON.stringify({ password })
     });
     const data = await resp.json().catch(() => ({}));
+
+    if (resp.status === 401 && data.expired) {
+      showExpired();
+      return;
+    }
     if (!resp.ok) throw new Error(data.error || 'Erro ao validar partilha');
 
+    document.getElementById('shareAccessSection')?.setAttribute('hidden', 'true');
     document.getElementById('shareEventoWrap')?.removeAttribute('hidden');
-    document.getElementById('shareEventoNome').textContent = `🎉 ${data.evento?.nome || 'Evento'}`;
+
+    document.getElementById('shareEventoNome').textContent = data.evento?.nome || 'Evento';
     document.getElementById('shareEventoDesc').textContent = data.evento?.descricao || '';
-    document.getElementById('shareEventoDept').textContent = data.evento?.departamento ? `🏢 ${data.evento.departamento}` : '';
+
+    const deptEl = document.getElementById('shareEventoDept');
+    if (data.evento?.departamento) {
+      deptEl.textContent = data.evento.departamento;
+      deptEl.removeAttribute('hidden');
+    }
+
+    if (data.sessionExpiresAt) {
+      const expDate = new Date(data.sessionExpiresAt).toLocaleString('pt-PT');
+      document.getElementById('shareSessionInfo').textContent = `Sessao valida ate ${expDate}`;
+    }
 
     renderResumo(data.resumo || { totalReceitas: 0, totalDespesas: 0, saldo: 0 });
 
@@ -82,9 +119,9 @@ document.getElementById('shareAccessForm')?.addEventListener('submit', async (e)
 
     renderTable(receitas, 'shareReceitas', 5, 'Abrir');
     renderTable(faturas, 'shareDespesas', 5, 'Abrir');
-
-    setAccessMsg('Acesso autorizado.', 'success');
   } catch (err) {
     setAccessMsg(err.message || 'Erro ao validar partilha.', 'error');
+  } finally {
+    if (btn) { btn.textContent = originalText; btn.disabled = false; }
   }
 });

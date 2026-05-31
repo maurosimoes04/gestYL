@@ -48,24 +48,20 @@
   <main>
 
     <!-- ================= DASHBOARD ================= -->
-    <section id="dashboard" class="fade-in">
-      <h2>📊 Resumo Geral</h2>
-
-      <!-- KPIs -->
-      <div class="dashboard-grid" id="dashboardContent">
-        <!-- JS injecta aqui os cards -->
-      </div>
+    <section id="dashboard" class="section-animate">
+      <h2>Resumo Geral</h2>
+      <div class="dashboard-grid" id="dashboardContent"></div>
     </section>
 
     <!-- ================= RESUMO ANUAL ================= -->
-    <section id="dashboardAno" class="fade-in">
-      <h2>📅 Resumo do Ano</h2>
+    <section id="dashboardAno" class="section-animate">
+      <h2>Resumo do Ano</h2>
       <div class="dashboard-grid" id="dashboardAnoContent"></div>
     </section>
 
     <!-- ================= INSIGHTS ================= -->
-    <section id="insights" class="fade-in">
-      <h2>📈 Insights</h2>
+    <section id="insights" class="section-animate">
+      <h2>Insights</h2>
       <div class="insights-grid">
         <div class="chart-wrap">
           <h3>Despesas vs Receitas (12 meses)</h3>
@@ -83,279 +79,128 @@
     </section>
 
     <!-- ================= INVENTÁRIO ================= -->
-    <section id="acoesRapidasInventario" class="fade-in" hidden>
+    <section id="acoesRapidasInventario" class="section-animate" hidden>
       <div class="section-header">
-        <h2>📦 Inventário</h2>
+        <h2>Inventário</h2>
       </div>
       <div class="quick-actions">
         <button id="qaNovoInventario" class="quick-card primary">
-          <div class="quick-title">➕ Novo item</div>
+          <div class="quick-title">Novo item</div>
           <div class="quick-desc">Adicionar item de inventário.</div>
           <span class="quick-cta">Abrir formulário →</span>
         </button>
 
         <button class="quick-card ghost" id="qaExportInventario">
-          <div class="quick-title">📄 Exportar PDF</div>
+          <div class="quick-title">Exportar PDF</div>
           <div class="quick-desc">Descarregar lista de inventário.</div>
           <span class="quick-cta">Exportar →</span>
         </button>
       </div>
     </section>
 
-    <section id="inventario" class="fade-in" hidden>
+    <section id="inventario" class="section-animate" hidden>
 
       <div class="filtros">
-        <select id="filterInvTipo">
-          <option value="">🗂️ Todos os tipos</option>
-          <option value="consumivel">Consumível</option>
-          <option value="fixo">Fixo</option>
-        </select>
-        <input type="text" id="filterInvQ" placeholder="🔍 Pesquisar nome/categoria/local">
+        <input type="text" id="filterInvQ" placeholder="Pesquisar nome/categoria/local">
         <button id="btnAplicarFiltrosInv" class="main-action">Aplicar</button>
       </div>
 
-      <div class="table-wrapper">
-        <h3>🧴 Consumíveis</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Tipo</th>
-              <th>Nome</th>
-              <th>Categoria</th>
-              <th>Qtd</th>
-              <th>Unidade</th>
-              <th>Localização</th>
-              <th>Validade</th>
-              <th>Estado</th>
-              <th>Custo Unit.</th>
-              <th>Fatura</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody id="tabelaInventarioConsumivel"></tbody>
-        </table>
+      <div class="inv-tabs">
+        <button class="inv-tab active" data-inv-tab="consumivel">Consumíveis <span class="inv-tab-count" id="invCountConsumivel"></span></button>
+        <button class="inv-tab" data-inv-tab="fixo">Fixos <span class="inv-tab-count" id="invCountFixo"></span></button>
       </div>
 
-      <div class="table-wrapper">
-        <h3>🛠️ Fixos</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Tipo</th>
-              <th>Nome</th>
-              <th>Categoria</th>
-              <th>Qtd</th>
-              <th>Unidade</th>
-              <th>Localização</th>
-              <th>Validade</th>
-              <th>Estado</th>
-              <th>Custo Unit.</th>
-              <th>Fatura</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody id="tabelaInventarioFixo"></tbody>
-        </table>
-      </div>
-    </section>
-
-
-    <!-- ================= FORM INVENTÁRIO ================= -->
-    <section id="formularioInventario" class="fade-in" hidden>
-      <h2>✨ Novo item de inventário</h2>
-      <form id="inventarioForm" class="styled-form">
-        <label>🗂️ Tipo *</label>
-        <select id="invTipo" required>
-          <option value="">✨ Selecionar...</option>
-          <option value="consumivel">🧴 Consumível</option>
-          <option value="fixo">🛠️ Fixo</option>
-        </select>
-
-        <label>🏷️ Nome *</label>
-        <input id="invNome" required>
-
-        <label>🗃️ Categoria</label>
-        <input id="invCategoria">
-
-        <label>🔢 Quantidade</label>
-        <input type="number" step="0.01" id="invQuantidade" value="0">
-
-        <label>⚖️ Unidade</label>
-        <input id="invUnidade" placeholder="⚖️ ex: un, kg, L">
-
-        <label>📍 Localização</label>
-        <input id="invLocalizacao" placeholder="📍 ex: armazém A">
-
-        <label>✅ Estado</label>
-        <input id="invEstado" placeholder="✅ ex: ativo, manutenção">
-
-        <label>💶 Custo unitário (€)</label>
-        <input type="number" step="0.01" id="invCusto">
-
-        <label>📄 Fatura associada</label>
-        <select id="invFatura">
-          <option value="">Sem associação</option>
-        </select>
-
-        <label>📅 Data de aquisição</label>
-        <input type="date" id="invDataAquisicao">
-
-        <label>⏳ Data de validade</label>
-        <input type="date" id="invDataValidade">
-
-        <label>📝 Notas</label>
-        <textarea id="invNotas"></textarea>
-
-        <div class="form-btns">
-          <button type="submit" class="main-action">💾 Guardar</button>
-          <button type="button" id="btnCancelarInventario">Cancelar</button>
+      <div id="invPanelConsumivel" class="inv-panel">
+        <div id="invGridConsumivel" class="inv-grid">
+          <p class="text-muted">A carregar...</p>
         </div>
-      </form>
+      </div>
+
+      <div id="invPanelFixo" class="inv-panel" hidden>
+        <div id="invGridFixo" class="inv-grid">
+          <p class="text-muted">A carregar...</p>
+        </div>
+      </div>
     </section>
+
 
     <!-- ================= AÇÕES RÁPIDAS ================= -->
-    <section id="acoesRapidas" class="fade-in">
-      <h2>⚡ Ações rápidas</h2>
+    <section id="acoesRapidas" class="section-animate">
+      <h2>Ações rápidas</h2>
       <div class="quick-actions">
         <button id="qaNovaFatura" class="quick-card primary">
-          <div class="quick-title">➕ Nova Despesa</div>
+          <div class="quick-title">Nova Despesa</div>
           <div class="quick-desc">Registe uma despesa com evento opcional.</div>
           <span class="quick-cta">Abrir formulário →</span>
         </button>
 
         <button class="quick-card ghost" id="qaExportRelatorio">
-          <div class="quick-title">📄 Relatório PDF</div>
+          <div class="quick-title">Relatório PDF</div>
           <div class="quick-desc">Gerar relatório com período e tipo configurável.</div>
           <span class="quick-cta">Abrir opções →</span>
         </button>
 
         <button id="qaNovoEvento" class="quick-card neutral">
-          <div class="quick-title">🎉 Novo Evento</div>
+          <div class="quick-title">Novo Evento</div>
           <div class="quick-desc">Crie um evento e associe futuras despesas.</div>
           <span class="quick-cta">Adicionar evento →</span>
         </button>
       </div>
     </section>
 
-    <!-- ================= FORM FATURA ================= -->
-    <section id="formularioFatura" class="fade-in" hidden>
-      <h2>✨ Nova Despesa</h2>
-
-      <form id="faturaForm" class="styled-form">
-
-        <label>🎉 Evento</label>
-        <select id="eventoFatura">
-          <option value="">Nenhum evento</option>
-        </select>
-
-        <label>📄 Tipo *</label>
-        <input id="tipoFatura" required>
-
-        <label>🏷️ Nome *</label>
-        <input id="nomeFatura" required>
-
-        <label>🔢 Número *</label>
-        <input id="numeroFatura" required>
-
-        <label>🏢 Departamento *</label>
-        <select id="departamento" required>
-          <option value="">Selecionar...</option>
-        </select>
-
-        <label>💰 Valor *</label>
-        <input type="number" step="0.01" id="valorFatura" required>
-
-        <label>📅 Data *</label>
-        <input type="date" id="dataFatura" required>
-
-        <label>⚡ Estado</label>
-        <select id="estadoFatura">
-          <option>Pendente</option>
-          <option>Paga</option>
-        </select>
-
-        <label>📝 Observações</label>
-        <textarea id="observacoesFatura"></textarea>
-
-        <label>📎 Anexo (PDF/Imagem)</label>
-        <input type="file" id="anexoFatura" accept="application/pdf,image/*">
-
-        <div class="form-btns">
-          <button type="submit" class="main-action">💾 Guardar</button>
-          <button type="button" id="btnCancelarFatura">Cancelar</button>
-        </div>
-
-      </form>
-    </section>
-
     <!-- ================= DESPESAS ================= -->
-    <section id="faturas" class="fade-in">
+    <section id="faturas" class="section-animate">
       <div class="section-header">
-        <h2>📊 Despesas</h2>
-        <button type="button" id="btnEscolherFatura" class="main-action">➕ Nova Despesa</button>
+        <h2>Despesas</h2>
+        <button type="button" id="btnEscolherFatura" class="main-action">Nova Despesa</button>
       </div>
 
       <div class="filtros">
         <input type="date" id="filterFrom">
         <input type="date" id="filterTo">
-        <input type="text" id="filterQ" placeholder="🔍 Pesquisar">
+        <input type="text" id="filterQ" placeholder="Pesquisar">
         <select id="filterDepartamento">
-          <option value="">🏢 Todos</option>
+          <option value="">Todos os departamentos</option>
         </select>
         <select id="filterEstado">
-          <option value="">⚡ Todos</option>
+          <option value="">Todos os estados</option>
           <option>Paga</option>
           <option>Pendente</option>
         </select>
         <select id="filterEvento">
-          <option value="">🎉 Todos os eventos</option>
+          <option value="">Todos os eventos</option>
         </select>
         <button id="btnAplicarFiltros" class="main-action">Aplicar</button>
       </div>
 
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>Título</th>
-              <th>Tipo</th>
-              <th>Nº</th>
-              <th>Valor</th>
-              <th>Data</th>
-              <th>Departamento</th>
-              <th>Evento</th>
-              <th>Estado</th>
-              <th>Anexo</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody id="tabelaFaturas"></tbody>
-        </table>
+      <div id="listaFaturas" class="record-list">
+        <p class="text-muted">A carregar...</p>
       </div>
+      <div class="pagination" id="faturasPagination"></div>
 
       <div class="chart-wrap">
-        <h3>📈 Resumo por Departamento</h3>
+        <h3>Resumo por Departamento</h3>
         <canvas id="chartDespesas"></canvas>
       </div>
     </section>
 
     <!-- ================= AÇÕES RÁPIDAS RECEITAS ================= -->
-    <section id="acoesRapidasReceitas" class="fade-in" hidden>
-      <h2>⚡ Ações rápidas</h2>
+    <section id="acoesRapidasReceitas" class="section-animate" hidden>
+      <h2>Ações rápidas</h2>
       <div class="quick-actions">
         <button id="qaNovaReceita" class="quick-card primary">
-          <div class="quick-title">➕ Nova Receita</div>
+          <div class="quick-title">Nova Receita</div>
           <div class="quick-desc">Registe uma entrada e associe a um evento.</div>
           <span class="quick-cta">Abrir formulário →</span>
         </button>
         <button class="quick-card ghost" id="qaExportRelatorioReceitas">
-          <div class="quick-title">📄 Relatório PDF</div>
+          <div class="quick-title">Relatório PDF</div>
           <div class="quick-desc">Gerar relatório com período e tipo configurável.</div>
           <span class="quick-cta">Abrir opções →</span>
         </button>
 
         <button id="qaNovoEventoReceitas" class="quick-card neutral">
-          <div class="quick-title">🎉 Novo Evento</div>
+          <div class="quick-title">Novo Evento</div>
           <div class="quick-desc">Crie um evento e associe futuras receitas.</div>
           <span class="quick-cta">Adicionar evento →</span>
         </button>
@@ -363,150 +208,53 @@
     </section>
 
     <!-- ================= RECEITAS ================= -->
-    <section id="receitas" class="fade-in" hidden>
+    <section id="receitas" class="section-animate" hidden>
       <div class="section-header">
-        <h2>💰 Receitas</h2>
-        <button id="btnNovaReceita" class="main-action">➕ Nova Receita</button>
+        <h2>Receitas</h2>
+        <button id="btnNovaReceita" class="main-action">Nova Receita</button>
       </div>
 
       <div class="filtros">
         <input type="date" id="filterReceitaFrom">
         <input type="date" id="filterReceitaTo">
-        <input type="text" id="filterReceitaQ" placeholder="🔍 Pesquisar">
+        <input type="text" id="filterReceitaQ" placeholder="Pesquisar">
         <select id="filterReceitaCategoria">
-          <option value="">🎯 Todas as categorias</option>
+          <option value="">Todas as categorias</option>
         </select>
         <select id="filterReceitaEstado">
-          <option value="">⚡ Todos os estados</option>
+          <option value="">Todos os estados</option>
           <option>Previsto</option>
           <option>Pendente</option>
           <option>Recebido</option>
         </select>
         <select id="filterReceitaEvento">
-          <option value="">🎉 Todos os eventos</option>
+          <option value="">Todos os eventos</option>
         </select>
         <button id="btnAplicarFiltrosReceita" class="main-action">Aplicar</button>
       </div>
 
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>Título</th>
-              <th>Categoria</th>
-              <th>Estado</th>
-              <th>Financiador</th>
-              <th>Evento</th>
-              <th>Valor</th>
-              <th>Data</th>
-              <th>Notas</th>
-              <th>Anexo</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody id="tabelaReceitas"></tbody>
-        </table>
+      <div id="listaReceitas" class="record-list">
+        <p class="text-muted">A carregar...</p>
       </div>
+      <div class="pagination" id="receitasPagination"></div>
 
       <div class="chart-wrap">
-        <h3>📈 Receitas por Categoria</h3>
+        <h3>Receitas por Categoria</h3>
         <canvas id="chartReceitas"></canvas>
       </div>
 
     </section>
 
-    <!-- ================= FORM RECEITA ================= -->
-    <section id="formularioReceita" class="fade-in" hidden>
-      <h2>✨ Nova Receita</h2>
-
-      <form id="receitaForm" class="styled-form">
-        <label>Título *</label>
-        <input id="tituloReceita" required>
-
-        <label>Categoria *</label>
-        <select id="categoriaReceita" required>
-          <option value="">Selecionar...</option>
-          <option>Quotas</option>
-          <option>Patrocínios/Doações</option>
-          <option>Cofinanciamentos</option>
-          <option>Vendas/Serviços</option>
-          <option>Reembolsos</option>
-          <option>Outros</option>
-        </select>
-
-        <label>🎉 Evento (opcional)</label>
-        <select id="eventoReceita">
-          <option value="">Nenhum evento</option>
-        </select>
-
-        <label>Estado</label>
-        <select id="estadoReceita">
-          <option>Previsto</option>
-          <option>Pendente</option>
-          <option>Recebido</option>
-        </select>
-
-        <label>Financiador</label>
-        <input id="financiadorReceita">
-
-        <label>Valor *</label>
-        <input type="number" step="0.01" id="valorReceita" required>
-
-        <label>Data *</label>
-        <input type="date" id="dataReceita" required>
-
-        <label>Observações</label>
-        <textarea id="observacoesReceita"></textarea>
-
-        <label>📎 Anexo (PDF/Imagem)</label>
-        <input type="file" id="anexoReceita" accept="application/pdf,image/*">
-
-        <div class="form-btns">
-          <button type="submit" class="main-action">💾 Guardar</button>
-          <button type="button" id="btnCancelarReceita">Cancelar</button>
-        </div>
-      </form>
-    </section>
-
     <!-- ================= EVENTOS ================= -->
-    <section id="eventos" class="fade-in">
+    <section id="eventos" class="section-animate">
       <div class="section-header">
-        <h2>🎉 Eventos</h2>
-        <button id="btnEscolherEvento" class="main-action">➕ Novo Evento</button>
+        <h2>Eventos</h2>
+        <button id="btnEscolherEvento" class="main-action">Novo Evento</button>
       </div>
 
       <div id="eventosLista" class="dashboard-grid">
         <p class="text-muted">Nenhum evento registado.</p>
       </div>
-    </section>
-
-    <!-- ================= FORM EVENTO ================= -->
-    <section id="formularioEvento" class="fade-in" hidden>
-      <h2>✨ Novo Evento</h2>
-
-      <form id="eventoForm" class="styled-form">
-        <label>🏷️ Nome *</label>
-        <input id="eventoNome" required>
-
-        <label>📝 Descrição</label>
-        <textarea id="eventoDescricao"></textarea>
-
-        <label>📅 Data de Início</label>
-        <input type="date" id="eventoDataInicio">
-
-        <label>📅 Data de Fim</label>
-        <input type="date" id="eventoDataFim">
-
-        <label>🏢 Departamento</label>
-        <select id="eventoDepartamento">
-          <option value="">Selecionar...</option>
-        </select>
-
-        <div class="form-btns">
-          <button type="submit" id="eventoSubmitButton" class="main-action">💾 Guardar</button>
-          <button type="button" id="btnCancelarEvento">Cancelar</button>
-        </div>
-      </form>
     </section>
 
   </main>
@@ -521,11 +269,9 @@
       <p id="eventoDetailDesc" style="color:var(--text-muted);font-size:0.9rem;margin-bottom:8px;"></p>
       <p id="eventoDetailDept" style="font-size:0.85rem;margin-bottom:12px;"></p>
 
-      <!-- Dashboard mini -->
       <div class="dashboard-grid" id="eventoDetailDashboard" style="margin-bottom:16px;"></div>
 
-      <!-- Receitas -->
-      <h4 style="margin-bottom:6px;">💰 Receitas</h4>
+      <h4 style="margin-bottom:6px;">Receitas</h4>
       <div class="table-wrapper" style="margin-bottom:16px;">
         <table>
           <thead><tr><th>Título</th><th>Categoria</th><th>Data</th><th>Valor</th></tr></thead>
@@ -533,8 +279,7 @@
         </table>
       </div>
 
-      <!-- Despesas -->
-      <h4 style="margin-bottom:6px;">📊 Despesas</h4>
+      <h4 style="margin-bottom:6px;">Despesas</h4>
       <div class="table-wrapper" style="margin-bottom:16px;">
         <table>
           <thead><tr><th>Título</th><th>Departamento</th><th>Data</th><th>Valor</th></tr></thead>
@@ -543,7 +288,7 @@
       </div>
 
       <div class="modal-actions">
-        <button id="eventoDetailPdf" class="main-action">📄 Descarregar PDF</button>
+        <button id="eventoDetailPdf" class="main-action">Descarregar PDF</button>
         <button id="eventoDetailCloseBtn" class="ghost-action">Fechar</button>
       </div>
     </div>
@@ -553,31 +298,37 @@
   <div id="shareEventoModal" class="modal-backdrop" hidden>
     <div class="modal-card" style="width:min(520px,95vw);">
       <div class="modal-header">
-        <h3 id="shareEventoTitle">🔗 Partilhar Evento</h3>
+        <h3 id="shareEventoTitle">Partilhar Evento</h3>
         <button type="button" class="modal-close" id="shareEventoClose" aria-label="Fechar">✖</button>
       </div>
-      <form id="shareEventoForm" class="styled-form">
+      <form id="shareEventoForm" class="form-modern">
         <input type="hidden" id="shareEventoId">
 
-        <label>👤 Destinatário (email/entidade)</label>
-        <input id="shareEventoDestinatario" placeholder="ex: municipio@exemplo.pt">
+        <div class="form-field">
+          <label for="shareEventoDestinatario">Destinatário (email/entidade)</label>
+          <input id="shareEventoDestinatario" placeholder="ex: municipio@exemplo.pt">
+        </div>
 
-        <label>📝 Justificação *</label>
-        <textarea id="shareEventoJustificacao" required></textarea>
+        <div class="form-field">
+          <label for="shareEventoJustificacao">Justificação <span class="form-required">*</span></label>
+          <textarea id="shareEventoJustificacao" required placeholder="Motivo da partilha..."></textarea>
+        </div>
 
-        <label>⏳ Validade (dias)</label>
-        <input id="shareEventoDias" type="number" min="1" value="30">
+        <div class="form-field">
+          <label for="shareEventoDias">Validade (dias)</label>
+          <input id="shareEventoDias" type="number" min="1" value="30">
+        </div>
 
         <div id="shareEventoResult" class="form-msg" hidden></div>
-        <div id="shareEventoLinkWrap" hidden>
-          <label>🔗 Link gerado</label>
+        <div id="shareEventoLinkWrap" class="form-field" hidden>
+          <label>Link gerado</label>
           <div style="display:flex;gap:8px;align-items:center;">
             <input id="shareEventoLink" readonly style="flex:1;">
             <button type="button" id="shareEventoCopy" class="ghost-action">Copiar</button>
           </div>
         </div>
-        <div id="shareEventoPassWrap" hidden style="margin-top:10px;">
-          <label>🔐 Password gerada</label>
+        <div id="shareEventoPassWrap" class="form-field" hidden>
+          <label>Password gerada</label>
           <div style="display:flex;gap:8px;align-items:center;">
             <input id="shareEventoPass" readonly style="flex:1;">
             <button type="button" id="shareEventoCopyPass" class="ghost-action">Copiar</button>
@@ -596,7 +347,7 @@
   <div id="exportModal" class="modal-backdrop" hidden>
     <div class="modal-card">
       <div class="modal-header">
-        <h3>📄 Gerar Relatório PDF</h3>
+        <h3>Gerar Relatório PDF</h3>
         <button type="button" class="modal-close" id="exportModalClose" aria-label="Fechar">✖</button>
       </div>
       <form id="exportRelatorioForm" class="export-form">
@@ -627,6 +378,154 @@
           <button type="submit" class="main-action export-action">Gerar PDF</button>
           <button type="button" id="exportModalCancel">Cancelar</button>
         </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Form Despesa -->
+  <div id="formularioFatura" class="modal-backdrop" hidden>
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <h3>Nova Despesa</h3>
+        <button type="button" class="modal-close" id="btnCancelarFatura" aria-label="Fechar">×</button>
+      </div>
+      <form id="faturaForm" class="form-modern">
+        <div class="form-fieldset">
+          <div class="form-fieldset-title">Informações principais</div>
+          <div class="form-grid">
+            <div class="form-field"><label for="nomeFatura">Nome <span class="form-required">*</span></label><input id="nomeFatura" required placeholder="Descrição da despesa"></div>
+            <div class="form-field"><label for="tipoFatura">Tipo <span class="form-required">*</span></label><input id="tipoFatura" required placeholder="ex: Fatura, Recibo"></div>
+            <div class="form-field"><label for="numeroFatura">Número <span class="form-required">*</span></label><input id="numeroFatura" required placeholder="ex: FT 2026/001"></div>
+            <div class="form-field"><label for="departamento">Departamento <span class="form-required">*</span></label><select id="departamento" required><option value="">Selecionar...</option></select></div>
+          </div>
+        </div>
+        <div class="form-fieldset">
+          <div class="form-fieldset-title">Valores e datas</div>
+          <div class="form-grid">
+            <div class="form-field"><label for="valorFatura">Valor (€) <span class="form-required">*</span></label><input type="number" step="0.01" id="valorFatura" required min="0" placeholder="0.00"></div>
+            <div class="form-field"><label for="dataFatura">Data <span class="form-required">*</span></label><input type="date" id="dataFatura" required></div>
+            <div class="form-field"><label for="estadoFatura">Estado</label><select id="estadoFatura"><option>Pendente</option><option>Paga</option></select></div>
+            <div class="form-field"><label for="eventoFatura">Evento <span class="form-optional">opcional</span></label><select id="eventoFatura"><option value="">Nenhum evento</option></select></div>
+          </div>
+        </div>
+        <div class="form-fieldset">
+          <div class="form-fieldset-title">Detalhes adicionais</div>
+          <div class="form-field"><label for="observacoesFatura">Observações</label><textarea id="observacoesFatura" placeholder="Notas adicionais..."></textarea></div>
+          <div class="form-field">
+            <label>Anexo (PDF/Imagem)</label>
+            <div class="file-drop" id="dropFatura">
+              <input type="file" id="anexoFatura" accept="application/pdf,image/*" class="file-drop-input">
+              <div class="file-drop-content"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg><span class="file-drop-text">Arrastar ficheiro ou <strong>procurar</strong></span><span class="file-drop-hint">PDF, JPG ou PNG</span></div>
+              <div class="file-drop-preview" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg><span class="file-drop-name"></span><button type="button" class="file-drop-remove" title="Remover">×</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="form-btns"><button type="submit" class="main-action">Guardar</button></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Form Receita -->
+  <div id="formularioReceita" class="modal-backdrop" hidden>
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <h3>Nova Receita</h3>
+        <button type="button" class="modal-close" id="btnCancelarReceita" aria-label="Fechar">×</button>
+      </div>
+      <form id="receitaForm" class="form-modern">
+        <div class="form-fieldset">
+          <div class="form-fieldset-title">Informações principais</div>
+          <div class="form-grid">
+            <div class="form-field"><label for="tituloReceita">Título <span class="form-required">*</span></label><input id="tituloReceita" required placeholder="Descrição da receita"></div>
+            <div class="form-field"><label for="categoriaReceita">Categoria <span class="form-required">*</span></label><select id="categoriaReceita" required><option value="">Selecionar...</option><option>Quotas</option><option>Patrocínios/Doações</option><option>Cofinanciamentos</option><option>Vendas/Serviços</option><option>Reembolsos</option><option>Outros</option></select></div>
+            <div class="form-field"><label for="eventoReceita">Evento <span class="form-optional">opcional</span></label><select id="eventoReceita"><option value="">Nenhum evento</option></select></div>
+            <div class="form-field"><label for="financiadorReceita">Financiador <span class="form-optional">opcional</span></label><input id="financiadorReceita" placeholder="ex: Câmara Municipal"></div>
+          </div>
+        </div>
+        <div class="form-fieldset">
+          <div class="form-fieldset-title">Valores e datas</div>
+          <div class="form-grid">
+            <div class="form-field"><label for="valorReceita">Valor (€) <span class="form-required">*</span></label><input type="number" step="0.01" id="valorReceita" required min="0" placeholder="0.00"></div>
+            <div class="form-field"><label for="dataReceita">Data <span class="form-required">*</span></label><input type="date" id="dataReceita" required></div>
+            <div class="form-field"><label for="estadoReceita">Estado</label><select id="estadoReceita"><option>Previsto</option><option>Pendente</option><option>Recebido</option></select></div>
+          </div>
+        </div>
+        <div class="form-fieldset">
+          <div class="form-fieldset-title">Detalhes adicionais</div>
+          <div class="form-field"><label for="observacoesReceita">Observações</label><textarea id="observacoesReceita" placeholder="Notas adicionais..."></textarea></div>
+          <div class="form-field">
+            <label>Anexo (PDF/Imagem)</label>
+            <div class="file-drop" id="dropReceita">
+              <input type="file" id="anexoReceita" accept="application/pdf,image/*" class="file-drop-input">
+              <div class="file-drop-content"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg><span class="file-drop-text">Arrastar ficheiro ou <strong>procurar</strong></span><span class="file-drop-hint">PDF, JPG ou PNG</span></div>
+              <div class="file-drop-preview" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg><span class="file-drop-name"></span><button type="button" class="file-drop-remove" title="Remover">×</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="form-btns"><button type="submit" class="main-action">Guardar</button></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Form Evento -->
+  <div id="formularioEvento" class="modal-backdrop" hidden>
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <h3>Novo Evento</h3>
+        <button type="button" class="modal-close" id="btnCancelarEvento" aria-label="Fechar">×</button>
+      </div>
+      <form id="eventoForm" class="form-modern">
+        <div class="form-fieldset">
+          <div class="form-fieldset-title">Informações do evento</div>
+          <div class="form-grid">
+            <div class="form-field form-field-full"><label for="eventoNome">Nome <span class="form-required">*</span></label><input id="eventoNome" required placeholder="Nome do evento"></div>
+            <div class="form-field"><label for="eventoDataInicio">Data de Início</label><input type="date" id="eventoDataInicio"></div>
+            <div class="form-field"><label for="eventoDataFim">Data de Fim</label><input type="date" id="eventoDataFim"></div>
+            <div class="form-field"><label for="eventoDepartamento">Departamento</label><select id="eventoDepartamento"><option value="">Selecionar...</option></select></div>
+          </div>
+          <div class="form-field"><label for="eventoDescricao">Descrição <span class="form-optional">opcional</span></label><textarea id="eventoDescricao" placeholder="Detalhes sobre o evento..."></textarea></div>
+        </div>
+        <div class="form-btns"><button type="submit" id="eventoSubmitButton" class="main-action">Guardar</button></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Form Inventário -->
+  <div id="formularioInventario" class="modal-backdrop" hidden>
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <h3>Novo item de inventário</h3>
+        <button type="button" class="modal-close" id="btnCancelarInventario" aria-label="Fechar">×</button>
+      </div>
+      <form id="inventarioForm" class="form-modern">
+        <div class="form-fieldset">
+          <div class="form-fieldset-title">Identificação</div>
+          <div class="form-grid">
+            <div class="form-field"><label for="invTipo">Tipo <span class="form-required">*</span></label><select id="invTipo" required><option value="">Selecionar...</option><option value="consumivel">Consumível</option><option value="fixo">Fixo</option></select></div>
+            <div class="form-field"><label for="invNome">Nome <span class="form-required">*</span></label><input id="invNome" required placeholder="Nome do item"></div>
+            <div class="form-field"><label for="invCategoria">Categoria</label><input id="invCategoria" placeholder="ex: Limpeza, Escritório"></div>
+            <div class="form-field"><label for="invEstado">Estado</label><input id="invEstado" placeholder="ex: ativo, manutenção"></div>
+          </div>
+        </div>
+        <div class="form-fieldset">
+          <div class="form-fieldset-title">Stock e custo</div>
+          <div class="form-grid">
+            <div class="form-field"><label for="invQuantidade">Quantidade</label><input type="number" step="0.01" id="invQuantidade" value="0" min="0"></div>
+            <div class="form-field"><label for="invUnidade">Unidade</label><input id="invUnidade" placeholder="ex: un, kg, L"></div>
+            <div class="form-field"><label for="invCusto">Custo unitário (€)</label><input type="number" step="0.01" id="invCusto" min="0" placeholder="0.00"></div>
+            <div class="form-field"><label for="invFatura">Fatura associada</label><select id="invFatura"><option value="">Sem associação</option></select></div>
+          </div>
+        </div>
+        <div class="form-fieldset">
+          <div class="form-fieldset-title">Detalhes adicionais</div>
+          <div class="form-grid">
+            <div class="form-field"><label for="invLocalizacao">Localização</label><input id="invLocalizacao" placeholder="ex: armazém A"></div>
+            <div class="form-field"><label for="invDataAquisicao">Data de aquisição</label><input type="date" id="invDataAquisicao"></div>
+            <div class="form-field"><label for="invDataValidade">Data de validade</label><input type="date" id="invDataValidade"></div>
+          </div>
+          <div class="form-field"><label for="invNotas">Notas</label><textarea id="invNotas" placeholder="Observações adicionais..."></textarea></div>
+        </div>
+        <div class="form-btns"><button type="submit" class="main-action">Guardar</button></div>
       </form>
     </div>
   </div>

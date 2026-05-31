@@ -180,13 +180,65 @@ function resetForm(id: string) {
 function showNotification(message: string, type: 'success' | 'error' = 'success') {
   const notification = document.createElement('div');
   notification.className = `notification ${type}`;
-  notification.innerHTML = `<span class="notification-icon">${type === 'success' ? '✅' : '❌'}</span><span class="notification-message">${message}</span>`;
+  notification.innerHTML = `<span class="notification-icon">${type === 'success' ? '&#10003;' : '&#10007;'}</span><span class="notification-message">${message}</span>`;
   document.body.appendChild(notification);
   setTimeout(() => {
     notification.style.animation = 'slideIn 0.3s ease reverse';
     setTimeout(() => notification.remove(), 300);
   }, 3000);
 }
+function escapeHtml(str: string): string {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+const ICONS: Record<string, string> = {
+  edit: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>',
+  trash: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>',
+  search: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
+  share: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" x2="12" y1="2" y2="15"/></svg>',
+  plus: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>',
+  download: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>',
+  file: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>',
+};
+
+function icon(name: string): string {
+  return ICONS[name] || '';
+}
+
+function estadoBadge(estado: string | null): string {
+  if (!estado) return '';
+  const s = estado.toLowerCase();
+  let cls = 'status-badge';
+  if (s === 'paga' || s === 'recebido') cls += ' status-ok';
+  else if (s === 'pendente' || s === 'previsto') cls += ' status-pending';
+  else cls += ' status-default';
+  return `<span class="${cls}">${escapeHtml(estado)}</span>`;
+}
+
+const PAGE_SIZE = 15;
+let faturaPage = 0;
+let receitaPage = 0;
+
+function renderPagination(containerId: string, total: number, currentPage: number, onPageChange: (page: number) => void) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+  if (totalPages <= 1) { container.innerHTML = ''; return; }
+  container.innerHTML = `
+    <button class="pagination-prev" ${currentPage === 0 ? 'disabled' : ''}>← Anterior</button>
+    <span class="pagination-info">Página ${currentPage + 1} de ${totalPages} (${total} registos)</span>
+    <button class="pagination-next" ${currentPage >= totalPages - 1 ? 'disabled' : ''}>Seguinte →</button>
+  `;
+  container.querySelector('.pagination-prev')?.addEventListener('click', () => { if (currentPage > 0) onPageChange(currentPage - 1); });
+  container.querySelector('.pagination-next')?.addEventListener('click', () => { if (currentPage < totalPages - 1) onPageChange(currentPage + 1); });
+}
+
+function paginate<T>(items: T[], page: number): T[] {
+  return items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+}
+
 function formatCurrency(value: any) {
   const num = Number(value || 0);
   return `€ ${num.toFixed(2)}`;
@@ -325,6 +377,8 @@ function setActiveNav(target: string) {
   });
 }
 
+const loadedSections = new Set<string>();
+
 function setActiveSection(target: 'resumo' | 'faturas' | 'receitas' | 'eventos' | 'inventario') {
   hideForms();
   const showSet = new Set(SECTION_GROUPS[target]);
@@ -332,9 +386,31 @@ function setActiveSection(target: 'resumo' | 'faturas' | 'receitas' | 'eventos' 
     toggleSection(id, showSet.has(id));
   });
   setActiveNav(target);
-  // Scroll to the first section of the group for context
   const firstId = SECTION_GROUPS[target][0];
   document.getElementById(firstId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  lazyLoadSection(target);
+}
+
+async function lazyLoadSection(target: string) {
+  if (loadedSections.has(target)) return;
+  loadedSections.add(target);
+  switch (target) {
+    case 'resumo':
+      await Promise.all([carregarFaturas(), carregarReceitas(), carregarMovimentos()]);
+      break;
+    case 'faturas':
+      if (!faturasCache.length) await carregarFaturas();
+      break;
+    case 'receitas':
+      if (!receitasCache.length) await carregarReceitas();
+      break;
+    case 'eventos':
+      await carregarEventosResumo();
+      break;
+    case 'inventario':
+      if (!inventarioCache.length) await carregarInventario();
+      break;
+  }
 }
 
 // --- Departamentos: carregar da API ---
@@ -350,7 +426,7 @@ async function carregarDepartamentos() {
       const select = document.getElementById(id) as HTMLSelectElement | null;
       if (!select) return;
       const current = select.value;
-      const placeholder = id === 'filterDepartamento' ? '🏢 Todos' : 'Selecionar...';
+      const placeholder = id === 'filterDepartamento' ? 'Todos os departamentos' : 'Selecionar...';
       select.innerHTML = `<option value="">${placeholder}</option>`;
       departamentosCache.forEach(dep => {
         const opt = document.createElement('option');
@@ -360,7 +436,9 @@ async function carregarDepartamentos() {
       });
       if (current) select.value = current;
     });
-  } catch {}
+  } catch {
+    console.warn('Erro ao carregar departamentos');
+  }
 }
 
 // --- Eventos: carregar, criar, editar e remover ---
@@ -376,7 +454,7 @@ async function carregarEventosSelect() {
       .map((ev: any) => `<option value="${ev.id}">${ev.nome}</option>`)
       .join('');
     const opts = '<option value="">Nenhum evento</option>' + optsList;
-    const optsFilter = '<option value="">🎉 Todos os eventos</option>' + optsList;
+    const optsFilter = '<option value="">Todos os eventos</option>' + optsList;
     if (selectFatura) selectFatura.innerHTML = opts;
     if (selectReceita) selectReceita.innerHTML = opts;
     if (selectFiltroReceita) selectFiltroReceita.innerHTML = optsFilter;
@@ -399,8 +477,7 @@ async function editarEvento(id: number) {
     setValue('eventoDepartamento', evento.departamento || '');
     editingEventoId = id;
     const btn = document.getElementById('eventoSubmitButton') as HTMLButtonElement | null;
-    if (btn) btn.textContent = '💾 Guardar Alterações';
-    document.getElementById('formularioEvento')?.scrollIntoView({ behavior: 'smooth' });
+    if (btn) btn.textContent = 'Guardar Alterações';
   } catch {
     showNotification('❌ Erro ao carregar evento para edição', 'error');
   }
@@ -459,7 +536,7 @@ async function guardarEvento(e: SubmitEvent) {
     toggleSection('formularioEvento', false);
     editingEventoId = null;
     const btn = document.getElementById('eventoSubmitButton') as HTMLButtonElement | null;
-    if (btn) btn.textContent = '💾 Guardar';
+    if (btn) btn.textContent = 'Guardar';
     await Promise.all([carregarEventosResumo(), carregarEventosSelect()]);
   } catch (err: any) {
     showNotification(`❌ ${err.message || 'Erro ao guardar evento'}`, 'error');
@@ -510,28 +587,34 @@ async function carregarEventosResumo() {
       const intervalo = dataInicio && dataFim ? `${dataInicio} a ${dataFim}` : (dataInicio || dataFim || 'Sem data');
       const actions = isReadOnly() ? `
         <div class="evento-actions">
-          <button class="btn-detalhe-evento" data-id="${ev.id}" title="Ver detalhes">🔍 Detalhes</button>
+          <button class="btn-detalhe-evento" data-id="${ev.id}" title="Ver detalhes">${icon('search')} Detalhes</button>
         </div>` : `
         <div class="evento-actions">
-          <button class="btn-detalhe-evento" data-id="${ev.id}" title="Ver detalhes">🔍 Detalhes</button>
-          <button class="btn-partilhar-evento" data-id="${ev.id}" title="Partilhar evento">🔗 Partilhar</button>
-          <button class="btn-editar-evento" data-id="${ev.id}" title="Editar evento">✏️ Editar</button>
-          <button class="btn-remover-evento" data-id="${ev.id}" title="Remover evento">🗑️ Remover</button>
+          <button class="btn-detalhe-evento" data-id="${ev.id}" title="Ver detalhes">${icon('search')} Detalhes</button>
+          <button class="btn-partilhar-evento" data-id="${ev.id}" title="Partilhar evento">${icon('share')} Partilhar</button>
+          <button class="btn-editar-evento" data-id="${ev.id}" title="Editar evento">${icon('edit')} Editar</button>
+          <button class="btn-remover-evento" data-id="${ev.id}" title="Remover evento">${icon('trash')} Remover</button>
         </div>`;
+      const total = receitaTotal + gasto;
+      const receitaPct = total > 0 ? Math.round((receitaTotal / total) * 100) : 50;
+      const saldoClass = saldo >= 0 ? 'saldo-positivo' : 'saldo-negativo';
       return `<div class="evento-card" data-evento-id="${ev.id}">
         <div class="evento-head">
           <div>
-            <div class="evento-title">${ev.nome}</div>
-            <div class="evento-dates">${intervalo}</div>
+            <div class="evento-title">${escapeHtml(ev.nome)}</div>
+            <div class="evento-dates">${escapeHtml(intervalo)}</div>
           </div>
-          <div class="evento-dept">${ev.departamento || 'Sem depto'}</div>
+          ${ev.departamento ? `<div class="evento-dept">${escapeHtml(ev.departamento)}</div>` : ''}
         </div>
-        <div class="evento-body">
-          <div class="evento-metric"><span>Entradas (receitas)</span><strong>${formatCurrency(receitaTotal)}</strong><span>${numReceitas} receita(s)</span></div>
-          <div class="evento-metric"><span>Saídas (despesas)</span><strong>${formatCurrency(gasto)}</strong><span>${numFaturas} despesa(s)</span></div>
-          <div class="evento-metric"><span>Saldo do evento</span><strong>${formatCurrency(saldo)}</strong></div>
+        ${ev.descricao ? `<p class="evento-desc">${escapeHtml(ev.descricao)}</p>` : ''}
+        <div class="evento-financeiro">
+          <div class="evento-fin-row">
+            <div class="evento-fin-item"><span class="evento-fin-label">Receitas</span><span class="evento-fin-value receita-color">${formatCurrency(receitaTotal)}</span><span class="evento-fin-count">${numReceitas} registo(s)</span></div>
+            <div class="evento-fin-item"><span class="evento-fin-label">Despesas</span><span class="evento-fin-value despesa-color">${formatCurrency(gasto)}</span><span class="evento-fin-count">${numFaturas} registo(s)</span></div>
+          </div>
+          <div class="evento-progress-bar"><div class="evento-progress-fill" style="width:${receitaPct}%"></div></div>
+          <div class="evento-saldo ${saldoClass}"><span>Saldo</span><strong>${formatCurrency(saldo)}</strong></div>
         </div>
-        <p class="evento-desc">${ev.descricao || 'Sem descrição.'}</p>
         ${actions}
       </div>`;
     }).join('');
@@ -575,10 +658,10 @@ async function abrirDetalheEvento(id: number) {
     if (!resp.ok) throw new Error('Erro ao obter detalhes');
     const { evento, faturas, receitas, resumo } = await resp.json();
 
-    (document.getElementById('eventoDetailTitle') as HTMLElement).textContent = `🎉 ${evento.nome}`;
+    (document.getElementById('eventoDetailTitle') as HTMLElement).textContent = evento.nome;
     (document.getElementById('eventoDetailDesc') as HTMLElement).textContent = evento.descricao || '';
     const deptEl = document.getElementById('eventoDetailDept') as HTMLElement;
-    deptEl.textContent = evento.departamento ? `🏢 ${evento.departamento}` : '';
+    deptEl.textContent = evento.departamento || '';
 
     // Dashboard
     const dash = document.getElementById('eventoDetailDashboard') as HTMLElement;
@@ -627,7 +710,7 @@ function abrirPartilhaEvento(id: number) {
   if (!modal) return;
   const evento = eventosCache.find((ev: any) => ev.id === id);
   const title = document.getElementById('shareEventoTitle');
-  if (title) title.textContent = `🔗 Partilhar Evento${evento?.nome ? `: ${evento.nome}` : ''}`;
+  if (title) title.textContent = `Partilhar Evento${evento?.nome ? `: ${evento.nome}` : ''}`;
   const idField = document.getElementById('shareEventoId') as HTMLInputElement | null;
   if (idField) idField.value = String(id);
   sharingEventoId = id;
@@ -724,8 +807,6 @@ function atualizarSelectFaturaInventario() {
 }
 
 async function carregarFaturas() {
-  const tbody = document.getElementById('tabelaFaturas');
-  if (!tbody) return;
   const params = new URLSearchParams();
   const from = getValue('filterFrom');
   const to = getValue('filterTo');
@@ -744,55 +825,71 @@ async function carregarFaturas() {
     const resp = await fetch(`${API_FATURAS}?${params.toString()}`);
     if (!resp.ok) throw new Error('Erro ao listar faturas');
     faturasCache = await resp.json();
-    if (!Array.isArray(faturasCache) || faturasCache.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10">Nenhuma fatura encontrada.</td></tr>';
-      atualizarDashboards([], movimentosCache, receitasCache);
-      atualizarSelectFaturaInventario();
-      return;
-    }
-    tbody.innerHTML = faturasCache.map((f: any) => {
-      const eventoNome = eventosCache.find((ev: any) => ev.id === f.eventoId)?.nome || '-';
-      const anexoLink = f.anexo?.driveWebViewLink
-        ? f.anexo.driveWebViewLink
-        : (f.anexo ? `/faturas/${f.id}/anexo${authToken ? `?token=${authToken}` : ''}` : '');
-      const actions = isReadOnly()
-        ? '-'
-        : `<button class="btn-acao btn-editar-fatura" data-id="${f.id}" title="Editar">✏️</button>
-           <button class="btn-acao btn-remover-fatura" data-id="${f.id}" title="Remover">🗑️</button>`;
-      return `<tr>
-        <td>${f.titulo || '-'}</td>
-        <td>${f.tipo || 'Fatura'}</td>
-        <td>${f.numero || '-'}</td>
-        <td>${formatCurrency(f.valor)}</td>
-        <td>${formatDate(f.data)}</td>
-        <td>${f.departamento || '-'}</td>
-        <td>${eventoNome}</td>
-        <td>${f.estado || '-'}</td>
-        <td>${anexoLink ? `<a href="${anexoLink}" target="_blank">Abrir</a>` : '-'}</td>
-        <td class="table-actions">${actions}</td>
-      </tr>`;
-    }).join('');
-    if (!isReadOnly()) {
-      tbody.querySelectorAll('.btn-editar-fatura').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
-          if (id) editarFatura(parseInt(id, 10));
-        });
-      });
-      tbody.querySelectorAll('.btn-remover-fatura').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
-          if (id) removerFatura(parseInt(id, 10));
-        });
-      });
-    }
+    faturaPage = 0;
+    renderFaturasPage();
     atualizarDashboards(faturasCache, movimentosCache, receitasCache);
     atualizarSelectFaturaInventario();
   } catch {
-    tbody.innerHTML = '<tr><td colspan="10">Erro ao carregar faturas.</td></tr>';
+    const container = document.getElementById('listaFaturas');
+    if (container) container.innerHTML = '<p class="text-muted">Erro ao carregar despesas.</p>';
     atualizarDashboards([], movimentosCache, receitasCache);
     atualizarSelectFaturaInventario();
   }
+}
+
+function renderFaturasPage() {
+  const container = document.getElementById('listaFaturas');
+  if (!container) return;
+  if (!Array.isArray(faturasCache) || faturasCache.length === 0) {
+    container.innerHTML = '<p class="text-muted">Nenhuma despesa encontrada.</p>';
+    renderPagination('faturasPagination', 0, 0, () => {});
+    return;
+  }
+  const page = paginate(faturasCache, faturaPage);
+  container.innerHTML = page.map((f: any) => {
+    const eventoNome = eventosCache.find((ev: any) => ev.id === f.eventoId)?.nome || '';
+    const anexoLink = f.anexo?.driveWebViewLink
+      ? f.anexo.driveWebViewLink
+      : (f.anexo ? `/faturas/${f.id}/anexo${authToken ? `?token=${authToken}` : ''}` : '');
+    const actions = isReadOnly() ? '' : `
+      <div class="record-actions">
+        <button class="btn-acao btn-editar-fatura" data-id="${f.id}" title="Editar">${icon('edit')}</button>
+        <button class="btn-acao btn-remover-fatura" data-id="${f.id}" title="Remover">${icon('trash')}</button>
+      </div>`;
+    return `<div class="record-row">
+      <div class="record-main">
+        <div class="record-title">${escapeHtml(f.titulo || '-')}</div>
+        <div class="record-meta">
+          <span>${escapeHtml(f.tipo || 'Fatura')}</span>
+          ${f.numero ? `<span>Nº ${escapeHtml(f.numero)}</span>` : ''}
+          <span>${escapeHtml(f.departamento || '-')}</span>
+          ${eventoNome ? `<span class="record-tag">${escapeHtml(eventoNome)}</span>` : ''}
+        </div>
+      </div>
+      <div class="record-details">
+        <div class="record-amount despesa-color">${formatCurrency(f.valor)}</div>
+        <div class="record-date">${formatDate(f.data)}</div>
+        ${estadoBadge(f.estado)}
+        ${anexoLink ? `<a href="${escapeHtml(anexoLink)}" target="_blank" class="record-anexo">${icon('file')}</a>` : ''}
+      </div>
+      ${actions}
+    </div>`;
+  }).join('');
+  if (!isReadOnly()) {
+    container.querySelectorAll('.btn-editar-fatura').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+        if (id) editarFatura(parseInt(id, 10));
+      });
+    });
+    container.querySelectorAll('.btn-remover-fatura').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+        if (id) removerFatura(parseInt(id, 10));
+      });
+    });
+  }
+  renderPagination('faturasPagination', faturasCache.length, faturaPage, (p) => { faturaPage = p; renderFaturasPage(); });
 }
 
 async function guardarFatura(e: SubmitEvent) {
@@ -843,7 +940,7 @@ async function guardarFatura(e: SubmitEvent) {
     toggleSection('formularioFatura', false);
     editingFaturaId = null;
     const btn = document.getElementById('btnSalvarFatura') as HTMLButtonElement | null;
-    if (btn) btn.textContent = '💾 Guardar';
+    if (btn) btn.textContent = 'Guardar';
     await Promise.all([carregarFaturas(), carregarEventosResumo(), carregarMovimentos()]);
   } catch (err: any) {
     showNotification(`❌ ${err.message || 'Erro ao guardar fatura'}`, 'error');
@@ -852,8 +949,6 @@ async function guardarFatura(e: SubmitEvent) {
 
 // --- Receitas: carregar e criar ---
 async function carregarReceitas() {
-  const tbody = document.getElementById('tabelaReceitas');
-  if (!tbody) return;
   const params = new URLSearchParams();
   const from = getValue('filterReceitaFrom');
   const to = getValue('filterReceitaTo');
@@ -872,50 +967,12 @@ async function carregarReceitas() {
     const resp = await fetch(url);
     if (!resp.ok) throw new Error('Erro ao listar receitas');
     receitasCache = await resp.json();
-    if (!Array.isArray(receitasCache) || receitasCache.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="10">Nenhuma receita encontrada.</td></tr>';
-      atualizarDashboards(faturasCache, movimentosCache, receitasCache);
-      return;
-    }
-    tbody.innerHTML = receitasCache.map((r: any) => {
-      const eventoNome = eventosCache.find((ev: any) => ev.id === r.eventoId)?.nome || '-';
-      const anexoLink = r.anexo?.driveWebViewLink
-        ? r.anexo.driveWebViewLink
-        : (r.anexo ? `/receitas/${r.id}/anexo${authToken ? `?token=${authToken}` : ''}` : '');
-      const actions = isReadOnly()
-        ? '-'
-        : `<button class="btn-acao btn-editar-receita" data-id="${r.id}" title="Editar">✏️</button>
-           <button class="btn-acao btn-remover-receita" data-id="${r.id}" title="Remover">🗑️</button>`;
-      return `<tr>
-        <td>${r.titulo || '-'}</td>
-        <td>${r.categoria || '-'}</td>
-        <td>${r.estado || '-'}</td>
-        <td>${r.financiador || '-'}</td>
-        <td>${eventoNome}</td>
-        <td>${formatCurrency(r.valor)}</td>
-        <td>${formatDate(r.data)}</td>
-        <td>${r.observacoes || '-'}</td>
-        <td>${anexoLink ? `<a href="${anexoLink}" target="_blank">Abrir</a>` : '-'}</td>
-        <td class="table-actions">${actions}</td>
-      </tr>`;
-    }).join('');
-    if (!isReadOnly()) {
-      tbody.querySelectorAll('.btn-editar-receita').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
-          if (id) editarReceita(parseInt(id, 10));
-        });
-      });
-      tbody.querySelectorAll('.btn-remover-receita').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
-          if (id) removerReceita(parseInt(id, 10));
-        });
-      });
-    }
+    receitaPage = 0;
+    renderReceitasPage();
     atualizarDashboards(faturasCache, movimentosCache, receitasCache);
   } catch {
-    tbody.innerHTML = '<tr><td colspan="10">Erro ao carregar receitas.</td></tr>';
+    const container = document.getElementById('listaReceitas');
+    if (container) container.innerHTML = '<p class="text-muted">Erro ao carregar receitas.</p>';
     atualizarDashboards(faturasCache, movimentosCache, receitasCache);
   }
 }
@@ -928,6 +985,61 @@ async function carregarMovimentos() {
   } catch {
     movimentosCache = [];
   }
+}
+
+function renderReceitasPage() {
+  const container = document.getElementById('listaReceitas');
+  if (!container) return;
+  if (!Array.isArray(receitasCache) || receitasCache.length === 0) {
+    container.innerHTML = '<p class="text-muted">Nenhuma receita encontrada.</p>';
+    renderPagination('receitasPagination', 0, 0, () => {});
+    return;
+  }
+  const page = paginate(receitasCache, receitaPage);
+  container.innerHTML = page.map((r: any) => {
+    const eventoNome = eventosCache.find((ev: any) => ev.id === r.eventoId)?.nome || '';
+    const anexoLink = r.anexo?.driveWebViewLink
+      ? r.anexo.driveWebViewLink
+      : (r.anexo ? `/receitas/${r.id}/anexo${authToken ? `?token=${authToken}` : ''}` : '');
+    const actions = isReadOnly() ? '' : `
+      <div class="record-actions">
+        <button class="btn-acao btn-editar-receita" data-id="${r.id}" title="Editar">${icon('edit')}</button>
+        <button class="btn-acao btn-remover-receita" data-id="${r.id}" title="Remover">${icon('trash')}</button>
+      </div>`;
+    return `<div class="record-row">
+      <div class="record-main">
+        <div class="record-title">${escapeHtml(r.titulo || '-')}</div>
+        <div class="record-meta">
+          <span>${escapeHtml(r.categoria || '-')}</span>
+          ${r.financiador ? `<span>${escapeHtml(r.financiador)}</span>` : ''}
+          ${eventoNome ? `<span class="record-tag">${escapeHtml(eventoNome)}</span>` : ''}
+        </div>
+        ${r.observacoes ? `<div class="record-notes">${escapeHtml(r.observacoes)}</div>` : ''}
+      </div>
+      <div class="record-details">
+        <div class="record-amount receita-color">${formatCurrency(r.valor)}</div>
+        <div class="record-date">${formatDate(r.data)}</div>
+        ${estadoBadge(r.estado)}
+        ${anexoLink ? `<a href="${escapeHtml(anexoLink)}" target="_blank" class="record-anexo">${icon('file')}</a>` : ''}
+      </div>
+      ${actions}
+    </div>`;
+  }).join('');
+  if (!isReadOnly()) {
+    container.querySelectorAll('.btn-editar-receita').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+        if (id) editarReceita(parseInt(id, 10));
+      });
+    });
+    container.querySelectorAll('.btn-remover-receita').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+        if (id) removerReceita(parseInt(id, 10));
+      });
+    });
+  }
+  renderPagination('receitasPagination', receitasCache.length, receitaPage, (p) => { receitaPage = p; renderReceitasPage(); });
 }
 
 async function guardarReceita(e: SubmitEvent) {
@@ -979,7 +1091,7 @@ async function guardarReceita(e: SubmitEvent) {
     toggleSection('formularioReceita', false);
     editingReceitaId = null;
     const btn = document.getElementById('btnSalvarReceita') as HTMLButtonElement | null;
-    if (btn) btn.textContent = '💾 Guardar';
+    if (btn) btn.textContent = 'Guardar';
     await Promise.all([carregarReceitas(), carregarMovimentos()]);
   } catch (err: any) {
     showNotification(`❌ ${err.message || 'Erro ao guardar receita'}`, 'error');
@@ -987,60 +1099,80 @@ async function guardarReceita(e: SubmitEvent) {
 }
 
 // --- Inventário ---
+function renderInvEstadoBadge(estado: string | null): string {
+  if (!estado) return '';
+  const s = estado.toLowerCase();
+  let cls = 'inv-badge';
+  if (s === 'ativo' || s === 'bom' || s === 'novo') cls += ' inv-badge-ok';
+  else if (s === 'manutenção' || s === 'avariado' || s === 'danificado') cls += ' inv-badge-warn';
+  else if (s === 'abatido' || s === 'expirado') cls += ' inv-badge-danger';
+  return `<span class="${cls}">${escapeHtml(estado)}</span>`;
+}
+
+function renderInvGrid(items: any[], container: HTMLElement, emptyMsg: string) {
+  if (!items || items.length === 0) {
+    container.innerHTML = `<p class="text-muted">${emptyMsg}</p>`;
+    return;
+  }
+  container.innerHTML = items.map((item: any) => {
+    const low = item.quantidadeMinima && item.quantidade < item.quantidadeMinima;
+    const stockClass = low ? 'inv-stock-low' : 'inv-stock-ok';
+    const qtdDisplay = item.quantidade != null ? `${item.quantidade}${item.unidade ? ' ' + escapeHtml(item.unidade) : ''}` : '-';
+    const actions = isReadOnly() ? '' : `
+      <div class="inv-card-actions">
+        <button class="btn-acao btn-editar-inv" data-id="${item.id}" title="Editar">${icon('edit')}</button>
+        <button class="btn-acao btn-remover-inv" data-id="${item.id}" title="Remover">${icon('trash')}</button>
+      </div>`;
+    const validade = item.dataValidade ? formatDate(item.dataValidade) : null;
+    const now = new Date();
+    const expiring = item.dataValidade && new Date(item.dataValidade) < new Date(now.getTime() + 30 * 86400000);
+    return `<div class="inv-card">
+      <div class="inv-card-head">
+        <div class="inv-card-name">${escapeHtml(item.nome)}</div>
+        ${actions}
+      </div>
+      <div class="inv-card-meta">
+        ${item.categoria ? `<span class="inv-tag">${escapeHtml(item.categoria)}</span>` : ''}
+        ${renderInvEstadoBadge(item.estado)}
+      </div>
+      <div class="inv-card-body">
+        <div class="inv-card-stat">
+          <span class="inv-stat-label">Quantidade</span>
+          <span class="inv-stat-value ${stockClass}">${qtdDisplay}</span>
+          ${low ? '<span class="inv-stock-alert">Stock baixo</span>' : ''}
+        </div>
+        ${item.custoUnitario ? `<div class="inv-card-stat"><span class="inv-stat-label">Custo unit.</span><span class="inv-stat-value">${formatCurrency(item.custoUnitario)}</span></div>` : ''}
+        ${item.localizacao ? `<div class="inv-card-stat"><span class="inv-stat-label">Localização</span><span class="inv-stat-value">${escapeHtml(item.localizacao)}</span></div>` : ''}
+        ${validade ? `<div class="inv-card-stat"><span class="inv-stat-label">Validade</span><span class="inv-stat-value ${expiring ? 'inv-expiring' : ''}">${validade}</span></div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  if (!isReadOnly()) {
+    container.querySelectorAll('.btn-editar-inv').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+        if (id) editarInventario(parseInt(id, 10));
+      });
+    });
+    container.querySelectorAll('.btn-remover-inv').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+        if (id) removerInventario(parseInt(id, 10));
+      });
+    });
+  }
+}
+
 async function carregarInventario() {
-  const tbodyConsumivel = document.getElementById('tabelaInventarioConsumivel');
-  const tbodyFixo = document.getElementById('tabelaInventarioFixo');
-  if (!tbodyConsumivel || !tbodyFixo) return;
+  const gridConsumivel = document.getElementById('invGridConsumivel');
+  const gridFixo = document.getElementById('invGridFixo');
+  if (!gridConsumivel || !gridFixo) return;
 
   const params = new URLSearchParams();
-  const tipo = getValue('filterInvTipo');
   const q = getValue('filterInvQ');
-  if (tipo) params.append('tipo', tipo);
   if (q) params.append('q', q);
   const url = params.toString() ? `${API_INVENTARIO}?${params.toString()}` : API_INVENTARIO;
-
-  const renderTabela = (items: any[], tbody: HTMLElement, emptyMsg: string) => {
-    if (!items || items.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="11">${emptyMsg}</td></tr>`;
-      return;
-    }
-    tbody.innerHTML = items.map((item: any) => {
-      const low = item.quantidadeMinima && item.quantidade < item.quantidadeMinima;
-      const actions = isReadOnly()
-        ? '-'
-        : `<button class="btn-acao btn-editar-inv" data-id="${item.id}" title="Editar">✏️</button>
-           <button class="btn-acao btn-remover-inv" data-id="${item.id}" title="Remover">🗑️</button>`;
-      const faturaNome = faturasCache.find((f: any) => f.id === item.faturaId)?.numero || faturasCache.find((f: any) => f.id === item.faturaId)?.titulo || '-';
-      return `<tr>
-        <td>${item.tipo || '-'}</td>
-        <td>${item.nome || '-'}</td>
-        <td>${item.categoria || '-'}</td>
-        <td class="${low ? 'low-stock' : ''}">${item.quantidade ?? '-'}</td>
-        <td>${item.unidade || '-'}</td>
-        <td>${item.localizacao || '-'}</td>
-        <td>${formatDate(item.dataValidade)}</td>
-        <td>${item.estado || '-'}</td>
-        <td>${item.custoUnitario ? formatCurrency(item.custoUnitario) : '-'}</td>
-        <td>${faturaNome || '-'}</td>
-        <td class="table-actions">${actions}</td>
-      </tr>`;
-    }).join('');
-
-    if (!isReadOnly()) {
-      tbody.querySelectorAll('.btn-editar-inv').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
-          if (id) editarInventario(parseInt(id, 10));
-        });
-      });
-      tbody.querySelectorAll('.btn-remover-inv').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
-          if (id) removerInventario(parseInt(id, 10));
-        });
-      });
-    }
-  };
 
   try {
     const resp = await fetch(url);
@@ -1049,12 +1181,16 @@ async function carregarInventario() {
     const consumiveis = Array.isArray(inventarioCache) ? inventarioCache.filter((i: any) => i.tipo === 'consumivel') : [];
     const fixos = Array.isArray(inventarioCache) ? inventarioCache.filter((i: any) => i.tipo === 'fixo') : [];
 
-    renderTabela(consumiveis, tbodyConsumivel, 'Nenhum item consumível encontrado.');
-    renderTabela(fixos, tbodyFixo, 'Nenhum item fixo encontrado.');
+    renderInvGrid(consumiveis, gridConsumivel, 'Nenhum item consumível encontrado.');
+    renderInvGrid(fixos, gridFixo, 'Nenhum item fixo encontrado.');
+    const countCons = document.getElementById('invCountConsumivel');
+    const countFix = document.getElementById('invCountFixo');
+    if (countCons) countCons.textContent = `(${consumiveis.length})`;
+    if (countFix) countFix.textContent = `(${fixos.length})`;
   } catch {
     inventarioCache = [];
-    tbodyConsumivel.innerHTML = '<tr><td colspan="11">Erro ao carregar inventário.</td></tr>';
-    tbodyFixo.innerHTML = '<tr><td colspan="11">Erro ao carregar inventário.</td></tr>';
+    gridConsumivel.innerHTML = '<p class="text-muted">Erro ao carregar inventário.</p>';
+    gridFixo.innerHTML = '<p class="text-muted">Erro ao carregar inventário.</p>';
   }
 }
 
@@ -1158,9 +1294,62 @@ async function guardarInventario(e: SubmitEvent) {
 }
 
 // --- Inicialização ---
+function setupFileDrop(dropId: string, inputId: string) {
+  const drop = document.getElementById(dropId);
+  const input = document.getElementById(inputId) as HTMLInputElement | null;
+  if (!drop || !input) return;
+
+  const content = drop.querySelector('.file-drop-content') as HTMLElement;
+  const preview = drop.querySelector('.file-drop-preview') as HTMLElement;
+  const nameEl = drop.querySelector('.file-drop-name') as HTMLElement;
+  const removeBtn = drop.querySelector('.file-drop-remove') as HTMLElement;
+
+  function showFile(file: File) {
+    if (nameEl) nameEl.textContent = `${file.name} (${(file.size / 1024).toFixed(0)} KB)`;
+    drop!.classList.add('has-file');
+    if (preview) preview.removeAttribute('hidden');
+  }
+
+  function clearFile() {
+    input!.value = '';
+    drop!.classList.remove('has-file');
+    if (preview) preview.setAttribute('hidden', 'true');
+  }
+
+  input.addEventListener('change', () => {
+    if (input.files?.length) showFile(input.files[0]);
+  });
+
+  if (removeBtn) removeBtn.addEventListener('click', (e) => { e.stopPropagation(); clearFile(); });
+
+  drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('dragover'); });
+  drop.addEventListener('dragleave', () => { drop.classList.remove('dragover'); });
+  drop.addEventListener('drop', (e) => {
+    e.preventDefault();
+    drop.classList.remove('dragover');
+    const files = (e as DragEvent).dataTransfer?.files;
+    if (files?.length) {
+      const dt = new DataTransfer();
+      dt.items.add(files[0]);
+      input.files = dt.files;
+      showFile(files[0]);
+    }
+  });
+}
+
 function setupEventListeners() {
   if (listenersBound) return;
   listenersBound = true;
+
+  setupFileDrop('dropFatura', 'anexoFatura');
+  setupFileDrop('dropReceita', 'anexoReceita');
+
+  ['formularioFatura', 'formularioReceita', 'formularioEvento', 'formularioInventario'].forEach(id => {
+    const modal = document.getElementById(id);
+    if (modal) modal.addEventListener('click', (e) => {
+      if (e.target === modal) toggleSection(id, false);
+    });
+  });
 
   // Modal detalhes evento
   document.getElementById('eventoDetailClose')?.addEventListener('click', fecharDetalheEvento);
@@ -1216,9 +1405,8 @@ function setupEventListeners() {
       editingEventoId = null;
       resetForm('eventoForm');
       const btn = document.getElementById('eventoSubmitButton') as HTMLButtonElement | null;
-      if (btn) btn.textContent = '💾 Guardar';
+      if (btn) btn.textContent = 'Guardar';
       toggleSection('formularioEvento', true);
-      document.getElementById('formularioEvento')?.scrollIntoView({ behavior: 'smooth' });
     });
   }
 
@@ -1230,9 +1418,8 @@ function setupEventListeners() {
       editingEventoId = null;
       resetForm('eventoForm');
       const btn = document.getElementById('eventoSubmitButton') as HTMLButtonElement | null;
-      if (btn) btn.textContent = '💾 Guardar';
+      if (btn) btn.textContent = 'Guardar';
       toggleSection('formularioEvento', true);
-      document.getElementById('formularioEvento')?.scrollIntoView({ behavior: 'smooth' });
     });
   }
 
@@ -1257,9 +1444,8 @@ function setupEventListeners() {
       setValue('tipoFatura', 'Fatura');
       editingFaturaId = null;
       const btn = document.getElementById('btnSalvarFatura') as HTMLButtonElement | null;
-      if (btn) btn.textContent = '💾 Guardar';
+      if (btn) btn.textContent = 'Guardar';
       carregarEventosSelect();
-      document.getElementById('formularioFatura')?.scrollIntoView({ behavior: 'smooth' });
     });
   }
 
@@ -1272,9 +1458,8 @@ function setupEventListeners() {
       setValue('tipoFatura', 'Fatura');
       editingFaturaId = null;
       const btn = document.getElementById('btnSalvarFatura') as HTMLButtonElement | null;
-      if (btn) btn.textContent = '💾 Guardar';
+      if (btn) btn.textContent = 'Guardar';
       carregarEventosSelect();
-      document.getElementById('formularioFatura')?.scrollIntoView({ behavior: 'smooth' });
     });
   }
 
@@ -1286,9 +1471,8 @@ function setupEventListeners() {
       editingEventoId = null;
       resetForm('eventoForm');
       const btn = document.getElementById('eventoSubmitButton') as HTMLButtonElement | null;
-      if (btn) btn.textContent = '💾 Guardar';
+      if (btn) btn.textContent = 'Guardar';
       toggleSection('formularioEvento', true);
-      document.getElementById('formularioEvento')?.scrollIntoView({ behavior: 'smooth' });
     });
   }
 
@@ -1299,7 +1483,7 @@ function setupEventListeners() {
       resetForm('faturaForm');
       editingFaturaId = null;
       const btn = document.getElementById('btnSalvarFatura') as HTMLButtonElement | null;
-      if (btn) btn.textContent = '💾 Guardar';
+      if (btn) btn.textContent = 'Guardar';
     });
   }
 
@@ -1315,9 +1499,8 @@ function setupEventListeners() {
       toggleSection('formularioReceita', true);
       editingReceitaId = null;
       const btn = document.getElementById('btnSalvarReceita') as HTMLButtonElement | null;
-      if (btn) btn.textContent = '💾 Guardar';
+      if (btn) btn.textContent = 'Guardar';
       carregarEventosSelect();
-      document.getElementById('formularioReceita')?.scrollIntoView({ behavior: 'smooth' });
     });
   }
 
@@ -1328,7 +1511,7 @@ function setupEventListeners() {
       resetForm('receitaForm');
       editingReceitaId = null;
       const btn = document.getElementById('btnSalvarReceita') as HTMLButtonElement | null;
-      if (btn) btn.textContent = '💾 Guardar';
+      if (btn) btn.textContent = 'Guardar';
     });
   }
 
@@ -1350,9 +1533,8 @@ function setupEventListeners() {
       toggleSection('formularioReceita', true);
       editingReceitaId = null;
       const btn = document.getElementById('btnSalvarReceita') as HTMLButtonElement | null;
-      if (btn) btn.textContent = '💾 Guardar';
+      if (btn) btn.textContent = 'Guardar';
       carregarEventosSelect();
-      document.getElementById('formularioReceita')?.scrollIntoView({ behavior: 'smooth' });
     });
   }
 
@@ -1371,6 +1553,17 @@ function setupEventListeners() {
   const btnAplicarFiltrosInv = document.getElementById('btnAplicarFiltrosInv');
   if (btnAplicarFiltrosInv) btnAplicarFiltrosInv.addEventListener('click', () => carregarInventario());
 
+  document.querySelectorAll('.inv-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const target = tab.getAttribute('data-inv-tab');
+      document.querySelectorAll('.inv-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      document.querySelectorAll('.inv-panel').forEach(p => (p as HTMLElement).setAttribute('hidden', 'true'));
+      const panel = document.getElementById(`invPanel${target === 'consumivel' ? 'Consumivel' : 'Fixo'}`);
+      if (panel) panel.removeAttribute('hidden');
+    });
+  });
+
   const qaNovoInventario = document.getElementById('qaNovoInventario');
   if (qaNovoInventario) {
     qaNovoInventario.addEventListener('click', () => {
@@ -1379,7 +1572,6 @@ function setupEventListeners() {
       resetForm('inventarioForm');
       toggleSection('formularioInventario', true);
       editingInventarioId = null;
-      document.getElementById('formularioInventario')?.scrollIntoView({ behavior: 'smooth' });
     });
   }
 
@@ -1448,40 +1640,41 @@ function renderDashboard(faturas: any[], movimentos: any[], receitas: any[]) {
   if (!container) return;
   const r = calcularResumoMesAtual(faturas);
   const fluxo = calcularFluxoMesAtual(movimentos, faturas, receitas);
-  const blocoTotais = [
-    { label: 'Total do mês (faturas)', value: formatCurrency(r.total) },
-    { label: 'Pagas', value: formatCurrency(r.pagas) },
-    { label: 'Pendentes', value: formatCurrency(r.pendentes) }
-  ];
-  const blocoRecorr = [
-    { label: 'Recorrentes', value: formatCurrency(r.recorrentes) },
-    { label: 'Nº de faturas', value: r.count.toString() }
-  ];
-  const blocoFluxo = [
-    { label: 'Entradas (mês)', value: formatCurrency(fluxo.entradas) },
-    { label: 'Saídas (mês)', value: formatCurrency(fluxo.saidas) },
-    { label: 'Saldo do mês', value: formatCurrency(fluxo.saldoMes) }
-  ];
-
-  const renderCards = (cards: { label: string; value: string; }[]) => cards.map(c => `
-    <div class="summary-card">
-      <div class="label">${c.label}</div>
-      <div class="value">${c.value}</div>
-    </div>
-  `).join('');
+  const saldoClass = fluxo.saldoMes >= 0 ? 'kpi-positive' : 'kpi-negative';
 
   container.innerHTML = `
-    <div class="summary-block">
-      <div class="summary-title">Totais do mês (despesas)</div>
-      <div class="summary-grid">${renderCards(blocoTotais)}</div>
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Despesas do mês</div>
+        <div class="kpi-value kpi-negative">${formatCurrency(r.total)}</div>
+        <div class="kpi-detail">${r.count} fatura(s)</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Receitas do mês</div>
+        <div class="kpi-value kpi-positive">${formatCurrency(fluxo.entradas)}</div>
+      </div>
+      <div class="kpi-card kpi-card-highlight ${saldoClass}-bg">
+        <div class="kpi-label">Saldo do mês</div>
+        <div class="kpi-value ${saldoClass}">${formatCurrency(fluxo.saldoMes)}</div>
+      </div>
     </div>
-    <div class="summary-block">
-      <div class="summary-title">Recorrência e contagem</div>
-      <div class="summary-grid">${renderCards(blocoRecorr)}</div>
-    </div>
-    <div class="summary-block">
-      <div class="summary-title">Fluxo de caixa do mês</div>
-      <div class="summary-grid">${renderCards(blocoFluxo)}</div>
+    <div class="kpi-grid kpi-grid-secondary">
+      <div class="kpi-card-sm">
+        <div class="kpi-label">Pagas</div>
+        <div class="kpi-value-sm">${formatCurrency(r.pagas)}</div>
+      </div>
+      <div class="kpi-card-sm">
+        <div class="kpi-label">Pendentes</div>
+        <div class="kpi-value-sm kpi-warning">${formatCurrency(r.pendentes)}</div>
+      </div>
+      <div class="kpi-card-sm">
+        <div class="kpi-label">Recorrentes</div>
+        <div class="kpi-value-sm">${formatCurrency(r.recorrentes)}</div>
+      </div>
+      <div class="kpi-card-sm">
+        <div class="kpi-label">Saídas (mês)</div>
+        <div class="kpi-value-sm">${formatCurrency(fluxo.saidas)}</div>
+      </div>
     </div>
   `;
 }
@@ -1517,28 +1710,31 @@ function renderDashboardAno(faturas: any[], receitas: any[]) {
     container.innerHTML = '<p class="text-muted">Ainda sem dados para este ano.</p>';
     return;
   }
-  const renderCards = (lista: { mes: string; desp: number; rec: number; saldo: number; }[]) => lista.map(d => `
-    <div class="summary-card summary-card-ano">
-      <div class="label">${d.mes}</div>
-      <div class="ano-metrics">
-        <div class="ano-metric"><span>Despesas</span><strong>${formatCurrency(d.desp)}</strong></div>
-        <div class="ano-metric"><span>Receitas</span><strong>${formatCurrency(d.rec)}</strong></div>
-        <div class="ano-metric ${d.saldo >= 0 ? 'saldo-positivo' : 'saldo-negativo'}"><span>Saldo</span><strong>${formatCurrency(d.saldo)}</strong></div>
+  const maxVal = Math.max(...dados.map(d => Math.max(d.desp, d.rec)), 1);
+  const renderRow = (d: { mes: string; desp: number; rec: number; saldo: number }) => {
+    const despPct = Math.round((d.desp / maxVal) * 100);
+    const recPct = Math.round((d.rec / maxVal) * 100);
+    const saldoClass = d.saldo >= 0 ? 'kpi-positive' : 'kpi-negative';
+    return `<div class="ano-row">
+      <div class="ano-row-label">${d.mes}</div>
+      <div class="ano-row-bars">
+        <div class="ano-bar-track"><div class="ano-bar ano-bar-desp" style="width:${despPct}%"></div></div>
+        <div class="ano-bar-track"><div class="ano-bar ano-bar-rec" style="width:${recPct}%"></div></div>
       </div>
-    </div>
-  `).join('');
-
-  const primeiroSemestre = dados.slice(0, 6);
-  const segundoSemestre = dados.slice(6, 12);
+      <div class="ano-row-values">
+        <span class="kpi-negative">${formatCurrency(d.desp)}</span>
+        <span class="kpi-positive">${formatCurrency(d.rec)}</span>
+        <span class="${saldoClass}">${formatCurrency(d.saldo)}</span>
+      </div>
+    </div>`;
+  };
 
   container.innerHTML = `
-    <div class="summary-block">
-      <div class="summary-title">1.º Semestre</div>
-      <div class="summary-grid">${renderCards(primeiroSemestre)}</div>
-    </div>
-    <div class="summary-block">
-      <div class="summary-title">2.º Semestre</div>
-      <div class="summary-grid">${renderCards(segundoSemestre)}</div>
+    <div class="ano-table">
+      <div class="ano-header">
+        <span>Mês</span><span></span><span class="kpi-negative">Despesas</span><span class="kpi-positive">Receitas</span><span>Saldo</span>
+      </div>
+      ${dados.map(renderRow).join('')}
     </div>
   `;
 }
@@ -1561,7 +1757,9 @@ function renderChartDepartamentos(faturas: any[]) {
       datasets: [{
         label: 'Gasto por departamento',
         data,
-        backgroundColor: '#22c55e'
+        backgroundColor: 'rgba(37, 99, 235, 0.7)',
+        borderRadius: 6,
+        borderSkipped: false,
       }]
     },
     options: {
@@ -1569,7 +1767,7 @@ function renderChartDepartamentos(faturas: any[]) {
       maintainAspectRatio: false,
       layout: { padding: 8 },
       plugins: { legend: { display: false } },
-      scales: { y: { beginAtZero: true } }
+      scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } }
     }
   });
 }
@@ -1655,15 +1853,15 @@ function renderChartComparativo(faturas: any[], receitas: any[]) {
     data: {
       labels: months.map(m => m.label),
       datasets: [
-        { label: 'Despesas', data: despesas, backgroundColor: '#ef4444' },
-        { label: 'Receitas', data: recs, backgroundColor: '#22c55e' }
+        { label: 'Despesas', data: despesas, backgroundColor: 'rgba(220, 38, 38, 0.65)', borderRadius: 4, borderSkipped: false },
+        { label: 'Receitas', data: recs, backgroundColor: 'rgba(22, 163, 74, 0.65)', borderRadius: 4, borderSkipped: false }
       ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom' } },
-      scales: { y: { beginAtZero: true } }
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true, pointStyle: 'circle' } } },
+      scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } }
     }
   });
 }
@@ -1684,14 +1882,14 @@ function renderChartTopDept(faturas: any[]) {
     type: 'bar',
     data: {
       labels,
-      datasets: [{ label: 'Despesas', data, backgroundColor: '#3b82f6' }]
+      datasets: [{ label: 'Despesas', data, backgroundColor: 'rgba(37, 99, 235, 0.6)', borderRadius: 4, borderSkipped: false }]
     },
     options: {
       indexAxis: 'y',
       responsive: true,
       maintainAspectRatio: false,
       plugins: { legend: { display: false } },
-      scales: { x: { beginAtZero: true } }
+      scales: { x: { beginAtZero: true, grid: { color: '#f1f5f9' } }, y: { grid: { display: false } } }
     }
   });
 }
@@ -1790,8 +1988,7 @@ async function editarReceita(id: number) {
     if (r.eventoId) setValue('eventoReceita', String(r.eventoId)); else setValue('eventoReceita', '');
     editingReceitaId = id;
     const btn = document.getElementById('btnSalvarReceita') as HTMLButtonElement | null;
-    if (btn) btn.textContent = '💾 Guardar Alterações';
-    document.getElementById('formularioReceita')?.scrollIntoView({ behavior: 'smooth' });
+    if (btn) btn.textContent = 'Guardar Alterações';
   } catch {
     showNotification('❌ Erro ao carregar receita para edição', 'error');
   }
@@ -1829,8 +2026,7 @@ async function editarFatura(id: number) {
     if (f.eventoId) setValue('eventoFatura', String(f.eventoId)); else setValue('eventoFatura', '');
     editingFaturaId = id;
     const btn = document.getElementById('btnSalvarFatura') as HTMLButtonElement | null;
-    if (btn) btn.textContent = '💾 Guardar Alterações';
-    document.getElementById('formularioFatura')?.scrollIntoView({ behavior: 'smooth' });
+    if (btn) btn.textContent = 'Guardar Alterações';
   } catch {
     showNotification('❌ Erro ao carregar fatura para edição', 'error');
   }
@@ -1860,14 +2056,12 @@ function atualizarDashboards(faturas: any[], movimentos: any[] = movimentosCache
 }
 
 async function startApp() {
-  await carregarDepartamentos();
+  setupEventListeners();
+  setActiveSection('resumo');
+  await Promise.all([carregarDepartamentos(), carregarEventosSelect()]);
   aplicarDepartamentosFiltro();
   aplicarCategoriasFiltroReceita();
-  setupEventListeners();
-  await Promise.all([carregarMovimentos(), carregarEventosSelect(), carregarEventosResumo(), carregarInventario()]);
-  await Promise.all([carregarFaturas(), carregarReceitas()]);
   atualizarSelectFaturaInventario();
-  setActiveSection('resumo');
 }
 
 document.addEventListener('DOMContentLoaded', () => { void bootstrapAuth(); });

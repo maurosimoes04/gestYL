@@ -201,7 +201,7 @@ router.get('/pdf', async (req, res) => {
     doc.end();
   } catch (err) {
     console.error('Erro ao gerar PDF:', err);
-    res.status(500).json({ erro: 'Erro ao exportar PDF' });
+    res.status(500).json({ error: 'Erro ao exportar PDF' });
   }
 });
 

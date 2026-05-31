@@ -91,13 +91,13 @@ sharePublicRouter.post('/evento/:token/access', async (req, res) => {
 
     const accessToken = crypto.randomBytes(24).toString('base64url');
     const accessHash = hashToken(accessToken);
-    const expiresAt = new Date(Date.now() + ACCESS_TTL_HOURS * 60 * 60 * 1000);
+    const sessionExpiresAt = new Date(Date.now() + ACCESS_TTL_HOURS * 60 * 60 * 1000);
 
     await prisma.eventoShare.update({
       where: { id: share.id },
       data: {
         accessTokenHash: accessHash,
-        accessTokenExpiresAt: expiresAt,
+        accessTokenExpiresAt: sessionExpiresAt,
       },
     });
 
@@ -133,6 +133,7 @@ sharePublicRouter.post('/evento/:token/access', async (req, res) => {
         totalReceitas,
         saldo: totalReceitas - totalDespesas,
       },
+      sessionExpiresAt,
     });
   } catch (err) {
     console.error('Erro acesso partilha:', err);
@@ -156,7 +157,7 @@ sharePublicRouter.get('/evento/:token/anexo/:tipo/:id', async (req, res) => {
       return res.status(401).json({ error: 'Acesso não autorizado' });
     }
     if (new Date(share.accessTokenExpiresAt) < new Date()) {
-      return res.status(401).json({ error: 'Sessão expirada' });
+      return res.status(401).json({ error: 'Sessão expirada', expired: true });
     }
     const tokenHash = hashToken(accessToken);
     if (tokenHash !== share.accessTokenHash) {
@@ -171,7 +172,13 @@ sharePublicRouter.get('/evento/:token/anexo/:tipo/:id', async (req, res) => {
       const anexo = fatura.anexo as any;
       const link = anexo.driveWebContentLink || anexo.driveWebViewLink;
       if (link) return res.redirect(link);
-      if (anexo.path) return res.sendFile(path.resolve(path.join(__dirname, '..', anexo.path)));
+      if (anexo.path) {
+        const resolved = path.resolve(path.join(__dirname, '..', anexo.path));
+        if (!resolved.startsWith(path.resolve(path.join(__dirname, '..')))) {
+          return res.status(403).json({ error: 'Caminho inválido' });
+        }
+        return res.sendFile(resolved);
+      }
       return res.status(404).json({ error: 'Link do anexo indisponível' });
     }
 
@@ -214,7 +221,6 @@ sharePrivateRouter.post('/', async (req, res) => {
         createdByEmail: (req as any).authUser || null,
         destinatario: destinatario || null,
         justificacao,
-        passwordPlain,
         passwordHash: hash,
         passwordSalt: salt,
         expiresAt,

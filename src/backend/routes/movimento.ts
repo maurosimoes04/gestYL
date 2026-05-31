@@ -18,7 +18,7 @@ router.get('/', async (req, res) => {
     const movimentos = await prisma.movimento.findMany({ where, orderBy: { data: 'desc' } });
     res.json(movimentos);
   } catch (err) {
-    res.status(500).json({ error: 'Erro ao listar movimentos', details: err });
+    res.status(500).json({ error: 'Erro ao listar movimentos' });
   }
 });
 
@@ -30,7 +30,7 @@ router.post('/', async (req, res) => {
     const movimento = await prisma.movimento.create({ data: payload });
     res.status(201).json(movimento);
   } catch (err) {
-    res.status(400).json({ error: 'Erro ao criar movimento', details: err });
+    res.status(400).json({ error: 'Erro ao criar movimento' });
   }
 });
 
@@ -45,7 +45,7 @@ router.put('/:id', async (req, res) => {
     });
     res.json(mov);
   } catch (err) {
-    res.status(400).json({ error: 'Erro ao atualizar movimento', details: err });
+    res.status(400).json({ error: 'Erro ao atualizar movimento' });
   }
 });
 
@@ -54,7 +54,7 @@ router.delete('/:id', async (req, res) => {
     await prisma.movimento.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: 'Movimento removido com sucesso' });
   } catch (err) {
-    res.status(500).json({ error: 'Erro ao remover movimento', details: err });
+    res.status(500).json({ error: 'Erro ao remover movimento' });
   }
 });
 

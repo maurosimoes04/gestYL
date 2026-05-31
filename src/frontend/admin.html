@@ -27,15 +27,15 @@
   <main>
     <!-- TABS -->
     <div class="tabs">
-      <button class="tab active" data-tab="users">👥 Utilizadores</button>
-      <button class="tab" data-tab="departamentos">🏢 Departamentos</button>
-      <button class="tab" data-tab="shares">🔗 Partilhas</button>
-      <button class="tab" data-tab="audit">📋 Auditoria</button>
+      <button class="tab active" data-tab="users">Utilizadores</button>
+      <button class="tab" data-tab="departamentos">Departamentos</button>
+      <button class="tab" data-tab="shares">Partilhas</button>
+      <button class="tab" data-tab="audit">Auditoria</button>
     </div>
 
     <!-- RESUMO -->
     <section class="card fade-in">
-      <h2>👥 Utilizadores</h2>
+      <h2>Utilizadores</h2>
       <p class="subtitle" id="userCount">A carregar...</p>
 
       <!-- FORM NOVO UTILIZADOR -->
@@ -87,7 +87,7 @@
 
     <!-- DEPARTAMENTOS -->
     <section class="card fade-in" id="sectionDepartamentos" hidden>
-      <h2>🏢 Departamentos</h2>
+      <h2>Departamentos</h2>
       <div class="invite-form" id="depForm">
         <h3>Novo departamento</h3>
         <div class="form-row">
@@ -118,7 +118,7 @@
 
     <!-- PARTILHAS EXTERNAS -->
     <section class="card fade-in" id="sectionShares" hidden>
-      <h2>🔗 Partilhas externas</h2>
+      <h2>Partilhas externas</h2>
       <div class="table-wrapper">
         <table>
           <thead>
@@ -127,7 +127,6 @@
               <th>Partilhado por</th>
               <th>Destinatário</th>
               <th>Justificação</th>
-              <th>Password</th>
               <th>Expira</th>
               <th>Estado</th>
               <th>Criado em</th>
@@ -135,7 +134,7 @@
             </tr>
           </thead>
           <tbody id="sharesTable">
-            <tr><td colspan="9">A carregar...</td></tr>
+            <tr><td colspan="8">A carregar...</td></tr>
           </tbody>
         </table>
       </div>
@@ -148,7 +147,7 @@
 
     <!-- AUDITORIA -->
     <section class="card fade-in" id="sectionAudit" hidden>
-      <h2>📋 Registo de Auditoria</h2>
+      <h2>Registo de Auditoria</h2>
       <div class="audit-filters">
         <select id="auditEntity">
           <option value="">Todas as entidades</option>
@@ -196,7 +195,7 @@
     <div class="modal-card">
       <div class="modal-header">
         <h3>Editar utilizador</h3>
-        <button class="modal-close" id="editModalClose">✖</button>
+        <button class="modal-close" id="editModalClose">×</button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="editUserId">
@@ -232,7 +231,7 @@
     <div class="modal-card">
       <div class="modal-header">
         <h3>Editar departamento</h3>
-        <button class="modal-close" id="editDepModalClose">✖</button>
+        <button class="modal-close" id="editDepModalClose">×</button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="editDepId">
@@ -285,7 +284,7 @@
     }
 
     function roleLabel(r) {
-      return { admin: '🔑 Admin', direcao: '✏️ Direção', fiscal: '👁️ Fiscal' }[r] || r;
+      return { admin: 'Admin', direcao: 'Direção', fiscal: 'Fiscal' }[r] || r;
     }
 
     function roleBadgeClass(r) {
@@ -311,8 +310,8 @@
             <td><span class="status ${u.ativo ? 'status-ativo' : 'status-inativo'}">${u.ativo ? 'Ativo' : 'Desativado'}</span></td>
             <td>${new Date(u.createdAt).toLocaleDateString('pt-PT')}</td>
             <td class="actions-cell">
-              <button onclick="openEdit('${u.id}','${u.nome || ''}','${u.role}',${u.ativo})" class="btn-icon" title="Editar">✏️</button>
-              <button onclick="removeUser('${u.id}','${u.email}')" class="btn-icon btn-danger" title="Remover">🗑️</button>
+              <button onclick="openEdit('${u.id}','${u.nome || ''}','${u.role}',${u.ativo})" class="btn-icon" title="Editar">Editar</button>
+              <button onclick="removeUser('${u.id}','${u.email}')" class="btn-icon btn-danger" title="Remover">Remover</button>
             </td>
           </tr>
         `).join('');
@@ -460,8 +459,8 @@
             <td><span class="status ${d.ativo ? 'status-ativo' : 'status-inativo'}">${d.ativo ? 'Ativo' : 'Desativado'}</span></td>
             <td>${new Date(d.createdAt).toLocaleDateString('pt-PT')}</td>
             <td class="actions-cell">
-              <button onclick="openDepEdit(${d.id},'${d.nome.replace(/'/g, "\\'")}',${d.ativo})" class="btn-icon" title="Editar">✏️</button>
-              <button onclick="removeDep(${d.id},'${d.nome.replace(/'/g, "\\'")}')" class="btn-icon btn-danger" title="Remover">🗑️</button>
+              <button onclick="openDepEdit(${d.id},'${d.nome.replace(/'/g, "\\'")}',${d.ativo})" class="btn-icon" title="Editar">Editar</button>
+              <button onclick="removeDep(${d.id},'${d.nome.replace(/'/g, "\\'")}')" class="btn-icon btn-danger" title="Remover">Remover</button>
             </td>
           </tr>
         `).join('');
@@ -560,7 +559,7 @@
         const { shares, total } = await resp.json();
         const tbody = document.getElementById('sharesTable');
         if (!shares.length) {
-          tbody.innerHTML = '<tr><td colspan="9">Sem partilhas.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="8">Sem partilhas.</td></tr>';
         } else {
           tbody.innerHTML = shares.map(s => {
             const status = shareStatus(s);
@@ -571,12 +570,11 @@
                 <td>${escapeHtml(s.createdByEmail || '-')}</td>
                 <td>${escapeHtml(s.destinatario || '-')}</td>
                 <td title="${escapeHtml(s.justificacao)}">${escapeHtml(s.justificacao).slice(0, 60) || '-'}</td>
-                <td>${escapeHtml(s.passwordPlain || '-')}</td>
                 <td>${s.expiresAt ? new Date(s.expiresAt).toLocaleDateString('pt-PT') : '-'}</td>
                 <td>${status}</td>
                 <td>${s.createdAt ? new Date(s.createdAt).toLocaleDateString('pt-PT') : '-'}</td>
                 <td class="actions-cell">
-                  ${canRevoke ? `<button class="btn-icon btn-danger" onclick="revokeShare(${s.id})" title="Revogar">🛑</button>` : '-'}
+                  ${canRevoke ? `<button class="btn-icon btn-danger" onclick="revokeShare(${s.id})" title="Revogar">Revogar</button>` : '-'}
                 </td>
               </tr>
             `;

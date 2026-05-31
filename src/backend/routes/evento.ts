@@ -7,6 +7,7 @@ const router = express.Router();
 router.post('/', async (req, res) => {
   try {
     const payload: any = { ...req.body };
+    if (!payload.nome) return res.status(400).json({ error: 'Nome do evento é obrigatório' });
     if (payload.data_inicio) payload.data_inicio = new Date(payload.data_inicio);
     else delete payload.data_inicio;
     if (payload.data_fim) payload.data_fim = new Date(payload.data_fim);
@@ -26,56 +27,31 @@ router.get('/', async (_req, res) => {
     const eventos = await prisma.evento.findMany();
     res.json(eventos);
   } catch (err) {
-    res.status(500).json({ error: 'Erro ao listar eventos', details: err });
+    res.status(500).json({ error: 'Erro ao listar eventos' });
   }
 });
 
-router.get('/:id', async (req, res) => {
-  try {
-    const evento = await prisma.evento.findUnique({ where: { id: Number(req.params.id) } });
-    if (!evento) return res.status(404).json({ error: 'Evento não encontrado' });
-    res.json(evento);
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao obter evento', details: err });
-  }
-});
-
-router.put('/:id', async (req, res) => {
-  try {
-    const payload: any = { ...req.body };
-    if (payload.data_inicio) payload.data_inicio = new Date(payload.data_inicio);
-    if (payload.data_fim) payload.data_fim = new Date(payload.data_fim);
-    const evento = await prisma.evento.update({
-      where: { id: Number(req.params.id) },
-      data: payload,
-    });
-    res.json(evento);
-  } catch (err: any) {
-    console.error('Erro atualizar evento:', err.message || err);
-    res.status(400).json({ error: 'Erro ao atualizar evento', details: err.message || 'Erro desconhecido' });
-  }
-});
-
-// GET /eventos/:id/details — detalhes com faturas e receitas
+// Rotas específicas ANTES de /:id
 router.get('/:id/details', async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const evento = await prisma.evento.findUnique({ where: { id } });
+    const evento = await prisma.evento.findUnique({
+      where: { id },
+      include: {
+        faturas: { orderBy: { data: 'desc' } },
+        receitas: { orderBy: { data: 'desc' } },
+      },
+    });
     if (!evento) return res.status(404).json({ error: 'Evento não encontrado' });
 
-    const [faturas, receitas] = await Promise.all([
-      prisma.fatura.findMany({ where: { eventoId: id }, orderBy: { data: 'desc' } }),
-      prisma.receita.findMany({ where: { eventoId: id }, orderBy: { data: 'desc' } }),
-    ]);
-
     const toNum = (v: any) => Number(v) || 0;
-    const totalDespesas = faturas.reduce((s, f) => s + toNum(f.valor), 0);
-    const totalReceitas = receitas.reduce((s, r) => s + toNum(r.valor), 0);
+    const totalDespesas = evento.faturas.reduce((s, f) => s + toNum(f.valor), 0);
+    const totalReceitas = evento.receitas.reduce((s, r) => s + toNum(r.valor), 0);
 
     res.json({
-      evento,
-      faturas,
-      receitas,
+      evento: { ...evento, faturas: undefined, receitas: undefined },
+      faturas: evento.faturas,
+      receitas: evento.receitas,
       resumo: { totalDespesas, totalReceitas, saldo: totalReceitas - totalDespesas },
     });
   } catch (err) {
@@ -83,19 +59,20 @@ router.get('/:id/details', async (req, res) => {
   }
 });
 
-// GET /eventos/:id/pdf — relatório PDF do evento
 router.get('/:id/pdf', async (req, res) => {
   try {
     const { default: PDFDocument } = await import('pdfkit');
     const id = Number(req.params.id);
-    const evento = await prisma.evento.findUnique({ where: { id } });
+    const evento = await prisma.evento.findUnique({
+      where: { id },
+      include: {
+        faturas: { orderBy: { data: 'desc' } },
+        receitas: { orderBy: { data: 'desc' } },
+      },
+    });
     if (!evento) return res.status(404).json({ error: 'Evento não encontrado' });
 
-    const [faturas, receitas] = await Promise.all([
-      prisma.fatura.findMany({ where: { eventoId: id }, orderBy: { data: 'desc' } }),
-      prisma.receita.findMany({ where: { eventoId: id }, orderBy: { data: 'desc' } }),
-    ]);
-
+    const { faturas, receitas, ...eventoData } = evento;
     const toNum = (v: any) => Number(v) || 0;
     const fmt = (v: number) => `${v.toFixed(2)} €`;
     const fmtDate = (d: string | Date) => new Date(d).toLocaleDateString('pt-PT');
@@ -105,21 +82,19 @@ router.get('/:id/pdf', async (req, res) => {
 
     const doc = new PDFDocument({ margin: 40 });
     res.header('Content-Type', 'application/pdf');
-    res.attachment(`evento-${evento.nome.replace(/\s+/g, '-').toLowerCase()}.pdf`);
+    res.attachment(`evento-${eventoData.nome.replace(/\s+/g, '-').toLowerCase()}.pdf`);
     doc.pipe(res);
 
-    // Header
     const logo = await getLogoBuffer();
     doc.rect(40, 30, 520, 60).fill('#0f172a');
     if (logo) try { doc.image(logo, 50, 34, { height: 52 }); } catch {}
-    doc.fillColor('#ffffff').fontSize(14).font('Helvetica-Bold').text(`Evento: ${evento.nome}`, 200, 45, { width: 340, align: 'right' });
-    const dataInicio = evento.data_inicio ? fmtDate(evento.data_inicio) : '';
-    const dataFim = evento.data_fim ? fmtDate(evento.data_fim) : '';
+    doc.fillColor('#ffffff').fontSize(14).font('Helvetica-Bold').text(`Evento: ${eventoData.nome}`, 200, 45, { width: 340, align: 'right' });
+    const dataInicio = eventoData.data_inicio ? fmtDate(eventoData.data_inicio) : '';
+    const dataFim = eventoData.data_fim ? fmtDate(eventoData.data_fim) : '';
     const periodo = dataInicio && dataFim ? `${dataInicio} a ${dataFim}` : dataInicio || dataFim || '';
     doc.fontSize(10).font('Helvetica').text(periodo, 200, 65, { width: 340, align: 'right' });
     doc.moveDown(2).fillColor('#0f172a');
 
-    // Resumo
     doc.fontSize(12).font('Helvetica-Bold').text('Resumo Financeiro');
     doc.moveDown(0.3);
     const startX = 40, tableWidth = 520, colWidths = [360, 160], rowHeight = 26;
@@ -172,16 +147,15 @@ router.get('/:id/pdf', async (req, res) => {
     drawRow('Saldo', fmt(saldo), saldo >= 0 ? '#dcfce7' : '#fee2e2', saldo >= 0 ? '#166534' : '#b91c1c', true);
     doc.moveDown(1).fillColor('#0f172a').strokeColor('#0f172a');
 
-    if (evento.descricao) {
-      doc.fontSize(10).font('Helvetica').text(evento.descricao);
+    if (eventoData.descricao) {
+      doc.fontSize(10).font('Helvetica').text(eventoData.descricao);
       doc.moveDown(1);
     }
-    if (evento.departamento) {
-      doc.fontSize(10).font('Helvetica-Bold').text(`Departamento: ${evento.departamento}`);
+    if (eventoData.departamento) {
+      doc.fontSize(10).font('Helvetica-Bold').text(`Departamento: ${eventoData.departamento}`);
       doc.moveDown(1);
     }
 
-    // Tabela receitas
     if (receitas.length > 0) {
       doc.fontSize(12).font('Helvetica-Bold').text('Receitas');
       doc.moveDown(0.3);
@@ -198,7 +172,6 @@ router.get('/:id/pdf', async (req, res) => {
       doc.moveDown(1).fillColor('#0f172a').strokeColor('#0f172a');
     }
 
-    // Tabela despesas
     if (faturas.length > 0) {
       doc.fontSize(12).font('Helvetica-Bold').text('Despesas');
       doc.moveDown(0.3);
@@ -222,6 +195,33 @@ router.get('/:id/pdf', async (req, res) => {
   }
 });
 
+// Rotas genéricas /:id DEPOIS das específicas
+router.get('/:id', async (req, res) => {
+  try {
+    const evento = await prisma.evento.findUnique({ where: { id: Number(req.params.id) } });
+    if (!evento) return res.status(404).json({ error: 'Evento não encontrado' });
+    res.json(evento);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao obter evento' });
+  }
+});
+
+router.put('/:id', async (req, res) => {
+  try {
+    const payload: any = { ...req.body };
+    if (payload.data_inicio) payload.data_inicio = new Date(payload.data_inicio);
+    if (payload.data_fim) payload.data_fim = new Date(payload.data_fim);
+    const evento = await prisma.evento.update({
+      where: { id: Number(req.params.id) },
+      data: payload,
+    });
+    res.json(evento);
+  } catch (err: any) {
+    console.error('Erro atualizar evento:', err.message || err);
+    res.status(400).json({ error: 'Erro ao atualizar evento', details: err.message || 'Erro desconhecido' });
+  }
+});
+
 router.delete('/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -229,6 +229,7 @@ router.delete('/:id', async (req, res) => {
     if (!evento) return res.status(404).json({ error: 'Evento não encontrado' });
 
     await prisma.$transaction([
+      prisma.eventoShare.deleteMany({ where: { eventoId: id } }),
       prisma.fatura.deleteMany({ where: { eventoId: id } }),
       prisma.receita.deleteMany({ where: { eventoId: id } }),
       prisma.evento.delete({ where: { id } }),
@@ -236,7 +237,7 @@ router.delete('/:id', async (req, res) => {
 
     res.json({ message: 'Evento e registos associados removidos com sucesso' });
   } catch (err) {
-    res.status(500).json({ error: 'Erro ao remover evento', details: err });
+    res.status(500).json({ error: 'Erro ao remover evento' });
   }
 });
 

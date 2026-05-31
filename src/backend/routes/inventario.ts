@@ -23,68 +23,11 @@ router.get('/', async (req, res) => {
     const itens = await prisma.inventario.findMany({ where, orderBy: { nome: 'asc' } });
     res.json(itens);
   } catch (err) {
-    res.status(500).json({ error: 'Erro ao listar inventário', details: err });
+    res.status(500).json({ error: 'Erro ao listar inventário' });
   }
 });
 
-router.get('/:id', async (req, res) => {
-  try {
-    const item = await prisma.inventario.findUnique({ where: { id: Number(req.params.id) } });
-    if (!item) return res.status(404).json({ error: 'Item não encontrado' });
-    res.json(item);
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao obter item', details: err });
-  }
-});
-
-router.post('/', async (req, res) => {
-  try {
-    const payload: any = { ...req.body };
-    if (payload.quantidade) payload.quantidade = parseFloat(payload.quantidade);
-    if (payload.custoUnitario) payload.custoUnitario = parseFloat(payload.custoUnitario);
-    if (payload.quantidadeMinima) payload.quantidadeMinima = parseFloat(payload.quantidadeMinima);
-    if (payload.dataAquisicao) payload.dataAquisicao = new Date(payload.dataAquisicao);
-    else delete payload.dataAquisicao;
-    if (payload.dataValidade) payload.dataValidade = new Date(payload.dataValidade);
-    else delete payload.dataValidade;
-    if (payload.faturaId) payload.faturaId = Number(payload.faturaId);
-    else delete payload.faturaId;
-    const novo = await prisma.inventario.create({ data: payload });
-    res.status(201).json(novo);
-  } catch (err) {
-    res.status(400).json({ error: 'Erro ao criar item', details: err });
-  }
-});
-
-router.put('/:id', async (req, res) => {
-  try {
-    const payload: any = { ...req.body };
-    if (payload.quantidade) payload.quantidade = parseFloat(payload.quantidade);
-    if (payload.custoUnitario) payload.custoUnitario = parseFloat(payload.custoUnitario);
-    if (payload.quantidadeMinima) payload.quantidadeMinima = parseFloat(payload.quantidadeMinima);
-    if (payload.dataAquisicao) payload.dataAquisicao = new Date(payload.dataAquisicao);
-    if (payload.dataValidade) payload.dataValidade = new Date(payload.dataValidade);
-    if (payload.faturaId) payload.faturaId = Number(payload.faturaId);
-    const item = await prisma.inventario.update({
-      where: { id: Number(req.params.id) },
-      data: payload,
-    });
-    res.json(item);
-  } catch (err) {
-    res.status(400).json({ error: 'Erro ao atualizar item', details: err });
-  }
-});
-
-router.delete('/:id', async (req, res) => {
-  try {
-    await prisma.inventario.delete({ where: { id: Number(req.params.id) } });
-    res.json({ message: 'Item removido com sucesso' });
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao remover item', details: err });
-  }
-});
-
-// Exportar inventário em PDF
+// Rotas específicas ANTES de /:id
 router.get('/export/pdf', async (_req, res) => {
   try {
     const { default: PDFDocument } = await import('pdfkit');
@@ -126,7 +69,65 @@ router.get('/export/pdf', async (_req, res) => {
     renderSecao('Fixos', fixos);
     doc.end();
   } catch (err) {
-    res.status(500).json({ error: 'Erro ao exportar inventário', details: err });
+    res.status(500).json({ error: 'Erro ao exportar inventário' });
+  }
+});
+
+// Rotas genéricas /:id DEPOIS das específicas
+router.get('/:id', async (req, res) => {
+  try {
+    const item = await prisma.inventario.findUnique({ where: { id: Number(req.params.id) } });
+    if (!item) return res.status(404).json({ error: 'Item não encontrado' });
+    res.json(item);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao obter item' });
+  }
+});
+
+router.post('/', async (req, res) => {
+  try {
+    const payload: any = { ...req.body };
+    if (payload.quantidade) payload.quantidade = parseFloat(payload.quantidade);
+    if (payload.custoUnitario) payload.custoUnitario = parseFloat(payload.custoUnitario);
+    if (payload.quantidadeMinima) payload.quantidadeMinima = parseFloat(payload.quantidadeMinima);
+    if (payload.dataAquisicao) payload.dataAquisicao = new Date(payload.dataAquisicao);
+    else delete payload.dataAquisicao;
+    if (payload.dataValidade) payload.dataValidade = new Date(payload.dataValidade);
+    else delete payload.dataValidade;
+    if (payload.faturaId) payload.faturaId = Number(payload.faturaId);
+    else delete payload.faturaId;
+    const novo = await prisma.inventario.create({ data: payload });
+    res.status(201).json(novo);
+  } catch (err) {
+    res.status(400).json({ error: 'Erro ao criar item' });
+  }
+});
+
+router.put('/:id', async (req, res) => {
+  try {
+    const payload: any = { ...req.body };
+    if (payload.quantidade) payload.quantidade = parseFloat(payload.quantidade);
+    if (payload.custoUnitario) payload.custoUnitario = parseFloat(payload.custoUnitario);
+    if (payload.quantidadeMinima) payload.quantidadeMinima = parseFloat(payload.quantidadeMinima);
+    if (payload.dataAquisicao) payload.dataAquisicao = new Date(payload.dataAquisicao);
+    if (payload.dataValidade) payload.dataValidade = new Date(payload.dataValidade);
+    if (payload.faturaId) payload.faturaId = Number(payload.faturaId);
+    const item = await prisma.inventario.update({
+      where: { id: Number(req.params.id) },
+      data: payload,
+    });
+    res.json(item);
+  } catch (err) {
+    res.status(400).json({ error: 'Erro ao atualizar item' });
+  }
+});
+
+router.delete('/:id', async (req, res) => {
+  try {
+    await prisma.inventario.delete({ where: { id: Number(req.params.id) } });
+    res.json({ message: 'Item removido com sucesso' });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao remover item' });
   }
 });
 

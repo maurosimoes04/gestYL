@@ -74,7 +74,6 @@ router.post('/', upload.single('anexo'), async (req, res) => {
     const warnings: string[] = [];
     if (req.file && !payload.anexo) warnings.push(`Anexo não guardado: ${driveError}`);
     res.status(201).json({ ...receita, _warnings: warnings.length ? warnings : undefined });
-    res.status(201).json(receita);
   } catch (err: any) {
     console.error('Erro criar receita:', err.message || err);
     const msg = err.code === 'P2003' ? 'Evento referenciado não existe'

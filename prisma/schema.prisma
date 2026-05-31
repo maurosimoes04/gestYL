@@ -38,6 +38,7 @@ model Evento {
   receitas Receita[]
   shares   EventoShare[]
 
+  @@index([departamento])
   @@map("eventos")
 }
 
@@ -58,9 +59,13 @@ model Fatura {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  evento     Evento?     @relation(fields: [eventoId], references: [id])
-  inventario Inventario? @relation(fields: [inventarioId], references: [id])
+  evento     Evento?     @relation(fields: [eventoId], references: [id], onDelete: SetNull)
+  inventario Inventario? @relation(fields: [inventarioId], references: [id], onDelete: SetNull)
 
+  @@index([departamento])
+  @@index([estado])
+  @@index([data])
+  @@index([eventoId])
   @@map("Faturas")
 }
 
@@ -84,6 +89,7 @@ model Inventario {
 
   faturas Fatura[]
 
+  @@index([estado])
   @@map("inventarios")
 }
 
@@ -98,6 +104,7 @@ model Movimento {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  @@index([data])
   @@map("movimentos")
 }
 
@@ -115,8 +122,11 @@ model Receita {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  evento Evento? @relation(fields: [eventoId], references: [id])
+  evento Evento? @relation(fields: [eventoId], references: [id], onDelete: SetNull)
 
+  @@index([data])
+  @@index([estado])
+  @@index([eventoId])
   @@map("receitas")
 }
 
@@ -155,7 +165,6 @@ model EventoShare {
   createdByEmail         String?
   destinatario           String?
   justificacao           String
-  passwordPlain          String
   passwordHash           String
   passwordSalt           String
   accessTokenHash        String?
@@ -165,7 +174,7 @@ model EventoShare {
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
-  evento Evento @relation(fields: [eventoId], references: [id])
+  evento Evento @relation(fields: [eventoId], references: [id], onDelete: Cascade)
 
   @@index([eventoId])
   @@index([expiresAt])

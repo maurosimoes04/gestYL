@@ -22,7 +22,18 @@ bootLog('App: share routes carregadas');
 
 const app = express();
 
-app.use(cors());
+const allowedOrigins = [
+  process.env.APP_URL,
+  'http://localhost:3000',
+].filter(Boolean) as string[];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) callback(null, true);
+    else callback(null, false);
+  },
+  credentials: true,
+}));
 app.use(express.json());
 
 const frontendPath = path.join(process.cwd(), 'src', 'frontend');

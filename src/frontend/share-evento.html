@@ -7,13 +7,184 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css" />
+  <link rel="stylesheet" href="/assets/css/style.css" />
+  <style>
+    .share-page {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 32px 24px 48px;
+    }
+
+    .share-page section {
+      background: none;
+      border-radius: 0;
+      padding: 0;
+      box-shadow: none;
+      transition: none;
+    }
+
+    .share-page section:hover {
+      transform: none;
+      box-shadow: none;
+    }
+
+    .share-page section h2 {
+      border-bottom: none;
+      padding-bottom: 0;
+      color: var(--text-dark);
+      display: block;
+    }
+
+    .share-login-card {
+      background: var(--bg-card);
+      border: 1px solid #e2e8f0;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      padding: 32px;
+      max-width: 420px;
+      margin: 40px auto 0;
+      text-align: center;
+    }
+
+    .share-login-card h2 {
+      font-size: 1.3rem;
+      margin-bottom: 6px;
+    }
+
+    .share-login-card .text-muted {
+      margin-bottom: 20px;
+      font-size: 0.9rem;
+    }
+
+    .share-login-card .styled-form {
+      text-align: left;
+    }
+
+    .share-login-card input[type="password"] {
+      width: 100%;
+    }
+
+    .share-login-card .form-btns {
+      justify-content: center;
+    }
+
+    .share-evento-header {
+      background: var(--bg-card);
+      border: 1px solid #e2e8f0;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      padding: 24px 28px;
+      margin-bottom: 20px;
+    }
+
+    .share-evento-header h2 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin-bottom: 4px;
+    }
+
+    .share-evento-header .share-desc {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-bottom: 4px;
+    }
+
+    .share-evento-header .share-dept {
+      display: inline-block;
+      background: #eef2ff;
+      color: var(--primary);
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      margin-top: 8px;
+    }
+
+    .share-session-info {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #f1f5f9;
+    }
+
+    .share-section-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin: 24px 0 8px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid #eef2ff;
+    }
+
+    .share-expired-card {
+      background: var(--bg-card);
+      border: 1px solid #fecdd3;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      padding: 32px;
+      max-width: 420px;
+      margin: 40px auto 0;
+      text-align: center;
+    }
+
+    .share-expired-card h2 {
+      color: #be123c;
+      font-size: 1.2rem;
+      margin-bottom: 8px;
+    }
+
+    .share-expired-card .text-muted {
+      margin-bottom: 20px;
+    }
+
+    .form-msg {
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-top: 8px;
+    }
+
+    .form-msg.success {
+      background: #f0fdf4;
+      color: #16a34a;
+      border: 1px solid #bbf7d0;
+    }
+
+    .form-msg.error {
+      background: #fff1f2;
+      color: #be123c;
+      border: 1px solid #fecdd3;
+    }
+
+    .share-footer {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      margin-top: 40px;
+      padding-top: 16px;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    .fade-in {
+      animation: fadeInUp 0.5s ease both;
+    }
+
+    @media (max-width: 600px) {
+      .share-page { padding: 16px 12px 32px; }
+      .share-login-card,
+      .share-expired-card { padding: 20px; margin-top: 24px; }
+      .share-evento-header { padding: 16px; }
+    }
+  </style>
 </head>
 <body>
   <header class="main-header">
     <div class="header-inner">
       <a href="/" class="logo-block">
-        <img src="https://tnmycajugdovbnqydyvx.supabase.co/storage/v1/object/public/IMAGENS/logo.png" alt="Gestão Financeira YL" class="logo">
+        <img src="https://tnmycajugdovbnqydyvx.supabase.co/storage/v1/object/public/IMAGENS/logo.png" alt="Gestao Financeira YL" class="logo">
       </a>
       <nav class="main-nav">
         <span class="nav-link active">Partilha de Evento</span>
@@ -21,33 +192,41 @@
     </div>
   </header>
 
-  <main>
-    <section>
-      <h2>🔐 Acesso ao evento</h2>
-      <p class="text-muted" style="margin-bottom:12px;">Insira a password para visualizar os dados do evento.</p>
-      <form id="shareAccessForm" class="styled-form" style="max-width:420px;">
-        <label>Password</label>
-        <input id="sharePassword" type="password" required>
-        <div class="form-btns">
-          <button type="submit" class="main-action">Aceder</button>
-        </div>
-        <p id="shareAccessMsg" class="form-msg" hidden></p>
-      </form>
+  <div class="share-page">
+
+    <!-- LOGIN -->
+    <section id="shareAccessSection">
+      <div class="share-login-card fade-in">
+        <h2>Acesso ao Evento</h2>
+        <p class="text-muted">Insira a password fornecida para visualizar os dados.</p>
+        <form id="shareAccessForm" class="styled-form">
+          <label for="sharePassword">Password</label>
+          <input id="sharePassword" type="password" required placeholder="Introduza a password">
+          <div class="form-btns">
+            <button type="submit" class="main-action" id="shareAccessBtn">Aceder</button>
+          </div>
+          <p id="shareAccessMsg" class="form-msg" hidden></p>
+        </form>
+      </div>
     </section>
 
+    <!-- DADOS DO EVENTO -->
     <section id="shareEventoWrap" hidden>
-      <h2 id="shareEventoNome">Evento</h2>
-      <p id="shareEventoDesc" style="color:var(--text-muted);"></p>
-      <p id="shareEventoDept" style="font-size:0.95rem;"></p>
+      <div class="share-evento-header fade-in">
+        <h2 id="shareEventoNome">Evento</h2>
+        <p class="share-desc" id="shareEventoDesc"></p>
+        <span class="share-dept" id="shareEventoDept" hidden></span>
+        <p class="share-session-info" id="shareSessionInfo"></p>
+      </div>
 
-      <div class="dashboard-grid" id="shareEventoResumo" style="margin-top:16px;"></div>
+      <div class="dashboard-grid fade-in" id="shareEventoResumo" style="margin-bottom:8px;"></div>
 
-      <h3 style="margin-top:18px;">💰 Receitas</h3>
-      <div class="table-wrapper" style="margin-top:8px;">
+      <h3 class="share-section-title">Receitas</h3>
+      <div class="table-wrapper fade-in">
         <table>
           <thead>
             <tr>
-              <th>Título</th>
+              <th>Titulo</th>
               <th>Categoria</th>
               <th>Data</th>
               <th>Valor</th>
@@ -58,12 +237,12 @@
         </table>
       </div>
 
-      <h3 style="margin-top:18px;">📊 Despesas</h3>
-      <div class="table-wrapper" style="margin-top:8px;">
+      <h3 class="share-section-title">Despesas</h3>
+      <div class="table-wrapper fade-in">
         <table>
           <thead>
             <tr>
-              <th>Título</th>
+              <th>Titulo</th>
               <th>Departamento</th>
               <th>Data</th>
               <th>Valor</th>
@@ -73,9 +252,23 @@
           <tbody id="shareDespesas"></tbody>
         </table>
       </div>
-    </section>
-  </main>
 
-  <script src="assets/js/share-evento.js"></script>
+      <div class="share-footer">
+        Partilha segura &middot; Os dados apresentados correspondem ao evento selecionado
+      </div>
+    </section>
+
+    <!-- SESSAO EXPIRADA -->
+    <section id="shareExpiredSection" hidden>
+      <div class="share-expired-card fade-in">
+        <h2>Sessao Expirada</h2>
+        <p class="text-muted">A sua sessao de acesso expirou. Volte a autenticar-se para continuar a consultar os dados.</p>
+        <button class="main-action" id="shareReauthBtn">Voltar ao login</button>
+      </div>
+    </section>
+
+  </div>
+
+  <script src="/assets/js/share-evento.js"></script>
 </body>
 </html>

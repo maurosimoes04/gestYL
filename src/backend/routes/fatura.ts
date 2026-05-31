@@ -50,7 +50,7 @@ router.get('/', async (req, res) => {
     });
     res.json(faturas);
   } catch (error) {
-    res.status(500).json({ erro: 'Erro ao obter faturas' });
+    res.status(500).json({ error: 'Erro ao obter faturas' });
   }
 });
 
@@ -107,7 +107,7 @@ router.get('/export/pdf', async (_req, res) => {
     doc.end();
   } catch (error) {
     console.error('Erro ao gerar PDF:', error);
-    res.status(500).json({ erro: 'Erro ao exportar PDF' });
+    res.status(500).json({ error: 'Erro ao exportar PDF' });
   }
 });
 
@@ -116,9 +116,9 @@ router.get('/:id', async (req, res) => {
   try {
     const fatura = await prisma.fatura.findUnique({ where: { id: Number(req.params.id) } });
     if (fatura) res.json(fatura);
-    else res.status(404).json({ erro: 'Fatura não encontrada' });
+    else res.status(404).json({ error: 'Fatura não encontrada' });
   } catch (error) {
-    res.status(500).json({ erro: 'Erro ao obter fatura' });
+    res.status(500).json({ error: 'Erro ao obter fatura' });
   }
 });
 
@@ -172,7 +172,7 @@ router.post('/', upload.single('anexo'), async (req, res) => {
       : error.code === 'P2003' ? 'Evento ou inventário referenciado não existe'
       : error.message?.includes('Argument') ? 'Campos obrigatórios em falta (título, valor, data, departamento, estado)'
       : error.message || 'Erro desconhecido ao criar fatura';
-    res.status(400).json({ erro: 'Erro ao criar fatura', details: msg });
+    res.status(400).json({ error: 'Erro ao criar fatura', details: msg });
   }
 });
 
@@ -181,7 +181,7 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
   try {
     const id = Number(req.params.id);
     const fatura = await prisma.fatura.findUnique({ where: { id } });
-    if (!fatura) return res.status(404).json({ erro: 'Fatura não encontrada' });
+    if (!fatura) return res.status(404).json({ error: 'Fatura não encontrada' });
 
     const raw: any = { ...req.body };
     const payload: any = {};
@@ -233,7 +233,7 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     const msg = error.code === 'P2003' ? 'Evento ou inventário referenciado não existe'
       : error.message?.includes('Argument') ? 'Campos inválidos no pedido'
       : error.message || 'Erro desconhecido ao atualizar fatura';
-    res.status(400).json({ erro: 'Erro ao atualizar fatura', details: msg });
+    res.status(400).json({ error: 'Erro ao atualizar fatura', details: msg });
   }
 });
 
@@ -242,7 +242,7 @@ router.delete('/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
     const fatura = await prisma.fatura.findUnique({ where: { id } });
-    if (!fatura) return res.status(404).json({ erro: 'Fatura não encontrada' });
+    if (!fatura) return res.status(404).json({ error: 'Fatura não encontrada' });
 
     const anexo = fatura.anexo as any;
     if (anexo?.driveFileId) {
@@ -255,10 +255,10 @@ router.delete('/:id', async (req, res) => {
     }
 
     await prisma.fatura.delete({ where: { id } });
-    res.json({ mensagem: 'Fatura eliminada com sucesso' });
+    res.json({ message: 'Fatura eliminada com sucesso' });
   } catch (error) {
     console.error('Erro ao eliminar fatura:', error);
-    res.status(500).json({ erro: 'Erro ao eliminar fatura' });
+    res.status(500).json({ error: 'Erro ao eliminar fatura' });
   }
 });
 
@@ -266,16 +266,22 @@ router.delete('/:id', async (req, res) => {
 router.get('/:id/anexo', async (req, res) => {
   try {
     const fatura = await prisma.fatura.findUnique({ where: { id: Number(req.params.id) } });
-    if (!fatura || !fatura.anexo) return res.status(404).json({ erro: 'Anexo não encontrado' });
+    if (!fatura || !fatura.anexo) return res.status(404).json({ error: 'Anexo não encontrado' });
 
     const anexo = fatura.anexo as any;
     const link = anexo.driveWebContentLink || anexo.driveWebViewLink;
     if (link) return res.redirect(link);
-    if (anexo.path) return res.sendFile(path.resolve(path.join(__dirname, '..', anexo.path)));
-    return res.status(404).json({ erro: 'Link do anexo indisponível' });
+    if (anexo.path) {
+      const resolved = path.resolve(path.join(__dirname, '..', anexo.path));
+      if (!resolved.startsWith(path.resolve(path.join(__dirname, '..')))) {
+        return res.status(403).json({ error: 'Caminho inválido' });
+      }
+      return res.sendFile(resolved);
+    }
+    return res.status(404).json({ error: 'Link do anexo indisponível' });
   } catch (error: any) {
     console.error('Erro servir anexo:', error.message || error);
-    res.status(500).json({ erro: 'Erro ao servir anexo' });
+    res.status(500).json({ error: 'Erro ao servir anexo' });
   }
 });
 
