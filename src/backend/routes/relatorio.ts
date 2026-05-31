@@ -1,5 +1,6 @@
 import express from 'express';
-import type { default as PDFDocumentType } from 'pdfkit';
+
+type PDFDocumentType = PDFKit.PDFDocument;
 import { prisma } from '../config/prisma';
 import { getLogoBuffer } from '../utils/logo';
 
