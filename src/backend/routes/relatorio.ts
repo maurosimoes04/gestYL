@@ -1,4 +1,5 @@
 import express from 'express';
+import type { default as PDFDocumentType } from 'pdfkit';
 import { prisma } from '../config/prisma';
 import { getLogoBuffer } from '../utils/logo';
 
@@ -23,7 +24,7 @@ const fmt = (v: number) => `${v.toFixed(2)} €`;
 const fmtDate = (d: string | Date) => new Date(d).toLocaleDateString('pt-PT');
 const toNum = (v: any) => Number(v) || 0;
 
-function drawHeader(doc: InstanceType<typeof PDFDocument>, titulo: string, periodoLabel: string, logo: Buffer | null) {
+function drawHeader(doc: InstanceType<PDFDocumentType>, titulo: string, periodoLabel: string, logo: Buffer | null) {
   doc.rect(40, 30, 520, 60).fill('#0f172a');
   if (logo) try { doc.image(logo, 50, 34, { height: 52 }); } catch {}
   doc.fillColor('#ffffff').fontSize(14).font('Helvetica-Bold').text(titulo, 200, 45, { width: 340, align: 'right' });
@@ -33,7 +34,7 @@ function drawHeader(doc: InstanceType<typeof PDFDocument>, titulo: string, perio
 
 type Row = { cells: [string, string]; fill?: string; color?: string; bold?: boolean };
 
-function drawTable(doc: InstanceType<typeof PDFDocument>, rows: Row[]) {
+function drawTable(doc: InstanceType<PDFDocumentType>, rows: Row[]) {
   const startX = 40, tableWidth = 520, colWidths = [360, 160], rowHeight = 26;
   let y = doc.y;
   rows.forEach((row) => {
@@ -49,7 +50,7 @@ function drawTable(doc: InstanceType<typeof PDFDocument>, rows: Row[]) {
   doc.fillColor('#0f172a').strokeColor('#0f172a');
 }
 
-function renderBars(doc: InstanceType<typeof PDFDocument>, title: string, data: { label: string; value: number }[], maxWidth = 320) {
+function renderBars(doc: InstanceType<PDFDocumentType>, title: string, data: { label: string; value: number }[], maxWidth = 320) {
   const barHeight = 12, gap = 8;
   const anticipatedHeight = 22 + data.length * (barHeight + gap) + 10;
   if (doc.y + anticipatedHeight > doc.page.height - 60) doc.addPage();
