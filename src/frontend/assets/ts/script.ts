@@ -187,6 +187,55 @@ function showNotification(message: string, type: 'success' | 'error' = 'success'
     setTimeout(() => notification.remove(), 300);
   }, 3000);
 }
+
+function showLoading(message: string = 'Carregando...') {
+  let overlay = document.getElementById('loadingOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'loadingOverlay';
+    overlay.className = 'loading-overlay';
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML = `
+    <div class="loading-box">
+      <div class="loader-spinner"></div>
+      <p>${message}</p>
+    </div>
+  `;
+  overlay.classList.remove('hidden');
+}
+
+function hideLoading() {
+  const overlay = document.getElementById('loadingOverlay');
+  if (overlay) overlay.classList.add('hidden');
+}
+
+function showSkeleton(containerId: string, count: number = 3) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  let html = '';
+  for (let i = 0; i < count; i++) {
+    html += `
+      <div class="skeleton-row">
+        <div class="skeleton" style="flex: 2; height: 16px;"></div>
+        <div class="skeleton" style="width: 80px; height: 16px;"></div>
+        <div class="skeleton" style="width: 60px; height: 16px;"></div>
+      </div>
+    `;
+  }
+  container.innerHTML = html;
+}
+
+function showLoadingInContainer(containerId: string) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = `
+    <div class="loading-container">
+      <div class="loader-spinner sm"></div>
+      <span>Carregando...</span>
+    </div>
+  `;
+}
 function escapeHtml(str: string): string {
   const div = document.createElement('div');
   div.textContent = str;
@@ -520,6 +569,12 @@ async function guardarEvento(e: SubmitEvent) {
 
   const url = editingEventoId ? `${API_EVENTOS}/${editingEventoId}` : API_EVENTOS;
   const method = editingEventoId ? 'PUT' : 'POST';
+  const btn = document.getElementById('eventoSubmitButton') as HTMLButtonElement | null;
+
+  if (btn) {
+    btn.classList.add('loading');
+    btn.disabled = true;
+  }
 
   try {
     const resp = await fetch(url, {
@@ -535,17 +590,25 @@ async function guardarEvento(e: SubmitEvent) {
     resetForm('eventoForm');
     toggleSection('formularioEvento', false);
     editingEventoId = null;
-    const btn = document.getElementById('eventoSubmitButton') as HTMLButtonElement | null;
-    if (btn) btn.textContent = 'Guardar';
+    if (btn) {
+      btn.textContent = 'Guardar';
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
     await Promise.all([carregarEventosResumo(), carregarEventosSelect()]);
   } catch (err: any) {
     showNotification(`❌ ${err.message || 'Erro ao guardar evento'}`, 'error');
+    if (btn) {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
   }
 }
 
 async function carregarEventosResumo() {
   const eventosLista = document.getElementById('eventosLista');
   if (!eventosLista) return;
+  showLoadingInContainer('eventosLista');
   try {
     const resp = await fetch(API_EVENTOS);
     const eventos = await resp.json();
@@ -751,6 +814,12 @@ async function gerarPartilhaEvento(e: SubmitEvent) {
 
   if (!justificacao) { setPartilhaMensagem('Justificação é obrigatória.', 'error'); return; }
 
+  const btn = document.getElementById('btnGerarPartilha') as HTMLButtonElement | null;
+  if (btn) {
+    btn.classList.add('loading');
+    btn.disabled = true;
+  }
+
   try {
     const resp = await fetch(API_SHARES, {
       method: 'POST',
@@ -769,8 +838,16 @@ async function gerarPartilhaEvento(e: SubmitEvent) {
     if (passWrap) passWrap.removeAttribute('hidden');
     if (passInput) passInput.value = data.password || '';
     setPartilhaMensagem('Link gerado com sucesso.', 'success');
+    if (btn) {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
   } catch (err: any) {
     setPartilhaMensagem(err.message || 'Erro ao criar partilha.', 'error');
+    if (btn) {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
   }
 }
 
@@ -821,6 +898,7 @@ async function carregarFaturas() {
   if (estado) params.append('estado', estado);
   if (eventoId) params.append('eventoId', eventoId);
 
+  showSkeleton('listaFaturas', 5);
   try {
     const resp = await fetch(`${API_FATURAS}?${params.toString()}`);
     if (!resp.ok) throw new Error('Erro ao listar faturas');
@@ -921,6 +999,12 @@ async function guardarFatura(e: SubmitEvent) {
 
   const url = editingFaturaId ? `${API_FATURAS}/${editingFaturaId}` : API_FATURAS;
   const method = editingFaturaId ? 'PUT' : 'POST';
+  const btn = document.getElementById('btnSalvarFatura') as HTMLButtonElement | null;
+
+  if (btn) {
+    btn.classList.add('loading');
+    btn.disabled = true;
+  }
 
   try {
     const resp = await fetch(url, {
@@ -939,11 +1023,18 @@ async function guardarFatura(e: SubmitEvent) {
     resetForm('faturaForm');
     toggleSection('formularioFatura', false);
     editingFaturaId = null;
-    const btn = document.getElementById('btnSalvarFatura') as HTMLButtonElement | null;
-    if (btn) btn.textContent = 'Guardar';
+    if (btn) {
+      btn.textContent = 'Guardar';
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
     await Promise.all([carregarFaturas(), carregarEventosResumo(), carregarMovimentos()]);
   } catch (err: any) {
     showNotification(`❌ ${err.message || 'Erro ao guardar fatura'}`, 'error');
+    if (btn) {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
   }
 }
 
@@ -962,6 +1053,8 @@ async function carregarReceitas() {
   if (categoria) params.append('categoria', categoria);
   if (estado) params.append('estado', estado);
   if (eventoId) params.append('eventoId', eventoId);
+
+  showSkeleton('listaReceitas', 5);
   try {
     const url = params.toString() ? `${API_RECEITAS}?${params.toString()}` : API_RECEITAS;
     const resp = await fetch(url);
@@ -1072,6 +1165,12 @@ async function guardarReceita(e: SubmitEvent) {
 
   const url = editingReceitaId ? `${API_RECEITAS}/${editingReceitaId}` : API_RECEITAS;
   const method = editingReceitaId ? 'PUT' : 'POST';
+  const btn = document.getElementById('btnSalvarReceita') as HTMLButtonElement | null;
+
+  if (btn) {
+    btn.classList.add('loading');
+    btn.disabled = true;
+  }
 
   try {
     const resp = await fetch(url, {
@@ -1090,11 +1189,18 @@ async function guardarReceita(e: SubmitEvent) {
     resetForm('receitaForm');
     toggleSection('formularioReceita', false);
     editingReceitaId = null;
-    const btn = document.getElementById('btnSalvarReceita') as HTMLButtonElement | null;
-    if (btn) btn.textContent = 'Guardar';
+    if (btn) {
+      btn.textContent = 'Guardar';
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
     await Promise.all([carregarReceitas(), carregarMovimentos()]);
   } catch (err: any) {
     showNotification(`❌ ${err.message || 'Erro ao guardar receita'}`, 'error');
+    if (btn) {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
   }
 }
 
@@ -1173,6 +1279,9 @@ async function carregarInventario() {
   const q = getValue('filterInvQ');
   if (q) params.append('q', q);
   const url = params.toString() ? `${API_INVENTARIO}?${params.toString()}` : API_INVENTARIO;
+
+  showLoadingInContainer('invGridConsumivel');
+  showLoadingInContainer('invGridFixo');
 
   try {
     const resp = await fetch(url);
@@ -1275,6 +1384,12 @@ async function guardarInventario(e: SubmitEvent) {
 
   const url = editingInventarioId ? `${API_INVENTARIO}/${editingInventarioId}` : API_INVENTARIO;
   const method = editingInventarioId ? 'PUT' : 'POST';
+  const btn = document.getElementById('btnSalvarInventario') as HTMLButtonElement | null;
+
+  if (btn) {
+    btn.classList.add('loading');
+    btn.disabled = true;
+  }
 
   try {
     const resp = await fetch(url, {
@@ -1287,9 +1402,17 @@ async function guardarInventario(e: SubmitEvent) {
     resetForm('inventarioForm');
     toggleSection('formularioInventario', false);
     editingInventarioId = null;
+    if (btn) {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
     await carregarInventario();
   } catch {
     showNotification('❌ Erro ao guardar item', 'error');
+    if (btn) {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
   }
 }
 
@@ -2056,12 +2179,14 @@ function atualizarDashboards(faturas: any[], movimentos: any[] = movimentosCache
 }
 
 async function startApp() {
+  showLoading('Carregando aplicação...');
   setupEventListeners();
   setActiveSection('resumo');
   await Promise.all([carregarDepartamentos(), carregarEventosSelect()]);
   aplicarDepartamentosFiltro();
   aplicarCategoriasFiltroReceita();
   atualizarSelectFaturaInventario();
+  hideLoading();
 }
 
 document.addEventListener('DOMContentLoaded', () => { void bootstrapAuth(); });
