@@ -956,6 +956,142 @@ section h2 {
 }
 
 /* ======================================================
+   LOADING STATES
+====================================================== */
+.loader-spinner {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border: 3px solid #e2e8f0;
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.loader-spinner.sm {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skeleton-text {
+  height: 14px;
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.skeleton-text.lg {
+  height: 18px;
+  margin-bottom: 12px;
+}
+
+.skeleton-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 16px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-sm);
+  margin-bottom: 6px;
+}
+
+.skeleton-row .skeleton {
+  height: 16px;
+  flex: 1;
+}
+
+.skeleton-row .skeleton:last-child {
+  width: 80px;
+}
+
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(2px);
+}
+
+.loading-overlay.hidden {
+  display: none;
+}
+
+.loading-box {
+  background: white;
+  border-radius: var(--radius);
+  padding: 32px;
+  text-align: center;
+  box-shadow: var(--shadow-md);
+  min-width: 280px;
+}
+
+.loading-box .loader-spinner {
+  width: 40px;
+  height: 40px;
+  border-width: 4px;
+  margin: 0 auto 16px;
+}
+
+.loading-box p {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.btn.loading {
+  position: relative;
+  color: transparent;
+  pointer-events: none;
+}
+
+.btn.loading::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  top: 50%;
+  left: 50%;
+  margin-left: -8px;
+  margin-top: -8px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* ======================================================
    MODERN FORMS
 ====================================================== */
 .form-modern {
