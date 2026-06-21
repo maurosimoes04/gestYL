@@ -196,6 +196,19 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     if (payload.inventarioId) payload.inventarioId = Number(payload.inventarioId);
     else delete payload.inventarioId;
 
+    if (!req.file && req.body.removeAnexo === 'true') {
+      const oldAnexo = fatura.anexo as any;
+      if (oldAnexo?.driveFileId) {
+        try {
+          const { deleteFromDrive } = await import('../services/googleDrive');
+          await deleteFromDrive(oldAnexo.driveFileId);
+        } catch (e) {
+          console.error('Falha ao apagar anexo no Drive:', e);
+        }
+      }
+      payload.anexo = null;
+    }
+
     let driveError = '';
     if (req.file && DESPESAS_FOLDER_ID) {
       try {

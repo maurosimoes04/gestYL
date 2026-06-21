@@ -38,6 +38,8 @@ let chartForecastInstance: any = null;
 let editingEventoId: number | null = null;
 let editingFaturaId: number | null = null;
 let editingReceitaId: number | null = null;
+let removeFaturaAnexo = false;
+let removeReceitaAnexo = false;
 let editingInventarioId: number | null = null;
 let sharingEventoId: number | null = null;
 let eventosCache: any[] = [];
@@ -1018,6 +1020,7 @@ async function guardarFatura(e: SubmitEvent) {
   const anexoInput = document.getElementById('anexoFatura') as HTMLInputElement | null;
   const anexoFile = anexoInput?.files?.[0];
   if (anexoFile) formData.append('anexo', anexoFile);
+  if (removeFaturaAnexo && !anexoFile) formData.append('removeAnexo', 'true');
 
   const url = editingFaturaId ? `${API_FATURAS}/${editingFaturaId}` : API_FATURAS;
   const method = editingFaturaId ? 'PUT' : 'POST';
@@ -1044,6 +1047,7 @@ async function guardarFatura(e: SubmitEvent) {
     resetForm('faturaForm');
     toggleSection('formularioFatura', false);
     editingFaturaId = null;
+    removeFaturaAnexo = false;
     if (btn) { btn.textContent = 'Guardar'; btn.classList.remove('loading'); btn.disabled = false; }
     if (overlay) { overlay.setAttribute('hidden', 'true'); }
     await Promise.all([carregarFaturas(), carregarEventosResumo(), carregarMovimentos()]);
@@ -1178,6 +1182,7 @@ async function guardarReceita(e: SubmitEvent) {
   const anexoInput = document.getElementById('anexoReceita') as HTMLInputElement | null;
   const anexoFile = anexoInput?.files?.[0];
   if (anexoFile) formData.append('anexo', anexoFile);
+  if (removeReceitaAnexo && !anexoFile) formData.append('removeAnexo', 'true');
 
   const url = editingReceitaId ? `${API_RECEITAS}/${editingReceitaId}` : API_RECEITAS;
   const method = editingReceitaId ? 'PUT' : 'POST';
@@ -1204,6 +1209,7 @@ async function guardarReceita(e: SubmitEvent) {
     resetForm('receitaForm');
     toggleSection('formularioReceita', false);
     editingReceitaId = null;
+    removeReceitaAnexo = false;
     if (btn) { btn.textContent = 'Guardar'; btn.classList.remove('loading'); btn.disabled = false; }
     if (overlay) { overlay.setAttribute('hidden', 'true'); }
     await Promise.all([carregarReceitas(), carregarMovimentos()]);
@@ -1477,6 +1483,33 @@ function setupEventListeners() {
   setupFileDrop('dropFatura', 'anexoFatura');
   setupFileDrop('dropReceita', 'anexoReceita');
 
+  document.getElementById('existingAnexoFaturaReplace')?.addEventListener('click', () => {
+    const existing = document.getElementById('existingAnexoFatura');
+    const drop = document.getElementById('dropFatura');
+    if (existing) existing.setAttribute('hidden', 'true');
+    if (drop) drop.removeAttribute('hidden');
+  });
+  document.getElementById('existingAnexoFaturaRemove')?.addEventListener('click', () => {
+    removeFaturaAnexo = true;
+    const existing = document.getElementById('existingAnexoFatura');
+    if (existing) existing.setAttribute('hidden', 'true');
+    const drop = document.getElementById('dropFatura');
+    if (drop) drop.removeAttribute('hidden');
+  });
+  document.getElementById('existingAnexoReceitaReplace')?.addEventListener('click', () => {
+    const existing = document.getElementById('existingAnexoReceita');
+    const drop = document.getElementById('dropReceita');
+    if (existing) existing.setAttribute('hidden', 'true');
+    if (drop) drop.removeAttribute('hidden');
+  });
+  document.getElementById('existingAnexoReceitaRemove')?.addEventListener('click', () => {
+    removeReceitaAnexo = true;
+    const existing = document.getElementById('existingAnexoReceita');
+    if (existing) existing.setAttribute('hidden', 'true');
+    const drop = document.getElementById('dropReceita');
+    if (drop) drop.removeAttribute('hidden');
+  });
+
   ['formularioFatura', 'formularioReceita', 'formularioEvento', 'formularioInventario'].forEach(id => {
     const modal = document.getElementById(id);
     if (modal) modal.addEventListener('click', (e) => {
@@ -1576,6 +1609,11 @@ function setupEventListeners() {
       toggleSection('formularioFatura', true);
       setValue('tipoFatura', 'Fatura');
       editingFaturaId = null;
+      removeFaturaAnexo = false;
+      const ea = document.getElementById('existingAnexoFatura');
+      if (ea) ea.setAttribute('hidden', 'true');
+      const df = document.getElementById('dropFatura');
+      if (df) df.removeAttribute('hidden');
       const btn = document.getElementById('btnSalvarFatura') as HTMLButtonElement | null;
       if (btn) btn.textContent = 'Guardar';
       carregarEventosSelect();
@@ -1590,6 +1628,11 @@ function setupEventListeners() {
       toggleSection('formularioFatura', true);
       setValue('tipoFatura', 'Fatura');
       editingFaturaId = null;
+      removeFaturaAnexo = false;
+      const ea = document.getElementById('existingAnexoFatura');
+      if (ea) ea.setAttribute('hidden', 'true');
+      const df = document.getElementById('dropFatura');
+      if (df) df.removeAttribute('hidden');
       const btn = document.getElementById('btnSalvarFatura') as HTMLButtonElement | null;
       if (btn) btn.textContent = 'Guardar';
       carregarEventosSelect();
@@ -1631,6 +1674,11 @@ function setupEventListeners() {
       resetForm('receitaForm');
       toggleSection('formularioReceita', true);
       editingReceitaId = null;
+      removeReceitaAnexo = false;
+      const ea = document.getElementById('existingAnexoReceita');
+      if (ea) ea.setAttribute('hidden', 'true');
+      const dr = document.getElementById('dropReceita');
+      if (dr) dr.removeAttribute('hidden');
       const btn = document.getElementById('btnSalvarReceita') as HTMLButtonElement | null;
       if (btn) btn.textContent = 'Guardar';
       carregarEventosSelect();
@@ -1665,6 +1713,11 @@ function setupEventListeners() {
       resetForm('receitaForm');
       toggleSection('formularioReceita', true);
       editingReceitaId = null;
+      removeReceitaAnexo = false;
+      const ea = document.getElementById('existingAnexoReceita');
+      if (ea) ea.setAttribute('hidden', 'true');
+      const dr = document.getElementById('dropReceita');
+      if (dr) dr.removeAttribute('hidden');
       const btn = document.getElementById('btnSalvarReceita') as HTMLButtonElement | null;
       if (btn) btn.textContent = 'Guardar';
       carregarEventosSelect();
@@ -2120,6 +2173,21 @@ async function editarReceita(id: number) {
     setValue('observacoesReceita', r.observacoes || '');
     if (r.eventoId) setValue('eventoReceita', String(r.eventoId)); else setValue('eventoReceita', '');
     editingReceitaId = id;
+    removeReceitaAnexo = false;
+    const existingAnexo = document.getElementById('existingAnexoReceita');
+    const existingLink = document.getElementById('existingAnexoReceitaLink') as HTMLAnchorElement | null;
+    const dropReceita = document.getElementById('dropReceita');
+    if (r.anexo && r.anexo.originalName) {
+      if (existingLink) {
+        existingLink.textContent = r.anexo.originalName;
+        existingLink.href = r.anexo.driveWebViewLink || '#';
+      }
+      if (existingAnexo) existingAnexo.removeAttribute('hidden');
+      if (dropReceita) dropReceita.setAttribute('hidden', 'true');
+    } else {
+      if (existingAnexo) existingAnexo.setAttribute('hidden', 'true');
+      if (dropReceita) dropReceita.removeAttribute('hidden');
+    }
     const btn = document.getElementById('btnSalvarReceita') as HTMLButtonElement | null;
     if (btn) btn.textContent = 'Guardar Alterações';
   } catch {
@@ -2158,6 +2226,21 @@ async function editarFatura(id: number) {
     setValue('tipoFatura', f.tipo || 'Fatura');
     if (f.eventoId) setValue('eventoFatura', String(f.eventoId)); else setValue('eventoFatura', '');
     editingFaturaId = id;
+    removeFaturaAnexo = false;
+    const existingAnexo = document.getElementById('existingAnexoFatura');
+    const existingLink = document.getElementById('existingAnexoFaturaLink') as HTMLAnchorElement | null;
+    const dropFatura = document.getElementById('dropFatura');
+    if (f.anexo && f.anexo.originalName) {
+      if (existingLink) {
+        existingLink.textContent = f.anexo.originalName;
+        existingLink.href = f.anexo.driveWebViewLink || '#';
+      }
+      if (existingAnexo) existingAnexo.removeAttribute('hidden');
+      if (dropFatura) dropFatura.setAttribute('hidden', 'true');
+    } else {
+      if (existingAnexo) existingAnexo.setAttribute('hidden', 'true');
+      if (dropFatura) dropFatura.removeAttribute('hidden');
+    }
     const btn = document.getElementById('btnSalvarFatura') as HTMLButtonElement | null;
     if (btn) btn.textContent = 'Guardar Alterações';
   } catch {
