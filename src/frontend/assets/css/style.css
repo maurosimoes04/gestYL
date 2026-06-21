@@ -1084,6 +1084,10 @@ section h2 {
   backdrop-filter: blur(3px);
 }
 
+.form-loading-overlay[hidden] {
+  display: none;
+}
+
 .form-loading-overlay .loader-spinner {
   width: 36px;
   height: 36px;
