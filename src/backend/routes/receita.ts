@@ -30,7 +30,7 @@ router.get('/', async (req, res) => {
     const receitas = await prisma.receita.findMany({ where, orderBy: { data: 'desc' } });
     res.json(receitas);
   } catch (err) {
-    console.error('Erro ao listar receitas:', err);
+    console.error('Erro ao listar receitas:', err.message || err);
     res.status(500).json({ error: 'Erro ao listar receitas' });
   }
 });
@@ -104,7 +104,7 @@ router.get('/:id/anexo', async (req, res) => {
     if (link && typeof link === 'string' && link.startsWith('https://')) return res.redirect(link);
     return res.status(404).json({ error: 'Link do anexo indisponível' });
   } catch (err) {
-    console.error('Erro servir anexo receita:', err);
+    console.error('Erro servir anexo receita:', err.message || err);
     res.status(500).json({ error: 'Erro ao servir anexo' });
   }
 });
@@ -198,7 +198,7 @@ router.delete('/:id', async (req, res) => {
     await prisma.receita.delete({ where: { id } });
     res.json({ message: 'Receita removida com sucesso' });
   } catch (err) {
-    console.error('Erro ao remover receita:', err);
+    console.error('Erro ao remover receita:', err.message || err);
     res.status(500).json({ error: 'Erro ao remover receita' });
   }
 });

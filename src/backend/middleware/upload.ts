@@ -7,12 +7,18 @@
  */
 
 import multer from 'multer';
+import path from 'path';
 
-// Filtra ficheiros por tipo MIME permitido (PDF, JPEG, PNG) (PT-PT)
+const ALLOWED_MIMES = ['application/pdf', 'image/jpeg', 'image/png'];
+const ALLOWED_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png'];
+
 function fileFilter(req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) {
-  const allowed = ['application/pdf', 'image/jpeg', 'image/png'];
-  if (allowed.includes(file.mimetype)) cb(null, true);
-  else cb(new Error('Tipo de ficheiro inválido'));
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (ALLOWED_MIMES.includes(file.mimetype) && ALLOWED_EXTENSIONS.includes(ext)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Tipo de ficheiro inválido. Apenas PDF, JPG e PNG são permitidos.'));
+  }
 }
 
 const upload = multer({

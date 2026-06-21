@@ -106,7 +106,7 @@ router.get('/export/pdf', async (_req, res) => {
     doc.fontSize(8).font('Helvetica').text('Relatório gerado automaticamente pelo Gestor de Despesas', { align: 'center' });
     doc.end();
   } catch (error) {
-    console.error('Erro ao gerar PDF:', error);
+    console.error('Erro ao gerar PDF:', error.message || error);
     res.status(500).json({ error: 'Erro ao exportar PDF' });
   }
 });
@@ -271,7 +271,7 @@ router.delete('/:id', async (req, res) => {
     await prisma.fatura.delete({ where: { id } });
     res.json({ message: 'Fatura eliminada com sucesso' });
   } catch (error) {
-    console.error('Erro ao eliminar fatura:', error);
+    console.error('Erro ao eliminar fatura:', error.message || error);
     res.status(500).json({ error: 'Erro ao eliminar fatura' });
   }
 });

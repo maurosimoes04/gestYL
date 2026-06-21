@@ -191,7 +191,7 @@ router.get('/:id/pdf', async (req, res) => {
 
     doc.end();
   } catch (err) {
-    console.error('Erro ao gerar PDF evento:', err);
+    console.error('Erro ao gerar PDF evento:', err.message || err);
     res.status(500).json({ error: 'Erro ao gerar PDF do evento' });
   }
 });

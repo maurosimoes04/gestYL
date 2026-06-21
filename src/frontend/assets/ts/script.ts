@@ -178,6 +178,11 @@ function toggleSection(id: string, visible: boolean) {
 function resetForm(id: string) {
   const form = document.getElementById(id) as HTMLFormElement | null;
   if (form) form.reset();
+  form?.querySelectorAll('.file-drop').forEach(drop => {
+    drop.classList.remove('has-file');
+    const preview = drop.querySelector('.file-drop-preview') as HTMLElement | null;
+    if (preview) preview.setAttribute('hidden', 'true');
+  });
 }
 function showNotification(message: string, type: 'success' | 'error' = 'success') {
   const notification = document.createElement('div');

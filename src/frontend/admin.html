@@ -283,14 +283,14 @@
       setTimeout(() => el.setAttribute('hidden', 'true'), 3500);
     }
 
-    function roleLabel(r) {
-      return { admin: 'Admin', direcao: 'Direção', fiscal: 'Fiscal' }[r] || r;
-    }
-
-    function escapeAttr(text) {
+    function escapeHtml(text) {
       return String(text || '').replace(/[&<>"']/g, (ch) => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
       }[ch]));
+    }
+
+    function roleLabel(r) {
+      return { admin: 'Admin', direcao: 'Direção', fiscal: 'Fiscal' }[r] || r;
     }
 
     function roleBadgeClass(r) {
@@ -310,14 +310,14 @@
         }
         tbody.innerHTML = users.map(u => `
           <tr>
-            <td>${escapeAttr(u.email)}</td>
-            <td>${escapeAttr(u.nome) || '-'}</td>
+            <td>${escapeHtml(u.email)}</td>
+            <td>${escapeHtml(u.nome) || '-'}</td>
             <td><span class="badge ${roleBadgeClass(u.role)}">${roleLabel(u.role)}</span></td>
             <td><span class="status ${u.ativo ? 'status-ativo' : 'status-inativo'}">${u.ativo ? 'Ativo' : 'Desativado'}</span></td>
             <td>${new Date(u.createdAt).toLocaleDateString('pt-PT')}</td>
             <td class="actions-cell">
-              <button onclick="openEdit('${escapeAttr(u.id)}','${escapeAttr(u.nome || '')}','${escapeAttr(u.role)}',${u.ativo})" class="btn-icon" title="Editar">Editar</button>
-              <button onclick="removeUser('${escapeAttr(u.id)}','${escapeAttr(u.email)}')" class="btn-icon btn-danger" title="Remover">Remover</button>
+              <button onclick="openEdit('${escapeHtml(u.id)}','${escapeHtml(u.nome || '')}','${escapeHtml(u.role)}',${u.ativo})" class="btn-icon" title="Editar">Editar</button>
+              <button onclick="removeUser('${escapeHtml(u.id)}','${escapeHtml(u.email)}')" class="btn-icon btn-danger" title="Remover">Remover</button>
             </td>
           </tr>
         `).join('');
@@ -461,12 +461,12 @@
         }
         tbody.innerHTML = deps.map(d => `
           <tr>
-            <td>${escapeAttr(d.nome)}</td>
+            <td>${escapeHtml(d.nome)}</td>
             <td><span class="status ${d.ativo ? 'status-ativo' : 'status-inativo'}">${d.ativo ? 'Ativo' : 'Desativado'}</span></td>
             <td>${new Date(d.createdAt).toLocaleDateString('pt-PT')}</td>
             <td class="actions-cell">
-              <button onclick="openDepEdit(${d.id},'${escapeAttr(d.nome)}',${d.ativo})" class="btn-icon" title="Editar">Editar</button>
-              <button onclick="removeDep(${d.id},'${escapeAttr(d.nome)}')" class="btn-icon btn-danger" title="Remover">Remover</button>
+              <button onclick="openDepEdit(${d.id},'${escapeHtml(d.nome)}',${d.ativo})" class="btn-icon" title="Editar">Editar</button>
+              <button onclick="removeDep(${d.id},'${escapeHtml(d.nome)}')" class="btn-icon btn-danger" title="Remover">Remover</button>
             </td>
           </tr>
         `).join('');
@@ -540,16 +540,6 @@
     // --- PARTILHAS ---
     let sharesPage = 0;
     const sharesLimit = 20;
-
-    function escapeHtml(text) {
-      return String(text || '').replace(/[&<>"']/g, (ch) => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-      }[ch]));
-    }
 
     function shareStatus(share) {
       if (share.revokedAt) return 'Revogada';
@@ -644,12 +634,12 @@
           tbody.innerHTML = logs.map(l => `
             <tr>
               <td>${new Date(l.createdAt).toLocaleString('pt-PT')}</td>
-              <td>${escapeAttr(l.email) || '-'}</td>
+              <td>${escapeHtml(l.email) || '-'}</td>
               <td>${actionLabel(l.action)}</td>
               <td>${entityLabel(l.entity)}</td>
-              <td>${escapeAttr(l.entityId) || '-'}</td>
-              <td>${escapeAttr(l.ip) || '-'}</td>
-              <td class="audit-row-details" title="${escapeAttr(l.details ? JSON.stringify(l.details) : '')}">${escapeAttr(l.details ? JSON.stringify(l.details).slice(0, 60) : '-')}</td>
+              <td>${escapeHtml(l.entityId) || '-'}</td>
+              <td>${escapeHtml(l.ip) || '-'}</td>
+              <td class="audit-row-details" title="${escapeHtml(l.details ? JSON.stringify(l.details) : '')}">${escapeHtml(l.details ? JSON.stringify(l.details).slice(0, 60) : '-')}</td>
             </tr>
           `).join('');
         }
