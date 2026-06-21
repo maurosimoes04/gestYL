@@ -118,7 +118,7 @@ sharePublicRouter.post('/evento/:token/access', async (req, res) => {
       sessionExpiresAt,
     });
   } catch (err) {
-    console.error('Erro acesso partilha:', err);
+    console.error('Erro acesso partilha:', err.message || err);
     return res.status(500).json({ error: 'Erro ao validar partilha' });
   }
 });
@@ -173,7 +173,7 @@ sharePublicRouter.get('/evento/:token/anexo/:tipo/:id', async (req, res) => {
     if (link && typeof link === 'string' && link.startsWith('https://')) return res.redirect(link);
     return res.status(404).json({ error: 'Link do anexo indisponível' });
   } catch (err) {
-    console.error('Erro anexo partilha:', err);
+    console.error('Erro anexo partilha:', err.message || err);
     return res.status(500).json({ error: 'Erro ao servir anexo' });
   }
 });
@@ -225,7 +225,7 @@ sharePrivateRouter.post('/', async (req, res) => {
       password: passwordPlain,
     });
   } catch (err) {
-    console.error('Erro criar partilha:', err);
+    console.error('Erro criar partilha:', err.message || err);
     return res.status(500).json({ error: 'Erro ao criar partilha' });
   }
 });
@@ -252,7 +252,7 @@ sharePrivateRouter.get('/', async (req, res) => {
 
     return res.json({ shares, total });
   } catch (err) {
-    console.error('Erro listar partilhas:', err);
+    console.error('Erro listar partilhas:', err.message || err);
     return res.status(500).json({ error: 'Erro ao listar partilhas' });
   }
 });
@@ -279,7 +279,7 @@ sharePrivateRouter.post('/:id/revoke', async (req, res) => {
 
     return res.json({ ok: true });
   } catch (err) {
-    console.error('Erro revogar partilha:', err);
+    console.error('Erro revogar partilha:', err.message || err);
     return res.status(500).json({ error: 'Erro ao revogar partilha' });
   }
 });

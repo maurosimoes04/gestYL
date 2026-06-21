@@ -3,7 +3,7 @@ import { prisma } from '../config/prisma';
 
 const router = express.Router();
 
-// Listar departamentos (público para selects)
+// Listar departamentos
 router.get('/', async (_req, res) => {
   try {
     const departamentos = await prisma.departamento.findMany({ orderBy: { nome: 'asc' } });
