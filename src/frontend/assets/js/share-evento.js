@@ -1,5 +1,11 @@
 const token = window.location.pathname.split('/').pop();
 
+function escapeHtml(text) {
+  return String(text || '').replace(/[&<>"']/g, (ch) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[ch]));
+}
+
 function formatCurrency(value) {
   const num = Number(value || 0);
   return `${num.toFixed(2)} €`;
@@ -37,18 +43,19 @@ function renderTable(rows, targetId, cols, anexoLabel) {
     return;
   }
   tbody.innerHTML = rows.map((row) => {
-    const anexo = row.anexoLink ? `<a href="${row.anexoLink}" target="_blank">${anexoLabel}</a>` : '-';
+    const safeLink = row.anexoLink && row.anexoLink.startsWith('/') ? escapeHtml(row.anexoLink) : '';
+    const anexo = safeLink ? `<a href="${safeLink}" target="_blank">${escapeHtml(anexoLabel)}</a>` : '-';
     return row.__tipo === 'receita'
       ? `<tr>
-          <td>${row.titulo || '-'}</td>
-          <td>${row.categoria || '-'}</td>
+          <td>${escapeHtml(row.titulo) || '-'}</td>
+          <td>${escapeHtml(row.categoria) || '-'}</td>
           <td>${formatDate(row.data)}</td>
           <td>${formatCurrency(row.valor)}</td>
           <td>${anexo}</td>
         </tr>`
       : `<tr>
-          <td>${row.titulo || '-'}</td>
-          <td>${row.departamento || '-'}</td>
+          <td>${escapeHtml(row.titulo) || '-'}</td>
+          <td>${escapeHtml(row.departamento) || '-'}</td>
           <td>${formatDate(row.data)}</td>
           <td>${formatCurrency(row.valor)}</td>
           <td>${anexo}</td>

@@ -40,6 +40,13 @@ const frontendPath = path.join(process.cwd(), 'src', 'frontend');
 app.get('/favicon.ico', (_req, res) => res.status(204).end());
 app.use(express.static(frontendPath));
 
+app.get('/api/config', (_req, res) => {
+  res.json({
+    supabaseUrl: process.env.SUPABASE_URL,
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
+  });
+});
+
 // Páginas públicas
 app.get('/login', (_req, res) => {
   res.sendFile(path.join(frontendPath, 'login.html'));

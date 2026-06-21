@@ -6,12 +6,13 @@ const router = express.Router();
 
 router.post('/', async (req, res) => {
   try {
-    const payload: any = { ...req.body };
-    if (!payload.nome) return res.status(400).json({ error: 'Nome do evento é obrigatório' });
-    if (payload.data_inicio) payload.data_inicio = new Date(payload.data_inicio);
-    else delete payload.data_inicio;
-    if (payload.data_fim) payload.data_fim = new Date(payload.data_fim);
-    else delete payload.data_fim;
+    const { nome, descricao, data_inicio, data_fim, departamento } = req.body;
+    if (!nome) return res.status(400).json({ error: 'Nome do evento é obrigatório' });
+    const payload: any = { nome };
+    if (descricao) payload.descricao = descricao;
+    if (departamento) payload.departamento = departamento;
+    if (data_inicio) payload.data_inicio = new Date(data_inicio);
+    if (data_fim) payload.data_fim = new Date(data_fim);
     const evento = await prisma.evento.create({ data: payload });
     res.status(201).json(evento);
   } catch (err: any) {
@@ -208,7 +209,11 @@ router.get('/:id', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const payload: any = { ...req.body };
+    const ALLOWED_FIELDS = ['nome', 'descricao', 'data_inicio', 'data_fim', 'departamento'] as const;
+    const payload: any = {};
+    for (const k of ALLOWED_FIELDS) {
+      if (req.body[k] !== undefined) payload[k] = req.body[k];
+    }
     if (payload.data_inicio) payload.data_inicio = new Date(payload.data_inicio);
     if (payload.data_fim) payload.data_fim = new Date(payload.data_fim);
     const evento = await prisma.evento.update({
@@ -218,7 +223,7 @@ router.put('/:id', async (req, res) => {
     res.json(evento);
   } catch (err: any) {
     console.error('Erro atualizar evento:', err.message || err);
-    res.status(400).json({ error: 'Erro ao atualizar evento', details: err.message || 'Erro desconhecido' });
+    res.status(400).json({ error: 'Erro ao atualizar evento' });
   }
 });
 

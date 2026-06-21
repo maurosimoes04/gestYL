@@ -86,7 +86,12 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const payload: any = { ...req.body };
+    const ALLOWED_FIELDS = ['tipo', 'nome', 'categoria', 'quantidade', 'unidade', 'localizacao', 'estado', 'custoUnitario', 'dataAquisicao', 'dataValidade', 'quantidadeMinima', 'notas', 'faturaId'];
+    const payload: any = {};
+    for (const k of ALLOWED_FIELDS) {
+      const v = req.body[k];
+      if (v !== undefined && v !== '' && v !== null) payload[k] = v;
+    }
     if (payload.quantidade) payload.quantidade = parseFloat(payload.quantidade);
     if (payload.custoUnitario) payload.custoUnitario = parseFloat(payload.custoUnitario);
     if (payload.quantidadeMinima) payload.quantidadeMinima = parseFloat(payload.quantidadeMinima);
@@ -105,7 +110,11 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const payload: any = { ...req.body };
+    const ALLOWED_FIELDS = ['tipo', 'nome', 'categoria', 'quantidade', 'unidade', 'localizacao', 'estado', 'custoUnitario', 'dataAquisicao', 'dataValidade', 'quantidadeMinima', 'notas', 'faturaId'];
+    const payload: any = {};
+    for (const k of ALLOWED_FIELDS) {
+      if (req.body[k] !== undefined) payload[k] = req.body[k];
+    }
     if (payload.quantidade) payload.quantidade = parseFloat(payload.quantidade);
     if (payload.custoUnitario) payload.custoUnitario = parseFloat(payload.custoUnitario);
     if (payload.quantidadeMinima) payload.quantidadeMinima = parseFloat(payload.quantidadeMinima);

@@ -125,10 +125,10 @@ router.get('/:id', async (req, res) => {
 // POST /faturas
 router.post('/', upload.single('anexo'), async (req, res) => {
   try {
-    const raw: any = { ...req.body };
-    // Limpar campos vazios do FormData
+    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'departamento', 'tipo', 'numero', 'estado', 'descricao', 'detalhes', 'eventoId', 'inventarioId'];
     const payload: any = {};
-    for (const [k, v] of Object.entries(raw)) {
+    for (const k of ALLOWED_FIELDS) {
+      const v = req.body[k];
       if (v !== '' && v !== null && v !== undefined) payload[k] = v;
     }
     if (payload.valor) payload.valor = parseFloat(payload.valor);
@@ -183,9 +183,10 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     const fatura = await prisma.fatura.findUnique({ where: { id } });
     if (!fatura) return res.status(404).json({ error: 'Fatura não encontrada' });
 
-    const raw: any = { ...req.body };
+    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'departamento', 'tipo', 'numero', 'estado', 'descricao', 'detalhes', 'eventoId', 'inventarioId'];
     const payload: any = {};
-    for (const [k, v] of Object.entries(raw)) {
+    for (const k of ALLOWED_FIELDS) {
+      const v = req.body[k];
       if (v !== '' && v !== null && v !== undefined) payload[k] = v;
     }
     if (payload.valor) payload.valor = parseFloat(payload.valor);

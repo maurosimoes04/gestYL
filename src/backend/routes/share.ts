@@ -22,27 +22,8 @@ function hashToken(token: string) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-function normalizeText(text: string) {
-  return text
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9\s]/g, ' ')
-    .trim();
-}
-
-function initials(text: string, fallback: string) {
-  const clean = normalizeText(text);
-  if (!clean) return fallback;
-  const words = clean.split(/\s+/).filter(Boolean);
-  if (!words.length) return fallback;
-  return words.map((w) => w[0]).join('').toUpperCase();
-}
-
-function buildSimplePassword(eventoNome: string, destinatario: string | undefined | null) {
-  const destBase = destinatario?.includes('@') ? destinatario.split('@')[0] : destinatario || '';
-  const evSigla = initials(eventoNome, 'EV');
-  const destSigla = initials(destBase, 'EXT');
-  return `${evSigla}-${destSigla}`;
+function generateSharePassword() {
+  return crypto.randomBytes(6).toString('base64url');
 }
 
 function parseCookies(header: string | undefined) {
@@ -206,7 +187,7 @@ sharePrivateRouter.post('/', async (req, res) => {
     const evento = await prisma.evento.findUnique({ where: { id: Number(eventoId) } });
     if (!evento) return res.status(404).json({ error: 'Evento não encontrado' });
 
-    const passwordPlain = buildSimplePassword(evento.nome, destinatario);
+    const passwordPlain = generateSharePassword();
     const token = crypto.randomBytes(24).toString('base64url');
     const salt = crypto.randomBytes(16).toString('hex');
     const hash = hashPassword(passwordPlain, salt);

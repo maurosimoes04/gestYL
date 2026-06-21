@@ -3,12 +3,9 @@ import { supabaseAdmin } from '../config/supabase';
 import { prisma } from '../config/prisma';
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (process.env.AUTH_DISABLED === 'true') return next();
-
   const header = req.headers.authorization;
-  const queryToken = req.query.token as string | undefined;
   const bearerToken = header?.startsWith('Bearer ') ? header.slice(7) : null;
-  const token = bearerToken || queryToken;
+  const token = bearerToken;
 
   if (!token) {
     return res.status(401).json({ error: 'Não autorizado' });
@@ -33,7 +30,6 @@ export function guardWrite(req: Request, res: Response, next: NextFunction) {
   const method = (req.method || '').toUpperCase();
   const isWrite = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
   if (!isWrite) return next();
-  if (process.env.AUTH_DISABLED === 'true') return next();
 
   const role = (req as any).authRole;
   if (role === 'admin' || role === 'direcao') return next();

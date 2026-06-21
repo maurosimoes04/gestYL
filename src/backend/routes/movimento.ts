@@ -24,9 +24,12 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const payload: any = { ...req.body };
-    if (payload.valor) payload.valor = parseFloat(payload.valor);
-    if (payload.data) payload.data = new Date(payload.data);
+    const { tipo, conta, valor, data, referencia, descricao } = req.body;
+    const payload: any = { tipo, conta };
+    if (valor) payload.valor = parseFloat(valor);
+    if (data) payload.data = new Date(data);
+    if (referencia) payload.referencia = referencia;
+    if (descricao) payload.descricao = descricao;
     const movimento = await prisma.movimento.create({ data: payload });
     res.status(201).json(movimento);
   } catch (err) {
@@ -36,7 +39,11 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const payload: any = { ...req.body };
+    const ALLOWED_FIELDS = ['tipo', 'conta', 'valor', 'data', 'referencia', 'descricao'] as const;
+    const payload: any = {};
+    for (const k of ALLOWED_FIELDS) {
+      if (req.body[k] !== undefined) payload[k] = req.body[k];
+    }
     if (payload.valor) payload.valor = parseFloat(payload.valor);
     if (payload.data) payload.data = new Date(payload.data);
     const mov = await prisma.movimento.update({
