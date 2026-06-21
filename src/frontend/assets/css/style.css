@@ -1212,6 +1212,76 @@ section h2 {
 /* ======================================================
    FILE DROP ZONE
 ====================================================== */
+.existing-anexo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.existing-anexo[hidden] {
+  display: none;
+}
+
+.existing-anexo svg {
+  flex-shrink: 0;
+  color: #16a34a;
+}
+
+.existing-anexo-link {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #16a34a;
+  text-decoration: none;
+}
+
+.existing-anexo-link:hover {
+  text-decoration: underline;
+}
+
+.existing-anexo-replace,
+.existing-anexo-remove {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 4px 6px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.existing-anexo-replace {
+  color: #2563eb;
+}
+
+.existing-anexo-replace:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  transform: none;
+  box-shadow: none;
+}
+
+.existing-anexo-remove {
+  color: #dc2626;
+}
+
+.existing-anexo-remove:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+  transform: none;
+  box-shadow: none;
+}
+
 .file-drop {
   position: relative;
   border: 2px dashed #cbd5e1;
