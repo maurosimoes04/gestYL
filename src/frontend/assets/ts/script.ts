@@ -180,7 +180,14 @@ function resetForm(id: string) {
 function showNotification(message: string, type: 'success' | 'error' = 'success') {
   const notification = document.createElement('div');
   notification.className = `notification ${type}`;
-  notification.innerHTML = `<span class="notification-icon">${type === 'success' ? '&#10003;' : '&#10007;'}</span><span class="notification-message">${message}</span>`;
+  const iconSpan = document.createElement('span');
+  iconSpan.className = 'notification-icon';
+  iconSpan.textContent = type === 'success' ? '✓' : '✗';
+  const msgSpan = document.createElement('span');
+  msgSpan.className = 'notification-message';
+  msgSpan.textContent = message;
+  notification.appendChild(iconSpan);
+  notification.appendChild(msgSpan);
   document.body.appendChild(notification);
   setTimeout(() => {
     notification.style.animation = 'slideIn 0.3s ease reverse';
@@ -196,12 +203,16 @@ function showLoading(message: string = 'Carregando...') {
     overlay.className = 'loading-overlay';
     document.body.appendChild(overlay);
   }
-  overlay.innerHTML = `
-    <div class="loading-box">
-      <div class="loader-spinner"></div>
-      <p>${message}</p>
-    </div>
-  `;
+  const box = document.createElement('div');
+  box.className = 'loading-box';
+  const spinner = document.createElement('div');
+  spinner.className = 'loader-spinner';
+  const p = document.createElement('p');
+  p.textContent = message;
+  box.appendChild(spinner);
+  box.appendChild(p);
+  overlay.innerHTML = '';
+  overlay.appendChild(box);
   overlay.classList.remove('hidden');
 }
 
@@ -362,7 +373,7 @@ function closeExportModal() {
   if (modal) modal.setAttribute('hidden', 'true');
 }
 
-function handleExportRelatorio(e: Event) {
+async function handleExportRelatorio(e: Event) {
   e.preventDefault();
   const tipo = getValue('exportTipo') || 'ambos';
   const periodo = getValue('exportPeriodo') || 'custom';
@@ -378,10 +389,15 @@ function handleExportRelatorio(e: Event) {
     if (to) params.append('dateTo', to);
   }
 
-  if (authToken) params.append('token', authToken);
-
   const url = `/relatorios/pdf?${params.toString()}`;
-  window.open(url, '_blank');
+  try {
+    const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${authToken}` } });
+    if (!resp.ok) throw new Error('Erro ao gerar PDF');
+    const blob = await resp.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    window.open(blobUrl, '_blank');
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+  } catch { showNotification('Erro ao exportar relatório', 'error'); }
   closeExportModal();
 }
 
@@ -749,9 +765,15 @@ async function abrirDetalheEvento(id: number) {
 
     // PDF button
     const pdfBtn = document.getElementById('eventoDetailPdf') as HTMLButtonElement;
-    pdfBtn.onclick = () => {
-      const pdfUrl = `${API_EVENTOS}/${id}/pdf${authToken ? `?token=${authToken}` : ''}`;
-      window.open(pdfUrl, '_blank');
+    pdfBtn.onclick = async () => {
+      try {
+        const resp = await fetch(`${API_EVENTOS}/${id}/pdf`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (!resp.ok) throw new Error();
+        const blob = await resp.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, '_blank');
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+      } catch { showNotification('Erro ao gerar PDF do evento', 'error'); }
     };
 
     // Show modal
@@ -928,7 +950,7 @@ function renderFaturasPage() {
     const eventoNome = eventosCache.find((ev: any) => ev.id === f.eventoId)?.nome || '';
     const anexoLink = f.anexo?.driveWebViewLink
       ? f.anexo.driveWebViewLink
-      : (f.anexo ? `/faturas/${f.id}/anexo${authToken ? `?token=${authToken}` : ''}` : '');
+      : (f.anexo ? `/faturas/${f.id}/anexo` : '');
     const actions = isReadOnly() ? '' : `
       <div class="record-actions">
         <button class="btn-acao btn-editar-fatura" data-id="${f.id}" title="Editar">${icon('edit')}</button>
@@ -1000,11 +1022,10 @@ async function guardarFatura(e: SubmitEvent) {
   const url = editingFaturaId ? `${API_FATURAS}/${editingFaturaId}` : API_FATURAS;
   const method = editingFaturaId ? 'PUT' : 'POST';
   const btn = document.getElementById('btnSalvarFatura') as HTMLButtonElement | null;
+  const overlay = document.getElementById('faturaLoadingOverlay');
 
-  if (btn) {
-    btn.classList.add('loading');
-    btn.disabled = true;
-  }
+  if (btn) { btn.classList.add('loading'); btn.disabled = true; }
+  if (overlay) { overlay.removeAttribute('hidden'); }
 
   try {
     const resp = await fetch(url, {
@@ -1023,18 +1044,13 @@ async function guardarFatura(e: SubmitEvent) {
     resetForm('faturaForm');
     toggleSection('formularioFatura', false);
     editingFaturaId = null;
-    if (btn) {
-      btn.textContent = 'Guardar';
-      btn.classList.remove('loading');
-      btn.disabled = false;
-    }
+    if (btn) { btn.textContent = 'Guardar'; btn.classList.remove('loading'); btn.disabled = false; }
+    if (overlay) { overlay.setAttribute('hidden', 'true'); }
     await Promise.all([carregarFaturas(), carregarEventosResumo(), carregarMovimentos()]);
   } catch (err: any) {
-    showNotification(`❌ ${err.message || 'Erro ao guardar fatura'}`, 'error');
-    if (btn) {
-      btn.classList.remove('loading');
-      btn.disabled = false;
-    }
+    showNotification(`${err.message || 'Erro ao guardar fatura'}`, 'error');
+    if (btn) { btn.classList.remove('loading'); btn.disabled = false; }
+    if (overlay) { overlay.setAttribute('hidden', 'true'); }
   }
 }
 
@@ -1093,7 +1109,7 @@ function renderReceitasPage() {
     const eventoNome = eventosCache.find((ev: any) => ev.id === r.eventoId)?.nome || '';
     const anexoLink = r.anexo?.driveWebViewLink
       ? r.anexo.driveWebViewLink
-      : (r.anexo ? `/receitas/${r.id}/anexo${authToken ? `?token=${authToken}` : ''}` : '');
+      : (r.anexo ? `/receitas/${r.id}/anexo` : '');
     const actions = isReadOnly() ? '' : `
       <div class="record-actions">
         <button class="btn-acao btn-editar-receita" data-id="${r.id}" title="Editar">${icon('edit')}</button>
@@ -1166,11 +1182,10 @@ async function guardarReceita(e: SubmitEvent) {
   const url = editingReceitaId ? `${API_RECEITAS}/${editingReceitaId}` : API_RECEITAS;
   const method = editingReceitaId ? 'PUT' : 'POST';
   const btn = document.getElementById('btnSalvarReceita') as HTMLButtonElement | null;
+  const overlay = document.getElementById('receitaLoadingOverlay');
 
-  if (btn) {
-    btn.classList.add('loading');
-    btn.disabled = true;
-  }
+  if (btn) { btn.classList.add('loading'); btn.disabled = true; }
+  if (overlay) { overlay.removeAttribute('hidden'); }
 
   try {
     const resp = await fetch(url, {
@@ -1189,18 +1204,13 @@ async function guardarReceita(e: SubmitEvent) {
     resetForm('receitaForm');
     toggleSection('formularioReceita', false);
     editingReceitaId = null;
-    if (btn) {
-      btn.textContent = 'Guardar';
-      btn.classList.remove('loading');
-      btn.disabled = false;
-    }
+    if (btn) { btn.textContent = 'Guardar'; btn.classList.remove('loading'); btn.disabled = false; }
+    if (overlay) { overlay.setAttribute('hidden', 'true'); }
     await Promise.all([carregarReceitas(), carregarMovimentos()]);
   } catch (err: any) {
-    showNotification(`❌ ${err.message || 'Erro ao guardar receita'}`, 'error');
-    if (btn) {
-      btn.classList.remove('loading');
-      btn.disabled = false;
-    }
+    showNotification(`${err.message || 'Erro ao guardar receita'}`, 'error');
+    if (btn) { btn.classList.remove('loading'); btn.disabled = false; }
+    if (overlay) { overlay.setAttribute('hidden', 'true'); }
   }
 }
 

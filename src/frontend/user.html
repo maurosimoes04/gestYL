@@ -420,7 +420,11 @@
             </div>
           </div>
         </div>
-        <div class="form-btns"><button type="submit" class="main-action">Guardar</button></div>
+        <div class="form-btns"><button type="submit" class="main-action btn" id="btnSalvarFatura">Guardar</button></div>
+        <div class="form-loading-overlay" id="faturaLoadingOverlay" hidden>
+          <div class="loader-spinner"></div>
+          <p>A guardar despesa...</p>
+        </div>
       </form>
     </div>
   </div>
@@ -462,7 +466,11 @@
             </div>
           </div>
         </div>
-        <div class="form-btns"><button type="submit" class="main-action">Guardar</button></div>
+        <div class="form-btns"><button type="submit" class="main-action btn" id="btnSalvarReceita">Guardar</button></div>
+        <div class="form-loading-overlay" id="receitaLoadingOverlay" hidden>
+          <div class="loader-spinner"></div>
+          <p>A guardar receita...</p>
+        </div>
       </form>
     </div>
   </div>

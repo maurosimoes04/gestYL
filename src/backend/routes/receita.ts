@@ -30,15 +30,17 @@ router.get('/', async (req, res) => {
     const receitas = await prisma.receita.findMany({ where, orderBy: { data: 'desc' } });
     res.json(receitas);
   } catch (err) {
-    res.status(500).json({ error: 'Erro ao listar receitas', details: err });
+    console.error('Erro ao listar receitas:', err);
+    res.status(500).json({ error: 'Erro ao listar receitas' });
   }
 });
 
 router.post('/', upload.single('anexo'), async (req, res) => {
   try {
-    const raw: any = { ...req.body };
+    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'categoria', 'estado', 'financiador', 'observacoes', 'eventoId'];
     const payload: any = {};
-    for (const [k, v] of Object.entries(raw)) {
+    for (const k of ALLOWED_FIELDS) {
+      const v = req.body[k];
       if (v !== '' && v !== null && v !== undefined) payload[k] = v;
     }
     if (payload.valor) payload.valor = parseFloat(payload.valor);
@@ -89,7 +91,7 @@ router.get('/:id', async (req, res) => {
     if (!receita) return res.status(404).json({ error: 'Receita não encontrada' });
     res.json(receita);
   } catch (err) {
-    res.status(500).json({ error: 'Erro ao obter receita', details: err });
+    res.status(500).json({ error: 'Erro ao obter receita' });
   }
 });
 
@@ -113,9 +115,10 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     const receita = await prisma.receita.findUnique({ where: { id } });
     if (!receita) return res.status(404).json({ error: 'Receita não encontrada' });
 
-    const raw: any = { ...req.body };
+    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'categoria', 'estado', 'financiador', 'observacoes', 'eventoId'];
     const payload: any = {};
-    for (const [k, v] of Object.entries(raw)) {
+    for (const k of ALLOWED_FIELDS) {
+      const v = req.body[k];
       if (v !== '' && v !== null && v !== undefined) payload[k] = v;
     }
     if (payload.valor) payload.valor = parseFloat(payload.valor);
@@ -182,7 +185,7 @@ router.delete('/:id', async (req, res) => {
     res.json({ message: 'Receita removida com sucesso' });
   } catch (err) {
     console.error('Erro ao remover receita:', err);
-    res.status(500).json({ error: 'Erro ao remover receita', details: err });
+    res.status(500).json({ error: 'Erro ao remover receita' });
   }
 });
 

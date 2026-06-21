@@ -81,6 +81,9 @@ router.post('/reset-password', async (req, res) => {
   if (!accessToken || !newPassword) {
     return res.status(400).json({ error: 'Token e nova password são obrigatórios' });
   }
+  if (typeof newPassword !== 'string' || newPassword.length < 8) {
+    return res.status(400).json({ error: 'A password deve ter no mínimo 8 caracteres' });
+  }
 
   const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
   if (userError || !userData.user?.id) {

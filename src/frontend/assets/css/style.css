@@ -1070,6 +1070,32 @@ section h2 {
   font-size: 0.9rem;
 }
 
+.form-loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border-radius: var(--radius);
+  z-index: 10;
+  backdrop-filter: blur(3px);
+}
+
+.form-loading-overlay .loader-spinner {
+  width: 36px;
+  height: 36px;
+  border-width: 3px;
+}
+
+.form-loading-overlay p {
+  color: #e2e8f0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
 .btn.loading {
   position: relative;
   color: transparent;
@@ -1095,6 +1121,7 @@ section h2 {
    MODERN FORMS
 ====================================================== */
 .form-modern {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 20px;
