@@ -81,7 +81,7 @@ router.post('/', upload.single('anexo'), async (req, res) => {
     const msg = err.code === 'P2003' ? 'Evento referenciado não existe'
       : err.message?.includes('Argument') ? 'Campos obrigatórios em falta (título, valor, data, categoria, estado)'
       : err.message || 'Erro desconhecido ao criar receita';
-    res.status(400).json({ error: 'Erro ao criar receita', details: msg });
+    res.status(400).json({ error: msg });
   }
 });
 
@@ -101,7 +101,7 @@ router.get('/:id/anexo', async (req, res) => {
     if (!receita || !receita.anexo) return res.status(404).json({ error: 'Anexo não encontrado' });
     const anexo = receita.anexo as any;
     const link = anexo.driveWebContentLink || anexo.driveWebViewLink;
-    if (link) return res.redirect(link);
+    if (link && typeof link === 'string' && link.startsWith('https://')) return res.redirect(link);
     return res.status(404).json({ error: 'Link do anexo indisponível' });
   } catch (err) {
     console.error('Erro servir anexo receita:', err);
@@ -176,7 +176,7 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     const msg = err.code === 'P2003' ? 'Evento referenciado não existe'
       : err.message?.includes('Argument') ? 'Campos inválidos no pedido'
       : err.message || 'Erro desconhecido ao atualizar receita';
-    res.status(400).json({ error: 'Erro ao atualizar receita', details: msg });
+    res.status(400).json({ error: msg });
   }
 });
 

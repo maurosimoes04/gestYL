@@ -19,7 +19,7 @@ router.post('/', async (req, res) => {
     console.error('Erro criar evento:', err.message || err);
     const msg = err.message?.includes('Argument') ? 'Campos obrigatórios em falta (nome)'
       : err.message || 'Erro desconhecido ao criar evento';
-    res.status(400).json({ error: 'Erro ao criar evento', details: msg });
+    res.status(400).json({ error: msg });
   }
 });
 

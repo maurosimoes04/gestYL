@@ -1,6 +1,8 @@
 require('dotenv/config');
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import path from 'path';
 
 const bootLog = (...args: any[]) => {
@@ -27,6 +29,10 @@ const allowedOrigins = [
   'http://localhost:3000',
 ].filter(Boolean) as string[];
 
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin)) callback(null, true);
@@ -77,7 +83,17 @@ app.get('/share/evento/:token', (_req, res) => {
 });
 app.use('/share', sharePublicRouter);
 
-// Rotas públicas de autenticação
+// Rotas públicas de autenticação (com rate limiting)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { error: 'Demasiadas tentativas. Tente novamente mais tarde.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/auth/login', authLimiter);
+app.use('/auth/forgot-password', authLimiter);
+app.use('/auth/reset-password', authLimiter);
 app.use('/auth', authRoutes);
 
 // Rotas protegidas

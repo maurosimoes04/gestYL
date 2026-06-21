@@ -85,6 +85,7 @@ sharePublicRouter.post('/evento/:token/access', async (req, res) => {
     res.cookie('share_access', accessToken, {
       httpOnly: true,
       sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
       maxAge: ACCESS_TTL_HOURS * 60 * 60 * 1000,
       path: `/share/evento/${token}`,
     });
@@ -152,7 +153,7 @@ sharePublicRouter.get('/evento/:token/anexo/:tipo/:id', async (req, res) => {
       }
       const anexo = fatura.anexo as any;
       const link = anexo.driveWebContentLink || anexo.driveWebViewLink;
-      if (link) return res.redirect(link);
+      if (link && typeof link === 'string' && link.startsWith('https://')) return res.redirect(link);
       if (anexo.path) {
         const resolved = path.resolve(path.join(__dirname, '..', anexo.path));
         if (!resolved.startsWith(path.resolve(path.join(__dirname, '..')))) {
@@ -169,7 +170,7 @@ sharePublicRouter.get('/evento/:token/anexo/:tipo/:id', async (req, res) => {
     }
     const anexo = receita.anexo as any;
     const link = anexo.driveWebContentLink || anexo.driveWebViewLink;
-    if (link) return res.redirect(link);
+    if (link && typeof link === 'string' && link.startsWith('https://')) return res.redirect(link);
     return res.status(404).json({ error: 'Link do anexo indisponível' });
   } catch (err) {
     console.error('Erro anexo partilha:', err);
