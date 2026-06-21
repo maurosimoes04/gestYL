@@ -172,7 +172,7 @@ router.post('/', upload.single('anexo'), async (req, res) => {
       : error.code === 'P2003' ? 'Evento ou inventário referenciado não existe'
       : error.message?.includes('Argument') ? 'Campos obrigatórios em falta (título, valor, data, departamento, estado)'
       : error.message || 'Erro desconhecido ao criar fatura';
-    res.status(400).json({ error: 'Erro ao criar fatura', details: msg });
+    res.status(400).json({ error: msg });
   }
 });
 
@@ -247,7 +247,7 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     const msg = error.code === 'P2003' ? 'Evento ou inventário referenciado não existe'
       : error.message?.includes('Argument') ? 'Campos inválidos no pedido'
       : error.message || 'Erro desconhecido ao atualizar fatura';
-    res.status(400).json({ error: 'Erro ao atualizar fatura', details: msg });
+    res.status(400).json({ error: msg });
   }
 });
 
@@ -284,7 +284,7 @@ router.get('/:id/anexo', async (req, res) => {
 
     const anexo = fatura.anexo as any;
     const link = anexo.driveWebContentLink || anexo.driveWebViewLink;
-    if (link) return res.redirect(link);
+    if (link && typeof link === 'string' && link.startsWith('https://')) return res.redirect(link);
     if (anexo.path) {
       const resolved = path.resolve(path.join(__dirname, '..', anexo.path));
       if (!resolved.startsWith(path.resolve(path.join(__dirname, '..')))) {

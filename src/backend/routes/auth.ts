@@ -179,17 +179,28 @@ router.get('/audit', requireAuth, async (req, res) => {
   if (entity) where.entity = entity;
   if (userId) where.userId = userId;
   if (dateFrom || dateTo) {
+    const from = dateFrom ? new Date(dateFrom) : undefined;
+    const to = dateTo ? new Date(dateTo) : undefined;
+    if ((from && isNaN(from.getTime())) || (to && isNaN(to.getTime()))) {
+      return res.status(400).json({ error: 'Datas inválidas' });
+    }
+    if (from && to && from > to) {
+      return res.status(400).json({ error: 'Data inicial não pode ser posterior à data final' });
+    }
     where.createdAt = {};
-    if (dateFrom) where.createdAt.gte = new Date(dateFrom);
-    if (dateTo) where.createdAt.lte = new Date(dateTo);
+    if (from) where.createdAt.gte = from;
+    if (to) where.createdAt.lte = to;
   }
+
+  const take = Math.min(Math.max(parseInt(lim || '50', 10) || 50, 1), 200);
+  const skip = Math.max(parseInt(off || '0', 10) || 0, 0);
 
   const [logs, total] = await Promise.all([
     prisma.auditLog.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      take: parseInt(lim || '50', 10),
-      skip: parseInt(off || '0', 10),
+      take,
+      skip,
     }),
     prisma.auditLog.count({ where }),
   ]);
