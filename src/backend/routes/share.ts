@@ -146,32 +146,29 @@ sharePublicRouter.get('/evento/:token/anexo/:tipo/:id', async (req, res) => {
       return res.status(401).json({ error: 'Acesso não autorizado' });
     }
 
+    let anexo: any;
     if (tipo === 'fatura') {
       const fatura = await prisma.fatura.findUnique({ where: { id } });
       if (!fatura || fatura.eventoId !== share.eventoId || !fatura.anexo) {
         return res.status(404).json({ error: 'Anexo não encontrado' });
       }
-      const anexo = fatura.anexo as any;
-      const link = anexo.driveWebViewLink || anexo.driveWebContentLink;
-      if (link && typeof link === 'string' && link.startsWith('https://')) return res.redirect(link);
-      if (anexo.path) {
-        const resolved = path.resolve(path.join(__dirname, '..', anexo.path));
-        if (!resolved.startsWith(path.resolve(path.join(__dirname, '..')))) {
-          return res.status(403).json({ error: 'Caminho inválido' });
-        }
-        return res.sendFile(resolved);
+      anexo = fatura.anexo;
+    } else {
+      const receita = await prisma.receita.findUnique({ where: { id } });
+      if (!receita || receita.eventoId !== share.eventoId || !receita.anexo) {
+        return res.status(404).json({ error: 'Anexo não encontrado' });
       }
-      return res.status(404).json({ error: 'Link do anexo indisponível' });
+      anexo = receita.anexo;
     }
 
-    const receita = await prisma.receita.findUnique({ where: { id } });
-    if (!receita || receita.eventoId !== share.eventoId || !receita.anexo) {
-      return res.status(404).json({ error: 'Anexo não encontrado' });
+    if (anexo.driveFileId) {
+      const { streamFromDrive } = await import('../services/googleDrive');
+      const stream = await streamFromDrive(anexo.driveFileId);
+      res.setHeader('Content-Type', anexo.mimeType || 'application/octet-stream');
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(anexo.originalName || 'anexo')}"`);
+      return stream.pipe(res);
     }
-    const anexo = receita.anexo as any;
-    const link = anexo.driveWebViewLink || anexo.driveWebContentLink;
-    if (link && typeof link === 'string' && link.startsWith('https://')) return res.redirect(link);
-    return res.status(404).json({ error: 'Link do anexo indisponível' });
+    return res.status(404).json({ error: 'Anexo indisponível' });
   } catch (err) {
     console.error('Erro anexo partilha:', err.message || err);
     return res.status(500).json({ error: 'Erro ao servir anexo' });

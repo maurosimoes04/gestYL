@@ -283,16 +283,14 @@ router.get('/:id/anexo', async (req, res) => {
     if (!fatura || !fatura.anexo) return res.status(404).json({ error: 'Anexo não encontrado' });
 
     const anexo = fatura.anexo as any;
-    const link = anexo.driveWebViewLink || anexo.driveWebContentLink;
-    if (link && typeof link === 'string' && link.startsWith('https://')) return res.redirect(link);
-    if (anexo.path) {
-      const resolved = path.resolve(path.join(__dirname, '..', anexo.path));
-      if (!resolved.startsWith(path.resolve(path.join(__dirname, '..')))) {
-        return res.status(403).json({ error: 'Caminho inválido' });
-      }
-      return res.sendFile(resolved);
+    if (anexo.driveFileId) {
+      const { streamFromDrive } = await import('../services/googleDrive');
+      const stream = await streamFromDrive(anexo.driveFileId);
+      res.setHeader('Content-Type', anexo.mimeType || 'application/octet-stream');
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(anexo.originalName || 'anexo')}"`);
+      return stream.pipe(res);
     }
-    return res.status(404).json({ error: 'Link do anexo indisponível' });
+    return res.status(404).json({ error: 'Anexo indisponível' });
   } catch (error: any) {
     console.error('Erro servir anexo:', error.message || error);
     res.status(500).json({ error: 'Erro ao servir anexo' });

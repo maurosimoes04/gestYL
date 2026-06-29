@@ -955,9 +955,7 @@ function renderFaturasPage() {
   const page = paginate(faturasCache, faturaPage);
   container.innerHTML = page.map((f: any) => {
     const eventoNome = eventosCache.find((ev: any) => ev.id === f.eventoId)?.nome || '';
-    const anexoLink = f.anexo?.driveWebViewLink
-      ? f.anexo.driveWebViewLink
-      : (f.anexo ? `/faturas/${f.id}/anexo` : '');
+    const anexoLink = f.anexo ? `/faturas/${f.id}/anexo` : '';
     const actions = isReadOnly() ? '' : `
       <div class="record-actions">
         <button class="btn-acao btn-editar-fatura" data-id="${f.id}" title="Editar">${icon('edit')}</button>
@@ -1116,9 +1114,7 @@ function renderReceitasPage() {
   const page = paginate(receitasCache, receitaPage);
   container.innerHTML = page.map((r: any) => {
     const eventoNome = eventosCache.find((ev: any) => ev.id === r.eventoId)?.nome || '';
-    const anexoLink = r.anexo?.driveWebViewLink
-      ? r.anexo.driveWebViewLink
-      : (r.anexo ? `/receitas/${r.id}/anexo` : '');
+    const anexoLink = r.anexo ? `/receitas/${r.id}/anexo` : '';
     const actions = isReadOnly() ? '' : `
       <div class="record-actions">
         <button class="btn-acao btn-editar-receita" data-id="${r.id}" title="Editar">${icon('edit')}</button>
@@ -2185,7 +2181,7 @@ async function editarReceita(id: number) {
     if (r.anexo && r.anexo.originalName) {
       if (existingLink) {
         existingLink.textContent = r.anexo.originalName;
-        existingLink.href = r.anexo.driveWebViewLink || '#';
+        existingLink.href = `/receitas/${id}/anexo`;
       }
       if (existingAnexo) existingAnexo.removeAttribute('hidden');
       if (dropReceita) dropReceita.setAttribute('hidden', 'true');
@@ -2238,7 +2234,7 @@ async function editarFatura(id: number) {
     if (f.anexo && f.anexo.originalName) {
       if (existingLink) {
         existingLink.textContent = f.anexo.originalName;
-        existingLink.href = f.anexo.driveWebViewLink || '#';
+        existingLink.href = `/faturas/${id}/anexo`;
       }
       if (existingAnexo) existingAnexo.removeAttribute('hidden');
       if (dropFatura) dropFatura.setAttribute('hidden', 'true');

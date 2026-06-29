@@ -100,9 +100,14 @@ router.get('/:id/anexo', async (req, res) => {
     const receita = await prisma.receita.findUnique({ where: { id: Number(req.params.id) } });
     if (!receita || !receita.anexo) return res.status(404).json({ error: 'Anexo não encontrado' });
     const anexo = receita.anexo as any;
-    const link = anexo.driveWebViewLink || anexo.driveWebContentLink;
-    if (link && typeof link === 'string' && link.startsWith('https://')) return res.redirect(link);
-    return res.status(404).json({ error: 'Link do anexo indisponível' });
+    if (anexo.driveFileId) {
+      const { streamFromDrive } = await import('../services/googleDrive');
+      const stream = await streamFromDrive(anexo.driveFileId);
+      res.setHeader('Content-Type', anexo.mimeType || 'application/octet-stream');
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(anexo.originalName || 'anexo')}"`);
+      return stream.pipe(res);
+    }
+    return res.status(404).json({ error: 'Anexo indisponível' });
   } catch (err) {
     console.error('Erro servir anexo receita:', err.message || err);
     res.status(500).json({ error: 'Erro ao servir anexo' });
