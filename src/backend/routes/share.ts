@@ -152,7 +152,7 @@ sharePublicRouter.get('/evento/:token/anexo/:tipo/:id', async (req, res) => {
         return res.status(404).json({ error: 'Anexo não encontrado' });
       }
       const anexo = fatura.anexo as any;
-      const link = anexo.driveWebContentLink || anexo.driveWebViewLink;
+      const link = anexo.driveWebViewLink || anexo.driveWebContentLink;
       if (link && typeof link === 'string' && link.startsWith('https://')) return res.redirect(link);
       if (anexo.path) {
         const resolved = path.resolve(path.join(__dirname, '..', anexo.path));
@@ -169,7 +169,7 @@ sharePublicRouter.get('/evento/:token/anexo/:tipo/:id', async (req, res) => {
       return res.status(404).json({ error: 'Anexo não encontrado' });
     }
     const anexo = receita.anexo as any;
-    const link = anexo.driveWebContentLink || anexo.driveWebViewLink;
+    const link = anexo.driveWebViewLink || anexo.driveWebContentLink;
     if (link && typeof link === 'string' && link.startsWith('https://')) return res.redirect(link);
     return res.status(404).json({ error: 'Link do anexo indisponível' });
   } catch (err) {
