@@ -184,6 +184,18 @@ function resetForm(id: string) {
     if (preview) preview.setAttribute('hidden', 'true');
   });
 }
+async function openAnexo(url: string) {
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('Erro ao abrir anexo');
+    const blob = await resp.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    window.open(blobUrl, '_blank');
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+  } catch {
+    showNotification('Erro ao abrir anexo', 'error');
+  }
+}
 function showNotification(message: string, type: 'success' | 'error' = 'success') {
   const notification = document.createElement('div');
   notification.className = `notification ${type}`;
@@ -975,11 +987,17 @@ function renderFaturasPage() {
         <div class="record-amount despesa-color">${formatCurrency(f.valor)}</div>
         <div class="record-date">${formatDate(f.data)}</div>
         ${estadoBadge(f.estado)}
-        ${anexoLink ? `<a href="${escapeHtml(anexoLink)}" target="_blank" class="record-anexo">${icon('file')}</a>` : ''}
+        ${anexoLink ? `<button class="btn-anexo-open record-anexo" data-url="${escapeHtml(anexoLink)}">${icon('file')}</button>` : ''}
       </div>
       ${actions}
     </div>`;
   }).join('');
+  container.querySelectorAll('.btn-anexo-open').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const url = (e.currentTarget as HTMLElement).getAttribute('data-url');
+      if (url) openAnexo(url);
+    });
+  });
   if (!isReadOnly()) {
     container.querySelectorAll('.btn-editar-fatura').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -1134,11 +1152,17 @@ function renderReceitasPage() {
         <div class="record-amount receita-color">${formatCurrency(r.valor)}</div>
         <div class="record-date">${formatDate(r.data)}</div>
         ${estadoBadge(r.estado)}
-        ${anexoLink ? `<a href="${escapeHtml(anexoLink)}" target="_blank" class="record-anexo">${icon('file')}</a>` : ''}
+        ${anexoLink ? `<button class="btn-anexo-open record-anexo" data-url="${escapeHtml(anexoLink)}">${icon('file')}</button>` : ''}
       </div>
       ${actions}
     </div>`;
   }).join('');
+  container.querySelectorAll('.btn-anexo-open').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const url = (e.currentTarget as HTMLElement).getAttribute('data-url');
+      if (url) openAnexo(url);
+    });
+  });
   if (!isReadOnly()) {
     container.querySelectorAll('.btn-editar-receita').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -1484,6 +1508,14 @@ function setupEventListeners() {
   setupFileDrop('dropFatura', 'anexoFatura');
   setupFileDrop('dropReceita', 'anexoReceita');
 
+  document.getElementById('existingAnexoFaturaLink')?.addEventListener('click', () => {
+    const url = document.getElementById('existingAnexoFaturaLink')?.getAttribute('data-url');
+    if (url && url !== '#') openAnexo(url);
+  });
+  document.getElementById('existingAnexoReceitaLink')?.addEventListener('click', () => {
+    const url = document.getElementById('existingAnexoReceitaLink')?.getAttribute('data-url');
+    if (url && url !== '#') openAnexo(url);
+  });
   document.getElementById('existingAnexoFaturaReplace')?.addEventListener('click', () => {
     const existing = document.getElementById('existingAnexoFatura');
     const drop = document.getElementById('dropFatura');
@@ -2181,7 +2213,7 @@ async function editarReceita(id: number) {
     if (r.anexo && r.anexo.originalName) {
       if (existingLink) {
         existingLink.textContent = r.anexo.originalName;
-        existingLink.href = `/receitas/${id}/anexo`;
+        existingLink.setAttribute('data-url', `/receitas/${id}/anexo`);
       }
       if (existingAnexo) existingAnexo.removeAttribute('hidden');
       if (dropReceita) dropReceita.setAttribute('hidden', 'true');
@@ -2234,7 +2266,7 @@ async function editarFatura(id: number) {
     if (f.anexo && f.anexo.originalName) {
       if (existingLink) {
         existingLink.textContent = f.anexo.originalName;
-        existingLink.href = `/faturas/${id}/anexo`;
+        existingLink.setAttribute('data-url', `/faturas/${id}/anexo`);
       }
       if (existingAnexo) existingAnexo.removeAttribute('hidden');
       if (dropFatura) dropFatura.setAttribute('hidden', 'true');
