@@ -100,7 +100,7 @@ router.get('/:id/anexo', async (req, res) => {
     const receita = await prisma.receita.findUnique({ where: { id: Number(req.params.id) } });
     if (!receita || !receita.anexo) return res.status(404).json({ error: 'Anexo não encontrado' });
     const anexo = receita.anexo as any;
-    const link = anexo.driveWebContentLink || anexo.driveWebViewLink;
+    const link = anexo.driveWebViewLink || anexo.driveWebContentLink;
     if (link && typeof link === 'string' && link.startsWith('https://')) return res.redirect(link);
     return res.status(404).json({ error: 'Link do anexo indisponível' });
   } catch (err) {

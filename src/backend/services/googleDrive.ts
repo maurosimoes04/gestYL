@@ -49,6 +49,15 @@ export async function uploadBufferToDrive(params: {
     supportsAllDrives: true
   });
 
+  const fileId = response.data.id;
+  if (fileId) {
+    await drive.permissions.create({
+      fileId,
+      requestBody: { role: 'reader', type: 'anyone' },
+      supportsAllDrives: true,
+    });
+  }
+
   return response.data as drive_v3.Schema$File;
 }
 
