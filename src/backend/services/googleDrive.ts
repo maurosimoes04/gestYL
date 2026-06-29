@@ -49,16 +49,16 @@ export async function uploadBufferToDrive(params: {
     supportsAllDrives: true
   });
 
-  const fileId = response.data.id;
-  if (fileId) {
-    await drive.permissions.create({
-      fileId,
-      requestBody: { role: 'reader', type: 'anyone' },
-      supportsAllDrives: true,
-    });
-  }
-
   return response.data as drive_v3.Schema$File;
+}
+
+export async function streamFromDrive(fileId: string): Promise<Readable> {
+  const drive = getDriveClient();
+  const resp = await drive.files.get(
+    { fileId, alt: 'media', supportsAllDrives: true },
+    { responseType: 'stream' }
+  );
+  return resp.data as unknown as Readable;
 }
 
 export async function deleteFromDrive(fileId?: string) {
