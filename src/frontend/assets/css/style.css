@@ -917,6 +917,9 @@ section h2 {
   padding: 4px;
   border-radius: 4px;
   transition: background var(--transition);
+  background: none;
+  border: none;
+  cursor: pointer;
 }
 
 .record-anexo:hover {
@@ -1241,6 +1244,11 @@ section h2 {
   font-weight: 500;
   color: #16a34a;
   text-decoration: none;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
 }
 
 .existing-anexo-link:hover {
