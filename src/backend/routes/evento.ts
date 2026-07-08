@@ -39,20 +39,28 @@ router.get('/:id/details', async (req, res) => {
     const evento = await prisma.evento.findUnique({
       where: { id },
       include: {
-        faturas: { orderBy: { data: 'desc' } },
-        receitas: { orderBy: { data: 'desc' } },
+        faturaEventos: {
+          include: { fatura: true },
+          orderBy: { fatura: { data: 'desc' } },
+        },
+        receitaEventos: {
+          include: { receita: true },
+          orderBy: { receita: { data: 'desc' } },
+        },
       },
     });
     if (!evento) return res.status(404).json({ error: 'Evento não encontrado' });
 
     const toNum = (v: any) => Number(v) || 0;
-    const totalDespesas = evento.faturas.reduce((s, f) => s + toNum(f.valor), 0);
-    const totalReceitas = evento.receitas.reduce((s, r) => s + toNum(r.valor), 0);
+    const faturas = evento.faturaEventos.map(fe => ({ ...fe.fatura, valorEvento: toNum(fe.valor) }));
+    const receitas = evento.receitaEventos.map(re => ({ ...re.receita, valorEvento: toNum(re.valor) }));
+    const totalDespesas = evento.faturaEventos.reduce((s, fe) => s + toNum(fe.valor), 0);
+    const totalReceitas = evento.receitaEventos.reduce((s, re) => s + toNum(re.valor), 0);
 
     res.json({
-      evento: { ...evento, faturas: undefined, receitas: undefined },
-      faturas: evento.faturas,
-      receitas: evento.receitas,
+      evento: { ...evento, faturaEventos: undefined, receitaEventos: undefined },
+      faturas,
+      receitas,
       resumo: { totalDespesas, totalReceitas, saldo: totalReceitas - totalDespesas },
     });
   } catch (err) {
@@ -67,18 +75,26 @@ router.get('/:id/pdf', async (req, res) => {
     const evento = await prisma.evento.findUnique({
       where: { id },
       include: {
-        faturas: { orderBy: { data: 'desc' } },
-        receitas: { orderBy: { data: 'desc' } },
+        faturaEventos: {
+          include: { fatura: true },
+          orderBy: { fatura: { data: 'desc' } },
+        },
+        receitaEventos: {
+          include: { receita: true },
+          orderBy: { receita: { data: 'desc' } },
+        },
       },
     });
     if (!evento) return res.status(404).json({ error: 'Evento não encontrado' });
 
-    const { faturas, receitas, ...eventoData } = evento;
+    const { faturaEventos, receitaEventos, ...eventoData } = evento;
+    const faturas = faturaEventos.map(fe => ({ ...fe.fatura, valorEvento: Number(fe.valor) }));
+    const receitas = receitaEventos.map(re => ({ ...re.receita, valorEvento: Number(re.valor) }));
     const toNum = (v: any) => Number(v) || 0;
     const fmt = (v: number) => `${v.toFixed(2)} €`;
     const fmtDate = (d: string | Date) => new Date(d).toLocaleDateString('pt-PT');
-    const totalDespesas = faturas.reduce((s, f) => s + toNum(f.valor), 0);
-    const totalReceitas = receitas.reduce((s, r) => s + toNum(r.valor), 0);
+    const totalDespesas = faturas.reduce((s, f) => s + toNum(f.valorEvento), 0);
+    const totalReceitas = receitas.reduce((s, r) => s + toNum(r.valorEvento), 0);
     const saldo = totalReceitas - totalDespesas;
 
     const doc = new PDFDocument({ margin: 40 });
@@ -165,7 +181,7 @@ router.get('/:id/pdf', async (req, res) => {
         const link = getAnexoLink(r.anexo);
         drawRow3(
           `${fmtDate(r.data)} — ${r.titulo} (${r.categoria})`,
-          fmt(toNum(r.valor)),
+          fmt(toNum(r.valorEvento)),
           link ? 'Abrir' : '-',
           link || undefined
         );
@@ -181,7 +197,7 @@ router.get('/:id/pdf', async (req, res) => {
         const link = getAnexoLink(f.anexo);
         drawRow3(
           `${fmtDate(f.data)} — ${f.titulo} (${f.departamento})`,
-          fmt(toNum(f.valor)),
+          fmt(toNum(f.valorEvento)),
           link ? 'Abrir' : '-',
           link || undefined
         );
@@ -235,8 +251,8 @@ router.delete('/:id', async (req, res) => {
 
     await prisma.$transaction([
       prisma.eventoShare.deleteMany({ where: { eventoId: id } }),
-      prisma.fatura.deleteMany({ where: { eventoId: id } }),
-      prisma.receita.deleteMany({ where: { eventoId: id } }),
+      prisma.faturaEvento.deleteMany({ where: { eventoId: id } }),
+      prisma.receitaEvento.deleteMany({ where: { eventoId: id } }),
       prisma.evento.delete({ where: { id } }),
     ]);
 

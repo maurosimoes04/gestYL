@@ -34,9 +34,9 @@ model Evento {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  faturas  Fatura[]
-  receitas Receita[]
-  shares   EventoShare[]
+  faturaEventos  FaturaEvento[]
+  receitaEventos ReceitaEvento[]
+  shares         EventoShare[]
 
   @@index([departamento])
   @@map("eventos")
@@ -54,19 +54,31 @@ model Fatura {
   detalhes     Json?
   estado       String
   descricao    String?
-  eventoId     Int?
   inventarioId Int?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  evento     Evento?     @relation(fields: [eventoId], references: [id], onDelete: SetNull)
-  inventario Inventario? @relation(fields: [inventarioId], references: [id], onDelete: SetNull)
+  inventario    Inventario?    @relation(fields: [inventarioId], references: [id], onDelete: SetNull)
+  faturaEventos FaturaEvento[]
 
   @@index([departamento])
   @@index([estado])
   @@index([data])
-  @@index([eventoId])
   @@map("Faturas")
+}
+
+model FaturaEvento {
+  id       Int     @id @default(autoincrement())
+  faturaId Int
+  eventoId Int
+  valor    Decimal @db.Decimal(10, 2)
+
+  fatura Fatura @relation(fields: [faturaId], references: [id], onDelete: Cascade)
+  evento Evento @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+
+  @@unique([faturaId, eventoId])
+  @@index([eventoId])
+  @@map("fatura_eventos")
 }
 
 model Inventario {
@@ -118,16 +130,28 @@ model Receita {
   financiador  String?
   anexo        Json?
   observacoes  String?
-  eventoId     Int?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  evento Evento? @relation(fields: [eventoId], references: [id], onDelete: SetNull)
+  receitaEventos ReceitaEvento[]
 
   @@index([data])
   @@index([estado])
-  @@index([eventoId])
   @@map("receitas")
+}
+
+model ReceitaEvento {
+  id        Int     @id @default(autoincrement())
+  receitaId Int
+  eventoId  Int
+  valor     Decimal @db.Decimal(10, 2)
+
+  receita Receita @relation(fields: [receitaId], references: [id], onDelete: Cascade)
+  evento  Evento  @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+
+  @@unique([receitaId, eventoId])
+  @@index([eventoId])
+  @@map("receita_eventos")
 }
 
 model Departamento {

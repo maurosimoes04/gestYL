@@ -90,26 +90,38 @@ sharePublicRouter.post('/evento/:token/access', async (req, res) => {
       path: `/share/evento/${token}`,
     });
 
-    const [faturas, receitas] = await Promise.all([
-      prisma.fatura.findMany({ where: { eventoId: share.eventoId }, orderBy: { data: 'desc' } }),
-      prisma.receita.findMany({ where: { eventoId: share.eventoId }, orderBy: { data: 'desc' } }),
+    const [faturaEventos, receitaEventos] = await Promise.all([
+      prisma.faturaEvento.findMany({
+        where: { eventoId: share.eventoId },
+        include: { fatura: true },
+        orderBy: { fatura: { data: 'desc' } },
+      }),
+      prisma.receitaEvento.findMany({
+        where: { eventoId: share.eventoId },
+        include: { receita: true },
+        orderBy: { receita: { data: 'desc' } },
+      }),
     ]);
 
     const toNum = (v: any) => Number(v) || 0;
-    const totalDespesas = faturas.reduce((s, f) => s + toNum(f.valor), 0);
-    const totalReceitas = receitas.reduce((s, r) => s + toNum(r.valor), 0);
+    const totalDespesas = faturaEventos.reduce((s, fe) => s + toNum(fe.valor), 0);
+    const totalReceitas = receitaEventos.reduce((s, re) => s + toNum(re.valor), 0);
 
-    const withAnexo = (items: any[], tipo: 'fatura' | 'receita') => {
-      return items.map((it) => ({
-        ...it,
-        anexoLink: it.anexo ? `/share/evento/${token}/anexo/${tipo}/${it.id}` : null,
-      }));
-    };
+    const faturas = faturaEventos.map(fe => ({
+      ...fe.fatura,
+      valorEvento: toNum(fe.valor),
+      anexoLink: fe.fatura.anexo ? `/share/evento/${token}/anexo/fatura/${fe.fatura.id}` : null,
+    }));
+    const receitas = receitaEventos.map(re => ({
+      ...re.receita,
+      valorEvento: toNum(re.valor),
+      anexoLink: re.receita.anexo ? `/share/evento/${token}/anexo/receita/${re.receita.id}` : null,
+    }));
 
     return res.json({
       evento: share.evento,
-      faturas: withAnexo(faturas as any[], 'fatura'),
-      receitas: withAnexo(receitas as any[], 'receita'),
+      faturas,
+      receitas,
       resumo: {
         totalDespesas,
         totalReceitas,
@@ -148,17 +160,23 @@ sharePublicRouter.get('/evento/:token/anexo/:tipo/:id', async (req, res) => {
 
     let anexo: any;
     if (tipo === 'fatura') {
-      const fatura = await prisma.fatura.findUnique({ where: { id } });
-      if (!fatura || fatura.eventoId !== share.eventoId || !fatura.anexo) {
+      const link = await prisma.faturaEvento.findFirst({
+        where: { faturaId: id, eventoId: share.eventoId },
+        include: { fatura: true },
+      });
+      if (!link || !link.fatura.anexo) {
         return res.status(404).json({ error: 'Anexo não encontrado' });
       }
-      anexo = fatura.anexo;
+      anexo = link.fatura.anexo;
     } else {
-      const receita = await prisma.receita.findUnique({ where: { id } });
-      if (!receita || receita.eventoId !== share.eventoId || !receita.anexo) {
+      const link = await prisma.receitaEvento.findFirst({
+        where: { receitaId: id, eventoId: share.eventoId },
+        include: { receita: true },
+      });
+      if (!link || !link.receita.anexo) {
         return res.status(404).json({ error: 'Anexo não encontrado' });
       }
-      anexo = receita.anexo;
+      anexo = link.receita.anexo;
     }
 
     if (anexo.driveFileId) {

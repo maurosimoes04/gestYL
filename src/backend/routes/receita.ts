@@ -12,7 +12,9 @@ router.get('/', async (req, res) => {
     const where: Prisma.ReceitaWhereInput = {};
     if (categoria) where.categoria = categoria;
     if (estado) where.estado = estado;
-    if (eventoId) where.eventoId = Number(eventoId);
+    if (eventoId) {
+      where.receitaEventos = { some: { eventoId: Number(eventoId) } };
+    }
     if (dateFrom || dateTo) {
       where.data = {};
       if (dateFrom) where.data.gte = new Date(dateFrom);
@@ -27,7 +29,11 @@ router.get('/', async (req, res) => {
         { observacoes: { contains: q, mode: 'insensitive' } },
       ];
     }
-    const receitas = await prisma.receita.findMany({ where, orderBy: { data: 'desc' } });
+    const receitas = await prisma.receita.findMany({
+      where,
+      orderBy: { data: 'desc' },
+      include: { receitaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
+    });
     res.json(receitas);
   } catch (err) {
     console.error('Erro ao listar receitas:', err.message || err);
@@ -37,7 +43,7 @@ router.get('/', async (req, res) => {
 
 router.post('/', upload.single('anexo'), async (req, res) => {
   try {
-    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'categoria', 'estado', 'financiador', 'observacoes', 'eventoId'];
+    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'categoria', 'estado', 'financiador', 'observacoes'];
     const payload: any = {};
     for (const k of ALLOWED_FIELDS) {
       const v = req.body[k];
@@ -45,8 +51,16 @@ router.post('/', upload.single('anexo'), async (req, res) => {
     }
     if (payload.valor) payload.valor = parseFloat(payload.valor);
     if (payload.data) payload.data = new Date(payload.data);
-    if (payload.eventoId) payload.eventoId = Number(payload.eventoId);
-    else delete payload.eventoId;
+
+    let eventosInput: { eventoId: number; valor: number }[] = [];
+    try {
+      const raw = req.body.eventos;
+      if (raw) eventosInput = JSON.parse(typeof raw === 'string' ? raw : JSON.stringify(raw));
+    } catch { /* ignore */ }
+    if (!eventosInput.length && req.body.eventoId) {
+      eventosInput = [{ eventoId: Number(req.body.eventoId), valor: payload.valor || 0 }];
+    }
+
     let driveError = '';
     if (req.file && RECEITAS_FOLDER_ID) {
       try {
@@ -72,7 +86,17 @@ router.post('/', upload.single('anexo'), async (req, res) => {
     } else if (req.file && !RECEITAS_FOLDER_ID) {
       driveError = 'Pasta do Google Drive não configurada (GDRIVE_RECEITAS_FOLDER_ID)';
     }
-    const receita = await prisma.receita.create({ data: payload });
+    const receita = await prisma.receita.create({
+      data: {
+        ...payload,
+        ...(eventosInput.length > 0 && {
+          receitaEventos: {
+            create: eventosInput.map(e => ({ eventoId: e.eventoId, valor: e.valor })),
+          },
+        }),
+      },
+      include: { receitaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
+    });
     const warnings: string[] = [];
     if (req.file && !payload.anexo) warnings.push(`Anexo não guardado: ${driveError}`);
     res.status(201).json({ ...receita, _warnings: warnings.length ? warnings : undefined });
@@ -87,7 +111,10 @@ router.post('/', upload.single('anexo'), async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
-    const receita = await prisma.receita.findUnique({ where: { id: Number(req.params.id) } });
+    const receita = await prisma.receita.findUnique({
+      where: { id: Number(req.params.id) },
+      include: { receitaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
+    });
     if (!receita) return res.status(404).json({ error: 'Receita não encontrada' });
     res.json(receita);
   } catch (err) {
@@ -120,7 +147,7 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     const receita = await prisma.receita.findUnique({ where: { id } });
     if (!receita) return res.status(404).json({ error: 'Receita não encontrada' });
 
-    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'categoria', 'estado', 'financiador', 'observacoes', 'eventoId'];
+    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'categoria', 'estado', 'financiador', 'observacoes'];
     const payload: any = {};
     for (const k of ALLOWED_FIELDS) {
       const v = req.body[k];
@@ -128,8 +155,16 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     }
     if (payload.valor) payload.valor = parseFloat(payload.valor);
     if (payload.data) payload.data = new Date(payload.data);
-    if (payload.eventoId) payload.eventoId = Number(payload.eventoId);
-    else delete payload.eventoId;
+
+    let eventosInput: { eventoId: number; valor: number }[] | null = null;
+    try {
+      const raw = req.body.eventos;
+      if (raw !== undefined) eventosInput = JSON.parse(typeof raw === 'string' ? raw : JSON.stringify(raw));
+    } catch { /* ignore */ }
+    if (eventosInput === null && req.body.eventoId !== undefined) {
+      const eid = req.body.eventoId;
+      eventosInput = eid ? [{ eventoId: Number(eid), valor: payload.valor || Number(receita.valor) }] : [];
+    }
 
     if (!req.file && req.body.removeAnexo === 'true') {
       const oldAnexo = receita.anexo as any;
@@ -172,7 +207,20 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     } else if (req.file && !RECEITAS_FOLDER_ID) {
       driveError = 'Pasta do Google Drive não configurada (GDRIVE_RECEITAS_FOLDER_ID)';
     }
-    const updated = await prisma.receita.update({ where: { id }, data: payload });
+    if (eventosInput !== null) {
+      await prisma.receitaEvento.deleteMany({ where: { receitaId: id } });
+      if (eventosInput.length > 0) {
+        await prisma.receitaEvento.createMany({
+          data: eventosInput.map(e => ({ receitaId: id, eventoId: e.eventoId, valor: e.valor })),
+        });
+      }
+    }
+
+    const updated = await prisma.receita.update({
+      where: { id },
+      data: payload,
+      include: { receitaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
+    });
     const warnings: string[] = [];
     if (req.file && !payload.anexo) warnings.push(`Anexo não guardado: ${driveError}`);
     res.json({ ...updated, _warnings: warnings.length ? warnings : undefined });

@@ -101,14 +101,22 @@ router.get('/pdf', async (req, res) => {
     type FaturaRow = Awaited<ReturnType<typeof prisma.fatura.findMany>>[number];
     type ReceitaRow = Awaited<ReturnType<typeof prisma.receita.findMany>>[number];
 
-    const [faturas, receitas, eventos] = await Promise.all([
-      tipo === 'receitas' ? Promise.resolve([] as FaturaRow[]) : prisma.fatura.findMany({ where: { data: { gte: new Date(inicio), lte: new Date(fim) } }, orderBy: { data: 'desc' } }),
-      tipo === 'despesas' ? Promise.resolve([] as ReceitaRow[]) : prisma.receita.findMany({ where: { data: { gte: new Date(inicio), lte: new Date(fim) } }, orderBy: { data: 'desc' } }),
+    const dateRange = { gte: new Date(inicio), lte: new Date(fim) };
+    const [faturas, receitas, eventos, faturaEventos, receitaEventos] = await Promise.all([
+      tipo === 'receitas' ? Promise.resolve([] as FaturaRow[]) : prisma.fatura.findMany({ where: { data: dateRange }, orderBy: { data: 'desc' } }),
+      tipo === 'despesas' ? Promise.resolve([] as ReceitaRow[]) : prisma.receita.findMany({ where: { data: dateRange }, orderBy: { data: 'desc' } }),
       prisma.evento.findMany(),
+      tipo === 'receitas' ? Promise.resolve([]) : prisma.faturaEvento.findMany({
+        where: { fatura: { data: dateRange } },
+        include: { evento: { select: { id: true, nome: true, departamento: true } } },
+      }),
+      tipo === 'despesas' ? Promise.resolve([]) : prisma.receitaEvento.findMany({
+        where: { receita: { data: dateRange } },
+        include: { evento: { select: { id: true, nome: true, departamento: true } } },
+      }),
     ]);
 
     const eventosMap = new Map(eventos.map((e) => [e.id, e.nome]));
-    const eventosDeptMap = new Map(eventos.filter((e) => e.departamento).map((e) => [e.id, e.departamento!]));
 
     const totalDespesas = faturas.reduce((s, f) => s + toNum(f.valor), 0);
     const totalReceitas = receitas.reduce((s, r) => s + toNum(r.valor), 0);
@@ -118,15 +126,22 @@ router.get('/pdf', async (req, res) => {
     const depDespesas = groupBy(faturas as any[], 'departamento');
     const catDespesas = groupByFn(faturas as any[], (f) => f.categoria || f.estado, 'Sem categoria');
     const catReceitas = groupBy(receitas as any[], 'categoria');
-    const depReceitas = groupByFn(receitas as any[], (r) => r.eventoId ? eventosDeptMap.get(r.eventoId) : undefined, 'Sem departamento');
+
+    const depReceitas: Record<string, number> = {};
+    receitaEventos.forEach((re: any) => {
+      const dept = re.evento?.departamento || 'Sem departamento';
+      depReceitas[dept] = (depReceitas[dept] || 0) + toNum(re.valor);
+    });
 
     const eventoDespesas: Record<string, number> = {};
-    (faturas as any[]).forEach((f) => {
-      if (f.eventoId) { const nome = eventosMap.get(f.eventoId) || `Evento ${f.eventoId}`; eventoDespesas[nome] = (eventoDespesas[nome] || 0) + toNum(f.valor); }
+    faturaEventos.forEach((fe: any) => {
+      const nome = fe.evento?.nome || `Evento ${fe.eventoId}`;
+      eventoDespesas[nome] = (eventoDespesas[nome] || 0) + toNum(fe.valor);
     });
     const eventoReceitas: Record<string, number> = {};
-    (receitas as any[]).forEach((r) => {
-      if (r.eventoId) { const nome = eventosMap.get(r.eventoId) || `Evento ${r.eventoId}`; eventoReceitas[nome] = (eventoReceitas[nome] || 0) + toNum(r.valor); }
+    receitaEventos.forEach((re: any) => {
+      const nome = re.evento?.nome || `Evento ${re.eventoId}`;
+      eventoReceitas[nome] = (eventoReceitas[nome] || 0) + toNum(re.valor);
     });
 
     // PDF
