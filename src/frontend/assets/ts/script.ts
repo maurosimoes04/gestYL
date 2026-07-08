@@ -580,19 +580,29 @@ function clearEventoRows(listId: string) {
   if (list) list.innerHTML = '';
 }
 
+function getFormValorForList(listId: string): number {
+  const inputId = listId === 'faturaEventosList' ? 'valorFatura' : 'valorReceita';
+  return parseFloat((document.getElementById(inputId) as HTMLInputElement)?.value || '0') || 0;
+}
+
 function setupMultiEventoAdd(selectId: string, listId: string) {
   const btnId = selectId.replace('Select', 'AddBtn');
   const btn = document.getElementById(btnId);
   const select = document.getElementById(selectId) as HTMLSelectElement | null;
   if (!btn || !select) return;
-  btn.addEventListener('click', () => {
+
+  const doAdd = () => {
     const eventoId = Number(select.value);
     if (!eventoId) return;
     const evento = eventosCache.find((e: any) => e.id === eventoId);
     if (!evento) return;
-    addEventoRow(listId, eventoId, evento.nome, 0);
+    const totalValor = getFormValorForList(listId);
+    addEventoRow(listId, eventoId, evento.nome, totalValor);
     select.value = '';
-  });
+  };
+
+  select.addEventListener('change', doAdd);
+  btn.addEventListener('click', doAdd);
 }
 
 async function editarEvento(id: number) {
