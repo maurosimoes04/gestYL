@@ -24,7 +24,9 @@ router.get('/', async (req, res) => {
     if (departamento) where.departamento = departamento;
     if (tipo) where.tipo = tipo;
     if (estado) where.estado = estado;
-    if (eventoId) where.eventoId = Number(eventoId);
+    if (eventoId) {
+      where.faturaEventos = { some: { eventoId: Number(eventoId) } };
+    }
     if (inventarioId) where.inventarioId = Number(inventarioId);
     if (q) {
       where.OR = [
@@ -45,6 +47,7 @@ router.get('/', async (req, res) => {
     const faturas = await prisma.fatura.findMany({
       where,
       orderBy: { data: 'desc' },
+      include: { faturaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
       ...(limit && { take: parseInt(limit, 10) }),
       ...(offset && { skip: parseInt(offset, 10) }),
     });
@@ -114,7 +117,10 @@ router.get('/export/pdf', async (_req, res) => {
 // GET /faturas/:id
 router.get('/:id', async (req, res) => {
   try {
-    const fatura = await prisma.fatura.findUnique({ where: { id: Number(req.params.id) } });
+    const fatura = await prisma.fatura.findUnique({
+      where: { id: Number(req.params.id) },
+      include: { faturaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
+    });
     if (fatura) res.json(fatura);
     else res.status(404).json({ error: 'Fatura não encontrada' });
   } catch (error) {
@@ -125,7 +131,7 @@ router.get('/:id', async (req, res) => {
 // POST /faturas
 router.post('/', upload.single('anexo'), async (req, res) => {
   try {
-    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'departamento', 'tipo', 'numero', 'estado', 'descricao', 'detalhes', 'eventoId', 'inventarioId'];
+    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'departamento', 'tipo', 'numero', 'estado', 'descricao', 'detalhes', 'inventarioId'];
     const payload: any = {};
     for (const k of ALLOWED_FIELDS) {
       const v = req.body[k];
@@ -133,10 +139,18 @@ router.post('/', upload.single('anexo'), async (req, res) => {
     }
     if (payload.valor) payload.valor = parseFloat(payload.valor);
     if (payload.data) payload.data = new Date(payload.data);
-    if (payload.eventoId) payload.eventoId = Number(payload.eventoId);
-    else delete payload.eventoId;
     if (payload.inventarioId) payload.inventarioId = Number(payload.inventarioId);
     else delete payload.inventarioId;
+
+    let eventosInput: { eventoId: number; valor: number }[] = [];
+    try {
+      const raw = req.body.eventos;
+      if (raw) eventosInput = JSON.parse(typeof raw === 'string' ? raw : JSON.stringify(raw));
+    } catch { /* ignore */ }
+    if (!eventosInput.length && req.body.eventoId) {
+      eventosInput = [{ eventoId: Number(req.body.eventoId), valor: payload.valor || 0 }];
+    }
+
     let driveError = '';
     if (req.file && DESPESAS_FOLDER_ID) {
       try {
@@ -162,7 +176,18 @@ router.post('/', upload.single('anexo'), async (req, res) => {
     } else if (req.file && !DESPESAS_FOLDER_ID) {
       driveError = 'Pasta do Google Drive não configurada (GDRIVE_DESPESAS_FOLDER_ID)';
     }
-    const novaFatura = await prisma.fatura.create({ data: payload });
+
+    const novaFatura = await prisma.fatura.create({
+      data: {
+        ...payload,
+        ...(eventosInput.length > 0 && {
+          faturaEventos: {
+            create: eventosInput.map(e => ({ eventoId: e.eventoId, valor: e.valor })),
+          },
+        }),
+      },
+      include: { faturaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
+    });
     const warnings: string[] = [];
     if (req.file && !payload.anexo) warnings.push(`Anexo não guardado: ${driveError}`);
     res.status(201).json({ ...novaFatura, _warnings: warnings.length ? warnings : undefined });
@@ -183,7 +208,7 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     const fatura = await prisma.fatura.findUnique({ where: { id } });
     if (!fatura) return res.status(404).json({ error: 'Fatura não encontrada' });
 
-    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'departamento', 'tipo', 'numero', 'estado', 'descricao', 'detalhes', 'eventoId', 'inventarioId'];
+    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'departamento', 'tipo', 'numero', 'estado', 'descricao', 'detalhes', 'inventarioId'];
     const payload: any = {};
     for (const k of ALLOWED_FIELDS) {
       const v = req.body[k];
@@ -191,10 +216,18 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     }
     if (payload.valor) payload.valor = parseFloat(payload.valor);
     if (payload.data) payload.data = new Date(payload.data);
-    if (payload.eventoId) payload.eventoId = Number(payload.eventoId);
-    else delete payload.eventoId;
     if (payload.inventarioId) payload.inventarioId = Number(payload.inventarioId);
     else delete payload.inventarioId;
+
+    let eventosInput: { eventoId: number; valor: number }[] | null = null;
+    try {
+      const raw = req.body.eventos;
+      if (raw !== undefined) eventosInput = JSON.parse(typeof raw === 'string' ? raw : JSON.stringify(raw));
+    } catch { /* ignore */ }
+    if (eventosInput === null && req.body.eventoId !== undefined) {
+      const eid = req.body.eventoId;
+      eventosInput = eid ? [{ eventoId: Number(eid), valor: payload.valor || Number(fatura.valor) }] : [];
+    }
 
     if (!req.file && req.body.removeAnexo === 'true') {
       const oldAnexo = fatura.anexo as any;
@@ -238,7 +271,20 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
       driveError = 'Pasta do Google Drive não configurada (GDRIVE_DESPESAS_FOLDER_ID)';
     }
 
-    const updated = await prisma.fatura.update({ where: { id }, data: payload });
+    if (eventosInput !== null) {
+      await prisma.faturaEvento.deleteMany({ where: { faturaId: id } });
+      if (eventosInput.length > 0) {
+        await prisma.faturaEvento.createMany({
+          data: eventosInput.map(e => ({ faturaId: id, eventoId: e.eventoId, valor: e.valor })),
+        });
+      }
+    }
+
+    const updated = await prisma.fatura.update({
+      where: { id },
+      data: payload,
+      include: { faturaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
+    });
     const warnings: string[] = [];
     if (req.file && !payload.anexo) warnings.push(`Anexo não guardado: ${driveError}`);
     res.json({ ...updated, _warnings: warnings.length ? warnings : undefined });

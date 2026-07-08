@@ -45,19 +45,20 @@ function renderTable(rows, targetId, cols, anexoLabel) {
   tbody.innerHTML = rows.map((row) => {
     const safeLink = row.anexoLink && row.anexoLink.startsWith('/') ? escapeHtml(row.anexoLink) : '';
     const anexo = safeLink ? `<a href="${safeLink}" target="_blank">${escapeHtml(anexoLabel)}</a>` : '-';
+    const displayVal = row.valorEvento != null ? row.valorEvento : row.valor;
     return row.__tipo === 'receita'
       ? `<tr>
           <td>${escapeHtml(row.titulo) || '-'}</td>
           <td>${escapeHtml(row.categoria) || '-'}</td>
           <td>${formatDate(row.data)}</td>
-          <td>${formatCurrency(row.valor)}</td>
+          <td>${formatCurrency(displayVal)}</td>
           <td>${anexo}</td>
         </tr>`
       : `<tr>
           <td>${escapeHtml(row.titulo) || '-'}</td>
           <td>${escapeHtml(row.departamento) || '-'}</td>
           <td>${formatDate(row.data)}</td>
-          <td>${formatCurrency(row.valor)}</td>
+          <td>${formatCurrency(displayVal)}</td>
           <td>${anexo}</td>
         </tr>`;
   }).join('');

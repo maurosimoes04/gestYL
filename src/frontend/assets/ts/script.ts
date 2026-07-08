@@ -530,22 +530,69 @@ async function carregarEventosSelect() {
   try {
     const resp = await fetch(API_EVENTOS);
     eventosCache = await resp.json();
-    const selectFatura = document.getElementById('eventoFatura') as HTMLSelectElement | null;
-    const selectReceita = document.getElementById('eventoReceita') as HTMLSelectElement | null;
-    const selectFiltroReceita = document.getElementById('filterReceitaEvento') as HTMLSelectElement | null;
-    const selectFiltroDespesa = document.getElementById('filterEvento') as HTMLSelectElement | null;
     const optsList = eventosCache
       .map((ev: any) => `<option value="${ev.id}">${ev.nome}</option>`)
       .join('');
-    const opts = '<option value="">Nenhum evento</option>' + optsList;
+    const optsAdd = '<option value="">Adicionar evento...</option>' + optsList;
     const optsFilter = '<option value="">Todos os eventos</option>' + optsList;
-    if (selectFatura) selectFatura.innerHTML = opts;
-    if (selectReceita) selectReceita.innerHTML = opts;
-    if (selectFiltroReceita) selectFiltroReceita.innerHTML = optsFilter;
-    if (selectFiltroDespesa) selectFiltroDespesa.innerHTML = optsFilter;
+    ['faturaEventoSelect', 'receitaEventoSelect'].forEach(id => {
+      const el = document.getElementById(id) as HTMLSelectElement | null;
+      if (el) el.innerHTML = optsAdd;
+    });
+    ['filterReceitaEvento', 'filterEvento'].forEach(id => {
+      const el = document.getElementById(id) as HTMLSelectElement | null;
+      if (el) el.innerHTML = optsFilter;
+    });
   } catch {
     // Silencia erros neste ponto para não bloquear o fluxo principal
   }
+}
+
+// --- Multi-evento helpers ---
+function getEventoRows(listId: string): { eventoId: number; valor: number }[] {
+  const list = document.getElementById(listId);
+  if (!list) return [];
+  const rows = list.querySelectorAll('.multi-evento-row');
+  return Array.from(rows).map(row => ({
+    eventoId: Number(row.getAttribute('data-evento-id')),
+    valor: parseFloat((row.querySelector('.me-valor') as HTMLInputElement)?.value || '0'),
+  })).filter(e => e.eventoId > 0);
+}
+
+function addEventoRow(listId: string, eventoId: number, eventoNome: string, valor: number | string) {
+  const list = document.getElementById(listId);
+  if (!list) return;
+  if (list.querySelector(`[data-evento-id="${eventoId}"]`)) return;
+  const row = document.createElement('div');
+  row.className = 'multi-evento-row';
+  row.setAttribute('data-evento-id', String(eventoId));
+  row.innerHTML = `
+    <span class="me-nome">${escapeHtml(eventoNome)}</span>
+    <input type="number" step="0.01" min="0" class="me-valor" value="${Number(valor || 0).toFixed(2)}" placeholder="Valor €">
+    <button type="button" class="me-remove" title="Remover">×</button>
+  `;
+  row.querySelector('.me-remove')?.addEventListener('click', () => row.remove());
+  list.appendChild(row);
+}
+
+function clearEventoRows(listId: string) {
+  const list = document.getElementById(listId);
+  if (list) list.innerHTML = '';
+}
+
+function setupMultiEventoAdd(selectId: string, listId: string) {
+  const btnId = selectId.replace('Select', 'AddBtn');
+  const btn = document.getElementById(btnId);
+  const select = document.getElementById(selectId) as HTMLSelectElement | null;
+  if (!btn || !select) return;
+  btn.addEventListener('click', () => {
+    const eventoId = Number(select.value);
+    if (!eventoId) return;
+    const evento = eventosCache.find((e: any) => e.id === eventoId);
+    if (!evento) return;
+    addEventoRow(listId, eventoId, evento.nome, 0);
+    select.value = '';
+  });
 }
 
 async function editarEvento(id: number) {
@@ -659,23 +706,27 @@ async function carregarEventosResumo() {
     const receitas = await respReceitas.json();
     receitasCache = receitas;
     const gastosPorEvento: Record<string, number> = {};
+    const faturaCountPorEvento: Record<string, number> = {};
     faturas.forEach((f: any) => {
-      if (f.eventoId) {
-        gastosPorEvento[f.eventoId] = (gastosPorEvento[f.eventoId] || 0) + parseFloat(f.valor || 0);
-      }
+      (f.faturaEventos || []).forEach((fe: any) => {
+        gastosPorEvento[fe.eventoId] = (gastosPorEvento[fe.eventoId] || 0) + parseFloat(fe.valor || 0);
+        faturaCountPorEvento[fe.eventoId] = (faturaCountPorEvento[fe.eventoId] || 0) + 1;
+      });
     });
     const receitasPorEvento: Record<string, number> = {};
+    const receitaCountPorEvento: Record<string, number> = {};
     receitas.forEach((r: any) => {
-      if (r.eventoId) {
-        receitasPorEvento[r.eventoId] = (receitasPorEvento[r.eventoId] || 0) + parseFloat(r.valor || 0);
-      }
+      (r.receitaEventos || []).forEach((re: any) => {
+        receitasPorEvento[re.eventoId] = (receitasPorEvento[re.eventoId] || 0) + parseFloat(re.valor || 0);
+        receitaCountPorEvento[re.eventoId] = (receitaCountPorEvento[re.eventoId] || 0) + 1;
+      });
     });
     eventosLista.className = 'eventos-grid';
     eventosLista.innerHTML = eventos.map((ev: any) => {
       const gasto = gastosPorEvento[ev.id] || 0;
-      const numFaturas = faturas.filter((f: any) => f.eventoId === ev.id).length;
+      const numFaturas = faturaCountPorEvento[ev.id] || 0;
       const receitaTotal = receitasPorEvento[ev.id] || 0;
-      const numReceitas = receitas.filter((r: any) => r.eventoId === ev.id).length;
+      const numReceitas = receitaCountPorEvento[ev.id] || 0;
       const saldo = receitaTotal - gasto;
       const dataInicioRaw = ev.data_inicio || ev.dataInicio || '';
       const dataFimRaw = ev.data_fim || ev.dataFim || '';
@@ -773,13 +824,13 @@ async function abrirDetalheEvento(id: number) {
     // Receitas
     const recTbody = document.getElementById('eventoDetailReceitas') as HTMLElement;
     recTbody.innerHTML = receitas.length
-      ? receitas.map((r: any) => `<tr><td>${r.titulo}</td><td>${r.categoria}</td><td>${formatDate(r.data)}</td><td>${formatCurrency(r.valor)}</td></tr>`).join('')
+      ? receitas.map((r: any) => `<tr><td>${r.titulo}</td><td>${r.categoria}</td><td>${formatDate(r.data)}</td><td>${formatCurrency(r.valorEvento)}</td></tr>`).join('')
       : '<tr><td colspan="4">Sem receitas associadas.</td></tr>';
 
     // Faturas
     const fatTbody = document.getElementById('eventoDetailFaturas') as HTMLElement;
     fatTbody.innerHTML = faturas.length
-      ? faturas.map((f: any) => `<tr><td>${f.titulo}</td><td>${f.departamento}</td><td>${formatDate(f.data)}</td><td>${formatCurrency(f.valor)}</td></tr>`).join('')
+      ? faturas.map((f: any) => `<tr><td>${f.titulo}</td><td>${f.departamento}</td><td>${formatDate(f.data)}</td><td>${formatCurrency(f.valorEvento)}</td></tr>`).join('')
       : '<tr><td colspan="4">Sem despesas associadas.</td></tr>';
 
     // PDF button
@@ -966,7 +1017,10 @@ function renderFaturasPage() {
   }
   const page = paginate(faturasCache, faturaPage);
   container.innerHTML = page.map((f: any) => {
-    const eventoNome = eventosCache.find((ev: any) => ev.id === f.eventoId)?.nome || '';
+    const eventoTags = (f.faturaEventos || []).map((fe: any) => {
+      const nome = fe.evento?.nome || eventosCache.find((ev: any) => ev.id === fe.eventoId)?.nome || '';
+      return nome ? `<span class="record-tag">${escapeHtml(nome)}</span>` : '';
+    }).join('');
     const anexoLink = f.anexo ? `/faturas/${f.id}/anexo` : '';
     const actions = isReadOnly() ? '' : `
       <div class="record-actions">
@@ -980,7 +1034,7 @@ function renderFaturasPage() {
           <span>${escapeHtml(f.tipo || 'Fatura')}</span>
           ${f.numero ? `<span>Nº ${escapeHtml(f.numero)}</span>` : ''}
           <span>${escapeHtml(f.departamento || '-')}</span>
-          ${eventoNome ? `<span class="record-tag">${escapeHtml(eventoNome)}</span>` : ''}
+          ${eventoTags}
         </div>
       </div>
       <div class="record-details">
@@ -1026,7 +1080,6 @@ async function guardarFatura(e: SubmitEvent) {
     showNotification('Preencha todos os campos obrigatórios da fatura.', 'error');
     return;
   }
-  const eventoIdStr = getValue('eventoFatura');
   const formData = new FormData();
   formData.append('titulo', titulo);
   formData.append('valor', String(valor));
@@ -1036,7 +1089,8 @@ async function guardarFatura(e: SubmitEvent) {
   formData.append('numero', getValue('numeroFatura').trim());
   formData.append('estado', getValue('estadoFatura') || 'Pendente');
   formData.append('descricao', getValue('observacoesFatura').trim());
-  if (eventoIdStr) formData.append('eventoId', eventoIdStr);
+  const eventosData = getEventoRows('faturaEventosList');
+  formData.append('eventos', JSON.stringify(eventosData));
 
   const anexoInput = document.getElementById('anexoFatura') as HTMLInputElement | null;
   const anexoFile = anexoInput?.files?.[0];
@@ -1066,6 +1120,7 @@ async function guardarFatura(e: SubmitEvent) {
       result._warnings.forEach((w: string) => showNotification(`⚠️ ${w}`, 'error'));
     }
     resetForm('faturaForm');
+    clearEventoRows('faturaEventosList');
     toggleSection('formularioFatura', false);
     editingFaturaId = null;
     removeFaturaAnexo = false;
@@ -1131,7 +1186,10 @@ function renderReceitasPage() {
   }
   const page = paginate(receitasCache, receitaPage);
   container.innerHTML = page.map((r: any) => {
-    const eventoNome = eventosCache.find((ev: any) => ev.id === r.eventoId)?.nome || '';
+    const eventoTags = (r.receitaEventos || []).map((re: any) => {
+      const nome = re.evento?.nome || eventosCache.find((ev: any) => ev.id === re.eventoId)?.nome || '';
+      return nome ? `<span class="record-tag">${escapeHtml(nome)}</span>` : '';
+    }).join('');
     const anexoLink = r.anexo ? `/receitas/${r.id}/anexo` : '';
     const actions = isReadOnly() ? '' : `
       <div class="record-actions">
@@ -1144,7 +1202,7 @@ function renderReceitasPage() {
         <div class="record-meta">
           <span>${escapeHtml(r.categoria || '-')}</span>
           ${r.financiador ? `<span>${escapeHtml(r.financiador)}</span>` : ''}
-          ${eventoNome ? `<span class="record-tag">${escapeHtml(eventoNome)}</span>` : ''}
+          ${eventoTags}
         </div>
         ${r.observacoes ? `<div class="record-notes">${escapeHtml(r.observacoes)}</div>` : ''}
       </div>
@@ -1200,9 +1258,8 @@ async function guardarReceita(e: SubmitEvent) {
   formData.append('valor', String(valor));
   formData.append('data', data);
   formData.append('observacoes', getValue('observacoesReceita').trim());
-
-  const eventoIdStr = getValue('eventoReceita');
-  if (eventoIdStr) formData.append('eventoId', eventoIdStr);
+  const eventosData = getEventoRows('receitaEventosList');
+  formData.append('eventos', JSON.stringify(eventosData));
 
   const anexoInput = document.getElementById('anexoReceita') as HTMLInputElement | null;
   const anexoFile = anexoInput?.files?.[0];
@@ -1232,6 +1289,7 @@ async function guardarReceita(e: SubmitEvent) {
       result._warnings.forEach((w: string) => showNotification(`⚠️ ${w}`, 'error'));
     }
     resetForm('receitaForm');
+    clearEventoRows('receitaEventosList');
     toggleSection('formularioReceita', false);
     editingReceitaId = null;
     removeReceitaAnexo = false;
@@ -1507,6 +1565,8 @@ function setupEventListeners() {
 
   setupFileDrop('dropFatura', 'anexoFatura');
   setupFileDrop('dropReceita', 'anexoReceita');
+  setupMultiEventoAdd('faturaEventoSelect', 'faturaEventosList');
+  setupMultiEventoAdd('receitaEventoSelect', 'receitaEventosList');
 
   document.getElementById('existingAnexoFaturaLink')?.addEventListener('click', () => {
     const url = document.getElementById('existingAnexoFaturaLink')?.getAttribute('data-url');
@@ -1643,6 +1703,7 @@ function setupEventListeners() {
       setValue('tipoFatura', 'Fatura');
       editingFaturaId = null;
       removeFaturaAnexo = false;
+      clearEventoRows('faturaEventosList');
       const ea = document.getElementById('existingAnexoFatura');
       if (ea) ea.setAttribute('hidden', 'true');
       const df = document.getElementById('dropFatura');
@@ -1662,6 +1723,7 @@ function setupEventListeners() {
       setValue('tipoFatura', 'Fatura');
       editingFaturaId = null;
       removeFaturaAnexo = false;
+      clearEventoRows('faturaEventosList');
       const ea = document.getElementById('existingAnexoFatura');
       if (ea) ea.setAttribute('hidden', 'true');
       const df = document.getElementById('dropFatura');
@@ -1708,6 +1770,7 @@ function setupEventListeners() {
       toggleSection('formularioReceita', true);
       editingReceitaId = null;
       removeReceitaAnexo = false;
+      clearEventoRows('receitaEventosList');
       const ea = document.getElementById('existingAnexoReceita');
       if (ea) ea.setAttribute('hidden', 'true');
       const dr = document.getElementById('dropReceita');
@@ -1747,6 +1810,7 @@ function setupEventListeners() {
       toggleSection('formularioReceita', true);
       editingReceitaId = null;
       removeReceitaAnexo = false;
+      clearEventoRows('receitaEventosList');
       const ea = document.getElementById('existingAnexoReceita');
       if (ea) ea.setAttribute('hidden', 'true');
       const dr = document.getElementById('dropReceita');
@@ -2204,7 +2268,13 @@ async function editarReceita(id: number) {
     setValue('valorReceita', r.valor?.toString() || '');
     setValue('dataReceita', (r.data || '').slice(0, 10));
     setValue('observacoesReceita', r.observacoes || '');
-    if (r.eventoId) setValue('eventoReceita', String(r.eventoId)); else setValue('eventoReceita', '');
+    clearEventoRows('receitaEventosList');
+    if (r.receitaEventos?.length) {
+      r.receitaEventos.forEach((re: any) => {
+        const nome = re.evento?.nome || `Evento ${re.eventoId}`;
+        addEventoRow('receitaEventosList', re.eventoId, nome, re.valor);
+      });
+    }
     editingReceitaId = id;
     removeReceitaAnexo = false;
     const existingAnexo = document.getElementById('existingAnexoReceita');
@@ -2257,7 +2327,13 @@ async function editarFatura(id: number) {
     setValue('estadoFatura', f.estado || 'Pendente');
     setValue('observacoesFatura', f.descricao || '');
     setValue('tipoFatura', f.tipo || 'Fatura');
-    if (f.eventoId) setValue('eventoFatura', String(f.eventoId)); else setValue('eventoFatura', '');
+    clearEventoRows('faturaEventosList');
+    if (f.faturaEventos?.length) {
+      f.faturaEventos.forEach((fe: any) => {
+        const nome = fe.evento?.nome || `Evento ${fe.eventoId}`;
+        addEventoRow('faturaEventosList', fe.eventoId, nome, fe.valor);
+      });
+    }
     editingFaturaId = id;
     removeFaturaAnexo = false;
     const existingAnexo = document.getElementById('existingAnexoFatura');

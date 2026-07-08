@@ -405,7 +405,16 @@
             <div class="form-field"><label for="valorFatura">Valor (€) <span class="form-required">*</span></label><input type="number" step="0.01" id="valorFatura" required min="0" placeholder="0.00"></div>
             <div class="form-field"><label for="dataFatura">Data <span class="form-required">*</span></label><input type="date" id="dataFatura" required></div>
             <div class="form-field"><label for="estadoFatura">Estado</label><select id="estadoFatura"><option>Pendente</option><option>Paga</option></select></div>
-            <div class="form-field"><label for="eventoFatura">Evento <span class="form-optional">opcional</span></label><select id="eventoFatura"><option value="">Nenhum evento</option></select></div>
+            <div class="form-field form-field-full">
+              <label>Eventos <span class="form-optional">opcional</span></label>
+              <div class="multi-evento-wrap" id="faturaEventosWrap">
+                <div class="multi-evento-list" id="faturaEventosList"></div>
+                <div class="multi-evento-add">
+                  <select id="faturaEventoSelect"><option value="">Adicionar evento...</option></select>
+                  <button type="button" class="ghost-action" id="faturaEventoAddBtn">+ Adicionar</button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="form-fieldset">
@@ -448,7 +457,16 @@
           <div class="form-grid">
             <div class="form-field"><label for="tituloReceita">Título <span class="form-required">*</span></label><input id="tituloReceita" required placeholder="Descrição da receita"></div>
             <div class="form-field"><label for="categoriaReceita">Categoria <span class="form-required">*</span></label><select id="categoriaReceita" required><option value="">Selecionar...</option><option>Quotas</option><option>Patrocínios/Doações</option><option>Cofinanciamentos</option><option>Vendas/Serviços</option><option>Reembolsos</option><option>Outros</option></select></div>
-            <div class="form-field"><label for="eventoReceita">Evento <span class="form-optional">opcional</span></label><select id="eventoReceita"><option value="">Nenhum evento</option></select></div>
+            <div class="form-field form-field-full">
+              <label>Eventos <span class="form-optional">opcional</span></label>
+              <div class="multi-evento-wrap" id="receitaEventosWrap">
+                <div class="multi-evento-list" id="receitaEventosList"></div>
+                <div class="multi-evento-add">
+                  <select id="receitaEventoSelect"><option value="">Adicionar evento...</option></select>
+                  <button type="button" class="ghost-action" id="receitaEventoAddBtn">+ Adicionar</button>
+                </div>
+              </div>
+            </div>
             <div class="form-field"><label for="financiadorReceita">Financiador <span class="form-optional">opcional</span></label><input id="financiadorReceita" placeholder="ex: Câmara Municipal"></div>
           </div>
         </div>
