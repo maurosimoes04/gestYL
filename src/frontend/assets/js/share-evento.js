@@ -116,15 +116,8 @@ document.getElementById('shareAccessForm')?.addEventListener('submit', async (e)
     }
 
     const infoEl = document.getElementById('shareSessionInfo');
-    if (infoEl) {
-      const parts = [];
-      if (data.shareExpiresAt) {
-        parts.push(`Partilha válida até ${new Date(data.shareExpiresAt).toLocaleString('pt-PT')}`);
-      }
-      if (data.sessionExpiresAt) {
-        parts.push(`Sessão expira às ${new Date(data.sessionExpiresAt).toLocaleString('pt-PT')}`);
-      }
-      infoEl.textContent = parts.join(' · ');
+    if (infoEl && data.shareExpiresAt) {
+      infoEl.textContent = `Partilha válida até ${new Date(data.shareExpiresAt).toLocaleString('pt-PT')}`;
     }
 
     renderResumo(data.resumo || { totalReceitas: 0, totalDespesas: 0, saldo: 0 });
