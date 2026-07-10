@@ -249,7 +249,10 @@
     <section id="eventos" class="section-animate">
       <div class="section-header">
         <h2>Eventos</h2>
-        <button id="btnEscolherEvento" class="main-action">Novo Evento</button>
+        <div style="display:flex;gap:8px;">
+          <button id="btnGerirPartilhas" class="ghost-action">Gerir Partilhas</button>
+          <button id="btnEscolherEvento" class="main-action">Novo Evento</button>
+        </div>
       </div>
 
       <div id="eventosLista" class="dashboard-grid">
@@ -338,6 +341,63 @@
         <div class="form-btns">
           <button type="submit" class="main-action">Gerar link</button>
           <button type="button" id="shareEventoCancel">Cancelar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Gerir Partilhas -->
+  <div id="gerirPartilhasModal" class="modal-backdrop" hidden>
+    <div class="modal-card" style="width:min(780px,95vw);max-height:90vh;overflow-y:auto;">
+      <div class="modal-header">
+        <h3>Gerir Partilhas</h3>
+        <button type="button" class="modal-close" id="gerirPartilhasClose" aria-label="Fechar">✖</button>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Evento</th>
+              <th>Destinatário</th>
+              <th>Link</th>
+              <th>Password</th>
+              <th>Expira em</th>
+              <th>Estado</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="gerirPartilhasBody">
+            <tr><td colspan="5">A carregar...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="modal-actions" style="margin-top:12px;">
+        <button type="button" id="gerirPartilhasCloseBtn" class="ghost-action">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Editar Partilha -->
+  <div id="editarPartilhaModal" class="modal-backdrop" hidden>
+    <div class="modal-card" style="width:min(440px,95vw);">
+      <div class="modal-header">
+        <h3>Editar Partilha</h3>
+        <button type="button" class="modal-close" id="editarPartilhaClose" aria-label="Fechar">✖</button>
+      </div>
+      <form id="editarPartilhaForm" class="form-modern">
+        <input type="hidden" id="editarPartilhaId">
+        <div class="form-field">
+          <label for="editarPartilhaDestinatario">Destinatário</label>
+          <input id="editarPartilhaDestinatario" placeholder="ex: municipio@exemplo.pt">
+        </div>
+        <div class="form-field">
+          <label for="editarPartilhaExpira">Data de expiração</label>
+          <input id="editarPartilhaExpira" type="datetime-local" required>
+        </div>
+        <div id="editarPartilhaMsg" class="form-msg" hidden></div>
+        <div class="form-btns">
+          <button type="submit" class="main-action">Guardar</button>
+          <button type="button" id="editarPartilhaCancel">Cancelar</button>
         </div>
       </form>
     </div>

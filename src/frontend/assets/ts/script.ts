@@ -953,6 +953,138 @@ async function gerarPartilhaEvento(e: SubmitEvent) {
   }
 }
 
+// --- Gerir Partilhas ---
+async function carregarPartilhas() {
+  const tbody = document.getElementById('gerirPartilhasBody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="7">A carregar...</td></tr>';
+  try {
+    const resp = await fetch(`${API_SHARES}?limit=100`);
+    if (!resp.ok) throw new Error('Erro ao carregar partilhas');
+    const data = await resp.json();
+    const shares = data.shares || [];
+    if (!shares.length) {
+      tbody.innerHTML = '<tr><td colspan="7">Nenhuma partilha encontrada.</td></tr>';
+      return;
+    }
+    const now = new Date();
+    const baseUrl = window.location.origin;
+    tbody.innerHTML = shares.map((s: any) => {
+      const expiresAt = new Date(s.expiresAt);
+      const revoked = !!s.revokedAt;
+      const expired = expiresAt < now;
+      const estado = revoked ? '<span style="color:var(--danger)">Revogada</span>'
+        : expired ? '<span style="color:var(--text-muted)">Expirada</span>'
+        : '<span style="color:var(--success)">Ativa</span>';
+      const dataStr = expiresAt.toLocaleString('pt-PT', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+      const link = `${baseUrl}/share/evento/${s.token}`;
+      const acoes = revoked ? `
+        <button class="ghost-action btn-editar-partilha" data-id="${s.id}" data-destinatario="${escapeHtml(s.destinatario || '')}" data-expires="${expiresAt.toISOString().slice(0,16)}">Reativar</button>
+      ` : `
+        <button class="ghost-action btn-editar-partilha" data-id="${s.id}" data-destinatario="${escapeHtml(s.destinatario || '')}" data-expires="${expiresAt.toISOString().slice(0,16)}">Editar</button>
+        <button class="ghost-action btn-revogar-partilha" data-id="${s.id}" style="color:var(--danger)">Revogar</button>
+      `;
+      return `<tr>
+        <td>${escapeHtml(s.evento?.nome || 'N/A')}</td>
+        <td>${escapeHtml(s.destinatario || '-')}</td>
+        <td><input type="text" value="${escapeHtml(link)}" readonly style="width:180px;font-size:0.8rem;cursor:pointer;" class="share-link-input" title="Clica para copiar"></td>
+        <td style="font-size:0.8rem;color:var(--text-muted)">Gerada na criação<br>(não é armazenada)</td>
+        <td>${dataStr}</td>
+        <td>${estado}</td>
+        <td>${acoes}</td>
+      </tr>`;
+    }).join('');
+
+    tbody.querySelectorAll('.share-link-input').forEach(input => {
+      input.addEventListener('click', () => {
+        const el = input as HTMLInputElement;
+        el.select();
+        if (navigator.clipboard?.writeText) {
+          navigator.clipboard.writeText(el.value).then(() => showNotification('Link copiado.', 'success'));
+        } else {
+          document.execCommand('copy');
+          showNotification('Link copiado.', 'success');
+        }
+      });
+    });
+
+    tbody.querySelectorAll('.btn-editar-partilha').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        const dest = btn.getAttribute('data-destinatario') || '';
+        const exp = btn.getAttribute('data-expires') || '';
+        abrirEditarPartilha(Number(id), dest, exp);
+      });
+    });
+    tbody.querySelectorAll('.btn-revogar-partilha').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = Number(btn.getAttribute('data-id'));
+        if (!confirm('Revogar esta partilha? O acesso será imediatamente removido.')) return;
+        try {
+          const resp = await fetch(`${API_SHARES}/${id}/revoke`, { method: 'POST' });
+          if (!resp.ok) throw new Error('Erro ao revogar');
+          showNotification('Partilha revogada.', 'success');
+          carregarPartilhas();
+        } catch (err: any) {
+          showNotification(err.message || 'Erro ao revogar partilha.', 'error');
+        }
+      });
+    });
+  } catch (err: any) {
+    tbody.innerHTML = `<tr><td colspan="7">${escapeHtml(err.message)}</td></tr>`;
+  }
+}
+
+function abrirGerirPartilhas() {
+  document.getElementById('gerirPartilhasModal')?.removeAttribute('hidden');
+  carregarPartilhas();
+}
+
+function fecharGerirPartilhas() {
+  document.getElementById('gerirPartilhasModal')?.setAttribute('hidden', 'true');
+}
+
+function abrirEditarPartilha(id: number, destinatario: string, expiresAt: string) {
+  setValue('editarPartilhaId', String(id));
+  setValue('editarPartilhaDestinatario', destinatario);
+  setValue('editarPartilhaExpira', expiresAt);
+  const msg = document.getElementById('editarPartilhaMsg');
+  if (msg) msg.setAttribute('hidden', 'true');
+  document.getElementById('editarPartilhaModal')?.removeAttribute('hidden');
+}
+
+function fecharEditarPartilha() {
+  document.getElementById('editarPartilhaModal')?.setAttribute('hidden', 'true');
+}
+
+async function guardarEditarPartilha(e: SubmitEvent) {
+  e.preventDefault();
+  const id = Number(getValue('editarPartilhaId'));
+  const destinatario = getValue('editarPartilhaDestinatario').trim();
+  const expiresAt = getValue('editarPartilhaExpira');
+  const msg = document.getElementById('editarPartilhaMsg');
+
+  if (!expiresAt) {
+    if (msg) { msg.textContent = 'Data de expiração é obrigatória.'; msg.className = 'form-msg error'; msg.removeAttribute('hidden'); }
+    return;
+  }
+
+  try {
+    const resp = await fetch(`${API_SHARES}/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expiresAt: new Date(expiresAt).toISOString(), destinatario }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.error || 'Erro ao guardar');
+    showNotification('Partilha atualizada.', 'success');
+    fecharEditarPartilha();
+    carregarPartilhas();
+  } catch (err: any) {
+    if (msg) { msg.textContent = err.message || 'Erro ao guardar.'; msg.className = 'form-msg error'; msg.removeAttribute('hidden'); }
+  }
+}
+
 // --- Faturas: carregar e criar ---
 function aplicarDepartamentosFiltro() {
   // Departamentos são carregados dinamicamente via carregarDepartamentos()
@@ -1664,6 +1796,22 @@ function setupEventListeners() {
       setPartilhaMensagem('Password copiada.', 'success');
     }
   });
+
+  // Modal gerir partilhas
+  document.getElementById('btnGerirPartilhas')?.addEventListener('click', abrirGerirPartilhas);
+  document.getElementById('gerirPartilhasClose')?.addEventListener('click', fecharGerirPartilhas);
+  document.getElementById('gerirPartilhasCloseBtn')?.addEventListener('click', fecharGerirPartilhas);
+  document.getElementById('gerirPartilhasModal')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('gerirPartilhasModal')) fecharGerirPartilhas();
+  });
+
+  // Modal editar partilha
+  document.getElementById('editarPartilhaClose')?.addEventListener('click', fecharEditarPartilha);
+  document.getElementById('editarPartilhaCancel')?.addEventListener('click', fecharEditarPartilha);
+  document.getElementById('editarPartilhaModal')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('editarPartilhaModal')) fecharEditarPartilha();
+  });
+  document.getElementById('editarPartilhaForm')?.addEventListener('submit', guardarEditarPartilha as any);
 
   setupExportRelatorio();
   const btnNovoEvento = document.getElementById('btnEscolherEvento');

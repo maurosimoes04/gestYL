@@ -128,6 +128,7 @@ sharePublicRouter.post('/evento/:token/access', async (req, res) => {
         saldo: totalReceitas - totalDespesas,
       },
       sessionExpiresAt,
+      shareExpiresAt: share.expiresAt,
     });
   } catch (err) {
     console.error('Erro acesso partilha:', err.message || err);
@@ -248,8 +249,8 @@ sharePrivateRouter.post('/', async (req, res) => {
 // GET /shares (admin)
 sharePrivateRouter.get('/', async (req, res) => {
   try {
-    if ((req as any).authRole !== 'admin') {
-      return res.status(403).json({ error: 'Apenas administradores' });
+    if (!['admin', 'direcao'].includes((req as any).authRole)) {
+      return res.status(403).json({ error: 'Sem permissões' });
     }
     const { limit: lim, offset: off } = req.query as any;
     const take = parseInt(lim || '30', 10);
@@ -272,11 +273,43 @@ sharePrivateRouter.get('/', async (req, res) => {
   }
 });
 
+// PUT /shares/:id (admin) — editar expiresAt, destinatario
+sharePrivateRouter.put('/:id', async (req, res) => {
+  try {
+    if (!['admin', 'direcao'].includes((req as any).authRole)) {
+      return res.status(403).json({ error: 'Sem permissões' });
+    }
+    const id = Number(req.params.id);
+    const { expiresAt, destinatario } = req.body || {};
+    const data: any = {};
+    if (expiresAt) {
+      data.expiresAt = new Date(expiresAt);
+      data.revokedAt = null;
+    }
+    if (destinatario !== undefined) data.destinatario = destinatario || null;
+    if (Object.keys(data).length === 0) {
+      return res.status(400).json({ error: 'Nenhum campo para atualizar' });
+    }
+    const share = await prisma.eventoShare.update({ where: { id }, data });
+    await logAudit({
+      action: 'UPDATE',
+      entity: 'share',
+      entityId: share.id.toString(),
+      details: data,
+      req,
+    });
+    return res.json(share);
+  } catch (err) {
+    console.error('Erro editar partilha:', err.message || err);
+    return res.status(500).json({ error: 'Erro ao editar partilha' });
+  }
+});
+
 // POST /shares/:id/revoke (admin)
 sharePrivateRouter.post('/:id/revoke', async (req, res) => {
   try {
-    if ((req as any).authRole !== 'admin') {
-      return res.status(403).json({ error: 'Apenas administradores' });
+    if (!['admin', 'direcao'].includes((req as any).authRole)) {
+      return res.status(403).json({ error: 'Sem permissões' });
     }
     const id = Number(req.params.id);
     const share = await prisma.eventoShare.update({
