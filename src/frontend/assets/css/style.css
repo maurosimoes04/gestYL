@@ -1161,14 +1161,13 @@ section h2 {
 }
 
 .pdf-progress-bar.indeterminate {
-  width: 30%;
-  animation: indeterminate 1.5s ease-in-out infinite;
+  width: 40%;
+  animation: indeterminate 1.4s ease-in-out infinite;
 }
 
 @keyframes indeterminate {
-  0% { transform: translateX(-100%); width: 30%; }
-  50% { width: 50%; }
-  100% { transform: translateX(350%); width: 30%; }
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
 }
 
 /* Evento Detail Modal Improved */
