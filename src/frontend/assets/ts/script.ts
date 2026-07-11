@@ -185,14 +185,17 @@ function resetForm(id: string) {
   });
 }
 async function openAnexo(url: string) {
+  showPdfLoading('A abrir documento...');
   try {
     const resp = await fetch(url);
     if (!resp.ok) throw new Error('Erro ao abrir anexo');
     const blob = await resp.blob();
     const blobUrl = URL.createObjectURL(blob);
+    hidePdfLoading();
     window.open(blobUrl, '_blank');
     setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
   } catch {
+    hidePdfLoading();
     showNotification('Erro ao abrir anexo', 'error');
   }
 }
@@ -284,6 +287,32 @@ const ICONS: Record<string, string> = {
 
 function icon(name: string): string {
   return ICONS[name] || '';
+}
+
+function showPdfLoading(msg = 'A gerar PDF...') {
+  let overlay = document.getElementById('pdfLoadingOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'pdfLoadingOverlay';
+    overlay.className = 'pdf-loading-overlay';
+    overlay.innerHTML = `
+      <div class="pdf-loading-box">
+        <div class="loader-spinner"></div>
+        <h4 id="pdfLoadingTitle">${escapeHtml(msg)}</h4>
+        <p id="pdfLoadingSubtitle">Aguarde um momento...</p>
+        <div class="pdf-progress-track"><div class="pdf-progress-bar indeterminate" id="pdfProgressBar"></div></div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  } else {
+    (document.getElementById('pdfLoadingTitle') as HTMLElement).textContent = msg;
+    overlay.style.display = 'flex';
+  }
+}
+
+function hidePdfLoading() {
+  const overlay = document.getElementById('pdfLoadingOverlay');
+  if (overlay) overlay.style.display = 'none';
 }
 
 function estadoBadge(estado: string | null): string {
@@ -409,15 +438,20 @@ async function handleExportRelatorio(e: Event) {
   }
 
   const url = `/relatorios/pdf?${params.toString()}`;
+  closeExportModal();
+  showPdfLoading('A gerar relatório PDF...');
   try {
     const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${authToken}` } });
     if (!resp.ok) throw new Error('Erro ao gerar PDF');
     const blob = await resp.blob();
     const blobUrl = URL.createObjectURL(blob);
+    hidePdfLoading();
     window.open(blobUrl, '_blank');
     setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
-  } catch { showNotification('Erro ao exportar relatório', 'error'); }
-  closeExportModal();
+  } catch {
+    hidePdfLoading();
+    showNotification('Erro ao exportar relatório', 'error');
+  }
 }
 
 function setupExportRelatorio() {
@@ -818,49 +852,67 @@ async function abrirDetalheEvento(id: number) {
     const { evento, faturas, receitas, resumo } = await resp.json();
 
     (document.getElementById('eventoDetailTitle') as HTMLElement).textContent = evento.nome;
-    (document.getElementById('eventoDetailDesc') as HTMLElement).textContent = evento.descricao || '';
-    const deptEl = document.getElementById('eventoDetailDept') as HTMLElement;
-    deptEl.textContent = evento.departamento || '';
 
-    // Dashboard
+    const descEl = document.getElementById('eventoDetailDesc') as HTMLElement;
+    descEl.textContent = evento.descricao || '';
+    descEl.style.display = evento.descricao ? '' : 'none';
+
+    const deptEl = document.getElementById('eventoDetailDept') as HTMLElement;
+    if (evento.departamento) {
+      deptEl.textContent = evento.departamento;
+      deptEl.removeAttribute('hidden');
+    } else {
+      deptEl.setAttribute('hidden', 'true');
+    }
+
+    const datesEl = document.getElementById('eventoDetailDates') as HTMLElement;
+    const di = evento.data_inicio || evento.dataInicio || '';
+    const df = evento.data_fim || evento.dataFim || '';
+    const fmtD = (d: string) => d ? new Date(d).toLocaleDateString('pt-PT') : '';
+    const diStr = fmtD(di);
+    const dfStr = fmtD(df);
+    datesEl.textContent = diStr && dfStr ? `${diStr} a ${dfStr}` : (diStr || dfStr || '');
+    datesEl.style.display = (diStr || dfStr) ? '' : 'none';
+
+    const saldoColor = resumo.saldo >= 0 ? '#16a34a' : '#dc2626';
     const dash = document.getElementById('eventoDetailDashboard') as HTMLElement;
-    const saldoClass = resumo.saldo >= 0 ? 'color:#16a34a' : 'color:#dc2626';
     dash.innerHTML = `
-      <div class="summary-card"><div class="label">Receitas</div><div class="value" style="color:#16a34a">${formatCurrency(resumo.totalReceitas)}</div></div>
-      <div class="summary-card"><div class="label">Despesas</div><div class="value" style="color:#dc2626">${formatCurrency(resumo.totalDespesas)}</div></div>
-      <div class="summary-card"><div class="label">Saldo</div><div class="value" style="${saldoClass}">${formatCurrency(resumo.saldo)}</div></div>
+      <div class="detail-stat"><div class="stat-label">Receitas</div><div class="stat-value" style="color:#16a34a">${formatCurrency(resumo.totalReceitas)}</div></div>
+      <div class="detail-stat"><div class="stat-label">Despesas</div><div class="stat-value" style="color:#dc2626">${formatCurrency(resumo.totalDespesas)}</div></div>
+      <div class="detail-stat"><div class="stat-label">Saldo</div><div class="stat-value" style="color:${saldoColor}">${formatCurrency(resumo.saldo)}</div></div>
     `;
 
-    // Receitas
     const recTbody = document.getElementById('eventoDetailReceitas') as HTMLElement;
     recTbody.innerHTML = receitas.length
-      ? receitas.map((r: any) => `<tr><td>${r.titulo}</td><td>${r.categoria}</td><td>${formatDate(r.data)}</td><td>${formatCurrency(r.valorEvento)}</td></tr>`).join('')
+      ? receitas.map((r: any) => `<tr><td>${escapeHtml(r.titulo)}</td><td>${escapeHtml(r.categoria)}</td><td>${formatDate(r.data)}</td><td>${formatCurrency(r.valorEvento)}</td></tr>`).join('')
       : '<tr><td colspan="4">Sem receitas associadas.</td></tr>';
 
-    // Faturas
     const fatTbody = document.getElementById('eventoDetailFaturas') as HTMLElement;
     fatTbody.innerHTML = faturas.length
-      ? faturas.map((f: any) => `<tr><td>${f.titulo}</td><td>${f.departamento}</td><td>${formatDate(f.data)}</td><td>${formatCurrency(f.valorEvento)}</td></tr>`).join('')
+      ? faturas.map((f: any) => `<tr><td>${escapeHtml(f.titulo)}</td><td>${escapeHtml(f.departamento)}</td><td>${formatDate(f.data)}</td><td>${formatCurrency(f.valorEvento)}</td></tr>`).join('')
       : '<tr><td colspan="4">Sem despesas associadas.</td></tr>';
 
-    // PDF button
     const pdfBtn = document.getElementById('eventoDetailPdf') as HTMLButtonElement;
     pdfBtn.onclick = async () => {
+      showPdfLoading('A gerar PDF do evento...');
       try {
         const resp = await fetch(`${API_EVENTOS}/${id}/pdf`, { headers: { 'Authorization': `Bearer ${authToken}` } });
         if (!resp.ok) throw new Error();
         const blob = await resp.blob();
         const blobUrl = URL.createObjectURL(blob);
+        hidePdfLoading();
         window.open(blobUrl, '_blank');
         setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
-      } catch { showNotification('Erro ao gerar PDF do evento', 'error'); }
+      } catch {
+        hidePdfLoading();
+        showNotification('Erro ao gerar PDF do evento', 'error');
+      }
     };
 
-    // Show modal
     const modal = document.getElementById('eventoDetailModal') as HTMLElement;
     modal.removeAttribute('hidden');
   } catch {
-    showNotification('❌ Erro ao carregar detalhes do evento', 'error');
+    showNotification('Erro ao carregar detalhes do evento', 'error');
   }
 }
 
@@ -1545,6 +1597,7 @@ async function carregarInventario() {
 }
 
 async function exportarInventarioPdf() {
+  showPdfLoading('A exportar inventário PDF...');
   try {
     const resp = await fetch(`${API_INVENTARIO}/export/pdf`);
     if (!resp.ok) throw new Error('Erro no download');
@@ -1557,7 +1610,9 @@ async function exportarInventarioPdf() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+    hidePdfLoading();
   } catch {
+    hidePdfLoading();
     showNotification('Erro ao exportar PDF do inventário.', 'error');
   }
 }

@@ -264,30 +264,40 @@
 
   <!-- Modal Detalhes Evento -->
   <div id="eventoDetailModal" class="modal-backdrop" hidden>
-    <div class="modal-card" style="width:min(720px,95vw);max-height:90vh;overflow-y:auto;">
+    <div class="modal-card" style="width:min(780px,95vw);max-height:90vh;overflow-y:auto;">
       <div class="modal-header">
         <h3 id="eventoDetailTitle">Detalhes do Evento</h3>
         <button type="button" class="modal-close" id="eventoDetailClose" aria-label="Fechar">✖</button>
       </div>
-      <p id="eventoDetailDesc" style="color:var(--text-muted);font-size:0.9rem;margin-bottom:8px;"></p>
-      <p id="eventoDetailDept" style="font-size:0.85rem;margin-bottom:12px;"></p>
 
-      <div class="dashboard-grid" id="eventoDetailDashboard" style="margin-bottom:16px;"></div>
-
-      <h4 style="margin-bottom:6px;">Receitas</h4>
-      <div class="table-wrapper" style="margin-bottom:16px;">
-        <table>
-          <thead><tr><th>Título</th><th>Categoria</th><th>Data</th><th>Valor</th></tr></thead>
-          <tbody id="eventoDetailReceitas"><tr><td colspan="4">Sem receitas.</td></tr></tbody>
-        </table>
+      <div class="evento-detail-header">
+        <div class="evento-detail-info">
+          <p class="evento-detail-desc" id="eventoDetailDesc"></p>
+          <span class="evento-detail-dept-badge" id="eventoDetailDept" hidden></span>
+          <p class="evento-detail-dates" id="eventoDetailDates"></p>
+        </div>
       </div>
 
-      <h4 style="margin-bottom:6px;">Despesas</h4>
-      <div class="table-wrapper" style="margin-bottom:16px;">
-        <table>
-          <thead><tr><th>Título</th><th>Departamento</th><th>Data</th><th>Valor</th></tr></thead>
-          <tbody id="eventoDetailFaturas"><tr><td colspan="4">Sem despesas.</td></tr></tbody>
-        </table>
+      <div class="evento-detail-summary" id="eventoDetailDashboard"></div>
+
+      <div class="evento-detail-section">
+        <h4>Receitas</h4>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Título</th><th>Categoria</th><th>Data</th><th>Valor</th></tr></thead>
+            <tbody id="eventoDetailReceitas"><tr><td colspan="4">Sem receitas.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="evento-detail-section">
+        <h4>Despesas</h4>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Título</th><th>Departamento</th><th>Data</th><th>Valor</th></tr></thead>
+            <tbody id="eventoDetailFaturas"><tr><td colspan="4">Sem despesas.</td></tr></tbody>
+          </table>
+        </div>
       </div>
 
       <div class="modal-actions">
