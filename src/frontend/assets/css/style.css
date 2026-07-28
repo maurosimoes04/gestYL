@@ -958,6 +958,11 @@ section h2 {
   color: var(--text-muted);
 }
 
+.status-overdue {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
 /* ======================================================
    LOADING STATES
 ====================================================== */

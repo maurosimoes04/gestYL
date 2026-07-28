@@ -36,12 +36,17 @@ router.get('/', async (req, res) => {
         { tipo: { contains: q, mode: 'insensitive' } },
         { numero: { contains: q, mode: 'insensitive' } },
         { estado: { contains: q, mode: 'insensitive' } },
+        { fornecedor: { contains: q, mode: 'insensitive' } },
       ];
     }
     if (dateFrom || dateTo) {
       where.data = {};
       if (dateFrom) where.data.gte = new Date(dateFrom);
       if (dateTo) where.data.lte = new Date(dateTo);
+    }
+    if (req.query.vencidas === 'true') {
+      where.estado = 'Pendente';
+      where.dataVencimento = { lt: new Date() };
     }
 
     const faturas = await prisma.fatura.findMany({
@@ -131,7 +136,7 @@ router.get('/:id', async (req, res) => {
 // POST /faturas
 router.post('/', upload.single('anexo'), async (req, res) => {
   try {
-    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'departamento', 'tipo', 'numero', 'estado', 'descricao', 'detalhes', 'inventarioId'];
+    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'departamento', 'tipo', 'numero', 'estado', 'descricao', 'detalhes', 'inventarioId', 'fornecedor', 'fornecedorNif', 'dataVencimento'];
     const payload: any = {};
     for (const k of ALLOWED_FIELDS) {
       const v = req.body[k];
@@ -139,6 +144,7 @@ router.post('/', upload.single('anexo'), async (req, res) => {
     }
     if (payload.valor) payload.valor = parseFloat(payload.valor);
     if (payload.data) payload.data = new Date(payload.data);
+    if (payload.dataVencimento) payload.dataVencimento = new Date(payload.dataVencimento);
     if (payload.inventarioId) payload.inventarioId = Number(payload.inventarioId);
     else delete payload.inventarioId;
 
@@ -208,7 +214,7 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     const fatura = await prisma.fatura.findUnique({ where: { id } });
     if (!fatura) return res.status(404).json({ error: 'Fatura não encontrada' });
 
-    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'departamento', 'tipo', 'numero', 'estado', 'descricao', 'detalhes', 'inventarioId'];
+    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'departamento', 'tipo', 'numero', 'estado', 'descricao', 'detalhes', 'inventarioId', 'fornecedor', 'fornecedorNif', 'dataVencimento'];
     const payload: any = {};
     for (const k of ALLOWED_FIELDS) {
       const v = req.body[k];
@@ -216,6 +222,7 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     }
     if (payload.valor) payload.valor = parseFloat(payload.valor);
     if (payload.data) payload.data = new Date(payload.data);
+    if (payload.dataVencimento) payload.dataVencimento = new Date(payload.dataVencimento);
     if (payload.inventarioId) payload.inventarioId = Number(payload.inventarioId);
     else delete payload.inventarioId;
 
