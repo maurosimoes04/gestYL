@@ -124,6 +124,11 @@
       </div>
     </section>
 
+    <datalist id="contasSugeridas">
+      <option value="Caixa">
+      <option value="Banco Principal">
+    </datalist>
+
     <!-- ================= TESOURARIA ================= -->
     <section id="tesouraria" class="section-animate" hidden>
       <div class="section-header">
@@ -158,7 +163,7 @@
         <form id="movimentoForm" class="form-modern">
           <div class="form-grid">
             <div class="form-field"><label for="tipoMovimento">Tipo <span class="form-required">*</span></label><select id="tipoMovimento" required><option value="entrada">Entrada</option><option value="saida">Saída</option></select></div>
-            <div class="form-field"><label for="contaMovimento">Conta <span class="form-required">*</span></label><input id="contaMovimento" required placeholder="ex: Caixa, Banco CGD"></div>
+            <div class="form-field"><label for="contaMovimento">Conta <span class="form-required">*</span></label><input id="contaMovimento" list="contasSugeridas" required placeholder="ex: Caixa, Banco CGD"></div>
             <div class="form-field"><label for="valorMovimento">Valor (€) <span class="form-required">*</span></label><input type="number" step="0.01" id="valorMovimento" required min="0" placeholder="0.00"></div>
             <div class="form-field"><label for="dataMovimento">Data <span class="form-required">*</span></label><input type="date" id="dataMovimento" required></div>
             <div class="form-field"><label for="referenciaMovimento">Referência <span class="form-optional">opcional</span></label><input id="referenciaMovimento" placeholder="ex: nº de transferência"></div>
@@ -524,6 +529,7 @@
             <div class="form-field"><label for="dataFatura">Data <span class="form-required">*</span></label><input type="date" id="dataFatura" required></div>
             <div class="form-field"><label for="dataVencimentoFatura">Data de vencimento <span class="form-optional">opcional</span></label><input type="date" id="dataVencimentoFatura"></div>
             <div class="form-field"><label for="estadoFatura">Estado</label><select id="estadoFatura"><option>Pendente</option><option>Paga</option></select></div>
+            <div class="form-field" id="contaFaturaWrap" hidden><label for="contaFatura">Conta <span class="form-optional">opcional</span></label><input id="contaFatura" list="contasSugeridas" placeholder="ex: Caixa, Banco Principal"></div>
             <div class="form-field form-field-full">
               <label>Eventos <span class="form-optional">opcional</span></label>
               <div class="multi-evento-wrap" id="faturaEventosWrap">
@@ -595,6 +601,7 @@
             <div class="form-field"><label for="valorReceita">Valor (€) <span class="form-required">*</span></label><input type="number" step="0.01" id="valorReceita" required min="0" placeholder="0.00"></div>
             <div class="form-field"><label for="dataReceita">Data <span class="form-required">*</span></label><input type="date" id="dataReceita" required></div>
             <div class="form-field"><label for="estadoReceita">Estado</label><select id="estadoReceita"><option>Previsto</option><option>Pendente</option><option>Recebido</option></select></div>
+            <div class="form-field" id="contaReceitaWrap" hidden><label for="contaReceita">Conta <span class="form-optional">opcional</span></label><input id="contaReceita" list="contasSugeridas" placeholder="ex: Caixa, Banco Principal"></div>
           </div>
         </div>
         <div class="form-fieldset">

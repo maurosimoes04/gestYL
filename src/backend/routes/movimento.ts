@@ -15,7 +15,14 @@ router.get('/', async (req, res) => {
       if (dateFrom) where.data.gte = new Date(dateFrom);
       if (dateTo) where.data.lte = new Date(dateTo);
     }
-    const movimentos = await prisma.movimento.findMany({ where, orderBy: { data: 'desc' } });
+    const movimentos = await prisma.movimento.findMany({
+      where,
+      orderBy: { data: 'desc' },
+      include: {
+        fatura: { select: { id: true, titulo: true } },
+        receita: { select: { id: true, titulo: true } },
+      },
+    });
     res.json(movimentos);
   } catch (err) {
     res.status(500).json({ error: 'Erro ao listar movimentos' });
@@ -39,6 +46,13 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
+    const id = Number(req.params.id);
+    const existing = await prisma.movimento.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Movimento não encontrado' });
+    if (existing.faturaId || existing.receitaId) {
+      return res.status(400).json({ error: 'Este movimento é gerado automaticamente — edite a despesa/receita de origem.' });
+    }
+
     const ALLOWED_FIELDS = ['tipo', 'conta', 'valor', 'data', 'referencia', 'descricao'] as const;
     const payload: any = {};
     for (const k of ALLOWED_FIELDS) {
@@ -47,7 +61,7 @@ router.put('/:id', async (req, res) => {
     if (payload.valor) payload.valor = parseFloat(payload.valor);
     if (payload.data) payload.data = new Date(payload.data);
     const mov = await prisma.movimento.update({
-      where: { id: Number(req.params.id) },
+      where: { id },
       data: payload,
     });
     res.json(mov);
@@ -58,7 +72,13 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    await prisma.movimento.delete({ where: { id: Number(req.params.id) } });
+    const id = Number(req.params.id);
+    const existing = await prisma.movimento.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Movimento não encontrado' });
+    if (existing.faturaId || existing.receitaId) {
+      return res.status(400).json({ error: 'Este movimento é gerado automaticamente — edite a despesa/receita de origem.' });
+    }
+    await prisma.movimento.delete({ where: { id } });
     res.json({ message: 'Movimento removido com sucesso' });
   } catch (err) {
     res.status(500).json({ error: 'Erro ao remover movimento' });

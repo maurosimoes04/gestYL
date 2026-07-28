@@ -63,6 +63,7 @@ model Fatura {
 
   inventario    Inventario?    @relation(fields: [inventarioId], references: [id], onDelete: SetNull)
   faturaEventos FaturaEvento[]
+  movimento     Movimento?
 
   @@index([departamento])
   @@index([estado])
@@ -117,8 +118,13 @@ model Movimento {
   data       DateTime @db.Date
   referencia String?
   descricao  String?
+  faturaId   Int?     @unique
+  receitaId  Int?     @unique
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  fatura  Fatura?  @relation(fields: [faturaId], references: [id], onDelete: Cascade)
+  receita Receita? @relation(fields: [receitaId], references: [id], onDelete: Cascade)
 
   @@index([data])
   @@map("movimentos")
@@ -138,6 +144,7 @@ model Receita {
   updatedAt    DateTime @updatedAt
 
   receitaEventos ReceitaEvento[]
+  movimento      Movimento?
 
   @@index([data])
   @@index([estado])

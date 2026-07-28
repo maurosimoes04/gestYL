@@ -2,6 +2,7 @@ import express from 'express';
 import { prisma } from '../config/prisma';
 import { Prisma } from '@prisma/client';
 import upload from '../middleware/upload';
+import { syncMovimentoParaReceita } from '../services/movimentoSync';
 
 const router = express.Router();
 const RECEITAS_FOLDER_ID = process.env.GDRIVE_RECEITAS_FOLDER_ID!;
@@ -97,6 +98,7 @@ router.post('/', upload.single('anexo'), async (req, res) => {
       },
       include: { receitaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
     });
+    await syncMovimentoParaReceita(receita, req.body.conta);
     const warnings: string[] = [];
     if (req.file && !payload.anexo) warnings.push(`Anexo não guardado: ${driveError}`);
     res.status(201).json({ ...receita, _warnings: warnings.length ? warnings : undefined });
@@ -113,7 +115,10 @@ router.get('/:id', async (req, res) => {
   try {
     const receita = await prisma.receita.findUnique({
       where: { id: Number(req.params.id) },
-      include: { receitaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
+      include: {
+        receitaEventos: { include: { evento: { select: { id: true, nome: true } } } },
+        movimento: { select: { conta: true } },
+      },
     });
     if (!receita) return res.status(404).json({ error: 'Receita não encontrada' });
     res.json(receita);
@@ -221,6 +226,7 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
       data: payload,
       include: { receitaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
     });
+    await syncMovimentoParaReceita(updated, req.body.conta);
     const warnings: string[] = [];
     if (req.file && !payload.anexo) warnings.push(`Anexo não guardado: ${driveError}`);
     res.json({ ...updated, _warnings: warnings.length ? warnings : undefined });

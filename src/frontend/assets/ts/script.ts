@@ -383,6 +383,12 @@ function setDefaultExportPeriodo() {
   setValue('exportAno', String(now.getFullYear()));
 }
 
+function toggleContaField(estadoValue: string, wrapId: string, condicao: string) {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  wrap.toggleAttribute('hidden', estadoValue !== condicao);
+}
+
 function toggleExportPeriodoFields(periodo: string) {
   const datasWrap = document.getElementById('exportDatas');
   const anoWrap = document.getElementById('exportAnoWrap');
@@ -1305,6 +1311,8 @@ async function guardarFatura(e: SubmitEvent) {
   formData.append('fornecedorNif', getValue('fornecedorNifFatura').trim());
   const dataVencimento = getValue('dataVencimentoFatura');
   if (dataVencimento) formData.append('dataVencimento', dataVencimento);
+  const contaFatura = getValue('contaFatura').trim();
+  if (contaFatura) formData.append('conta', contaFatura);
   const eventosData = getEventoRows('faturaEventosList');
   formData.append('eventos', JSON.stringify(eventosData));
 
@@ -1415,7 +1423,9 @@ function renderMovimentosPage() {
   container.innerHTML = page.map((m: any) => {
     const tipoLabel = m.tipo === 'entrada' ? 'Entrada' : 'Saída';
     const amountClass = m.tipo === 'entrada' ? 'receita-color' : 'despesa-color';
-    const actions = isReadOnly() ? '' : `
+    const origemTag = m.fatura ? `<span class="record-tag">Despesa: ${escapeHtml(m.fatura.titulo)}</span>`
+      : m.receita ? `<span class="record-tag">Receita: ${escapeHtml(m.receita.titulo)}</span>` : '';
+    const actions = (isReadOnly() || m.faturaId || m.receitaId) ? '' : `
       <div class="record-actions">
         <button class="btn-acao btn-editar-movimento" data-id="${m.id}" title="Editar">${icon('edit')}</button>
         <button class="btn-acao btn-remover-movimento" data-id="${m.id}" title="Remover">${icon('trash')}</button>
@@ -1427,6 +1437,7 @@ function renderMovimentosPage() {
           <span>${tipoLabel}</span>
           ${m.referencia ? `<span>Ref. ${escapeHtml(m.referencia)}</span>` : ''}
           ${m.descricao ? `<span>${escapeHtml(m.descricao)}</span>` : ''}
+          ${origemTag}
         </div>
       </div>
       <div class="record-details">
@@ -1627,6 +1638,8 @@ async function guardarReceita(e: SubmitEvent) {
   formData.append('categoria', categoria);
   formData.append('estado', getValue('estadoReceita') || 'Previsto');
   formData.append('financiador', getValue('financiadorReceita').trim());
+  const contaReceita = getValue('contaReceita').trim();
+  if (contaReceita) formData.append('conta', contaReceita);
   formData.append('valor', String(valor));
   formData.append('data', data);
   formData.append('observacoes', getValue('observacoesReceita').trim());
@@ -2096,6 +2109,7 @@ function setupEventListeners() {
       editingFaturaId = null;
       removeFaturaAnexo = false;
       clearEventoRows('faturaEventosList');
+      toggleContaField(getValue('estadoFatura') || 'Pendente', 'contaFaturaWrap', 'Paga');
       const ea = document.getElementById('existingAnexoFatura');
       if (ea) ea.setAttribute('hidden', 'true');
       const df = document.getElementById('dropFatura');
@@ -2116,6 +2130,7 @@ function setupEventListeners() {
       editingFaturaId = null;
       removeFaturaAnexo = false;
       clearEventoRows('faturaEventosList');
+      toggleContaField(getValue('estadoFatura') || 'Pendente', 'contaFaturaWrap', 'Paga');
       const ea = document.getElementById('existingAnexoFatura');
       if (ea) ea.setAttribute('hidden', 'true');
       const df = document.getElementById('dropFatura');
@@ -2153,6 +2168,11 @@ function setupEventListeners() {
   const faturaForm = document.getElementById('faturaForm');
   if (faturaForm) faturaForm.addEventListener('submit', guardarFatura);
 
+  const estadoFaturaSelect = document.getElementById('estadoFatura') as HTMLSelectElement | null;
+  if (estadoFaturaSelect) {
+    estadoFaturaSelect.addEventListener('change', () => toggleContaField(estadoFaturaSelect.value, 'contaFaturaWrap', 'Paga'));
+  }
+
   const btnNovaReceita = document.getElementById('btnNovaReceita');
   if (btnNovaReceita) {
     btnNovaReceita.addEventListener('click', () => {
@@ -2163,6 +2183,7 @@ function setupEventListeners() {
       editingReceitaId = null;
       removeReceitaAnexo = false;
       clearEventoRows('receitaEventosList');
+      toggleContaField(getValue('estadoReceita') || 'Previsto', 'contaReceitaWrap', 'Recebido');
       const ea = document.getElementById('existingAnexoReceita');
       if (ea) ea.setAttribute('hidden', 'true');
       const dr = document.getElementById('dropReceita');
@@ -2187,6 +2208,11 @@ function setupEventListeners() {
   const receitaForm = document.getElementById('receitaForm');
   if (receitaForm) receitaForm.addEventListener('submit', guardarReceita);
 
+  const estadoReceitaSelect = document.getElementById('estadoReceita') as HTMLSelectElement | null;
+  if (estadoReceitaSelect) {
+    estadoReceitaSelect.addEventListener('change', () => toggleContaField(estadoReceitaSelect.value, 'contaReceitaWrap', 'Recebido'));
+  }
+
   const btnFiltros = document.getElementById('btnAplicarFiltros');
   if (btnFiltros) btnFiltros.addEventListener('click', () => carregarFaturas());
 
@@ -2203,6 +2229,7 @@ function setupEventListeners() {
       editingReceitaId = null;
       removeReceitaAnexo = false;
       clearEventoRows('receitaEventosList');
+      toggleContaField(getValue('estadoReceita') || 'Previsto', 'contaReceitaWrap', 'Recebido');
       const ea = document.getElementById('existingAnexoReceita');
       if (ea) ea.setAttribute('hidden', 'true');
       const dr = document.getElementById('dropReceita');
@@ -2660,6 +2687,8 @@ async function editarReceita(id: number) {
     setValue('valorReceita', r.valor?.toString() || '');
     setValue('dataReceita', (r.data || '').slice(0, 10));
     setValue('observacoesReceita', r.observacoes || '');
+    setValue('contaReceita', r.movimento?.conta || '');
+    toggleContaField(r.estado || 'Previsto', 'contaReceitaWrap', 'Recebido');
     clearEventoRows('receitaEventosList');
     if (r.receitaEventos?.length) {
       r.receitaEventos.forEach((re: any) => {
@@ -2722,6 +2751,8 @@ async function editarFatura(id: number) {
     setValue('fornecedorFatura', f.fornecedor || '');
     setValue('fornecedorNifFatura', f.fornecedorNif || '');
     setValue('dataVencimentoFatura', (f.dataVencimento || '').slice(0, 10));
+    setValue('contaFatura', f.movimento?.conta || '');
+    toggleContaField(f.estado || 'Pendente', 'contaFaturaWrap', 'Paga');
     clearEventoRows('faturaEventosList');
     if (f.faturaEventos?.length) {
       f.faturaEventos.forEach((fe: any) => {
