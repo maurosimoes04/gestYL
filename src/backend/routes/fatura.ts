@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { Prisma } from '@prisma/client';
+import { syncMovimentoParaFatura } from '../services/movimentoSync';
 
 const bootLog = (...args: any[]) => {
   if (process.env.BOOT_DEBUG === 'true') console.log(...args);
@@ -124,7 +125,10 @@ router.get('/:id', async (req, res) => {
   try {
     const fatura = await prisma.fatura.findUnique({
       where: { id: Number(req.params.id) },
-      include: { faturaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
+      include: {
+        faturaEventos: { include: { evento: { select: { id: true, nome: true } } } },
+        movimento: { select: { conta: true } },
+      },
     });
     if (fatura) res.json(fatura);
     else res.status(404).json({ error: 'Fatura não encontrada' });
@@ -194,6 +198,7 @@ router.post('/', upload.single('anexo'), async (req, res) => {
       },
       include: { faturaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
     });
+    await syncMovimentoParaFatura(novaFatura, req.body.conta);
     const warnings: string[] = [];
     if (req.file && !payload.anexo) warnings.push(`Anexo não guardado: ${driveError}`);
     res.status(201).json({ ...novaFatura, _warnings: warnings.length ? warnings : undefined });
@@ -292,6 +297,7 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
       data: payload,
       include: { faturaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
     });
+    await syncMovimentoParaFatura(updated, req.body.conta);
     const warnings: string[] = [];
     if (req.file && !payload.anexo) warnings.push(`Anexo não guardado: ${driveError}`);
     res.json({ ...updated, _warnings: warnings.length ? warnings : undefined });
