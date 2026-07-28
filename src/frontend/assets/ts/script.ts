@@ -27,7 +27,8 @@ const SECTION_GROUPS: Record<string, string[]> = {
   faturas: ['acoesRapidas', 'faturas'],
   receitas: ['acoesRapidasReceitas', 'receitas'],
   eventos: ['eventos'],
-  inventario: ['acoesRapidasInventario', 'inventario']
+  inventario: ['acoesRapidasInventario', 'inventario'],
+  tesouraria: ['tesouraria']
 };
 
 let chartInstance: any = null;
@@ -41,6 +42,8 @@ let editingReceitaId: number | null = null;
 let removeFaturaAnexo = false;
 let removeReceitaAnexo = false;
 let editingInventarioId: number | null = null;
+let editingMovimentoId: number | null = null;
+let movimentoPage = 0;
 let sharingEventoId: number | null = null;
 let eventosCache: any[] = [];
 let faturasCache: any[] = [];
@@ -325,6 +328,14 @@ function estadoBadge(estado: string | null): string {
   return `<span class="${cls}">${escapeHtml(estado)}</span>`;
 }
 
+function isFaturaVencida(f: any): boolean {
+  return f.estado === 'Pendente' && !!f.dataVencimento && new Date(f.dataVencimento) < new Date();
+}
+
+function vencidaBadge(f: any): string {
+  return isFaturaVencida(f) ? '<span class="status-badge status-overdue">Vencida</span>' : '';
+}
+
 const PAGE_SIZE = 15;
 let faturaPage = 0;
 let receitaPage = 0;
@@ -497,7 +508,7 @@ function setActiveNav(target: string) {
 
 const loadedSections = new Set<string>();
 
-function setActiveSection(target: 'resumo' | 'faturas' | 'receitas' | 'eventos' | 'inventario') {
+function setActiveSection(target: 'resumo' | 'faturas' | 'receitas' | 'eventos' | 'inventario' | 'tesouraria') {
   hideForms();
   const showSet = new Set(SECTION_GROUPS[target]);
   Object.values(SECTION_GROUPS).flat().forEach(id => {
@@ -527,6 +538,10 @@ async function lazyLoadSection(target: string) {
       break;
     case 'inventario':
       if (!inventarioCache.length) await carregarInventario();
+      break;
+    case 'tesouraria':
+      if (!movimentosCache.length) await carregarMovimentos();
+      else renderMovimentosPage();
       break;
   }
 }
@@ -1181,7 +1196,8 @@ async function carregarFaturas() {
   if (to) params.append('dateTo', to);
   if (q) params.append('q', q);
   if (departamento) params.append('departamento', departamento);
-  if (estado) params.append('estado', estado);
+  if (estado === 'vencidas') params.append('vencidas', 'true');
+  else if (estado) params.append('estado', estado);
   if (eventoId) params.append('eventoId', eventoId);
 
   showSkeleton('listaFaturas', 5);
@@ -1228,13 +1244,15 @@ function renderFaturasPage() {
           <span>${escapeHtml(f.tipo || 'Fatura')}</span>
           ${f.numero ? `<span>Nº ${escapeHtml(f.numero)}</span>` : ''}
           <span>${escapeHtml(f.departamento || '-')}</span>
+          ${f.fornecedor ? `<span>${escapeHtml(f.fornecedor)}</span>` : ''}
           ${eventoTags}
         </div>
       </div>
       <div class="record-details">
         <div class="record-amount despesa-color">${formatCurrency(f.valor)}</div>
-        <div class="record-date">${formatDate(f.data)}</div>
+        <div class="record-date">${formatDate(f.data)}${f.dataVencimento ? ` <span class="text-muted">(vence ${formatDate(f.dataVencimento)})</span>` : ''}</div>
         ${estadoBadge(f.estado)}
+        ${vencidaBadge(f)}
         ${anexoLink ? `<button class="btn-anexo-open record-anexo" data-url="${escapeHtml(anexoLink)}">${icon('file')}</button>` : ''}
       </div>
       ${actions}
@@ -1279,10 +1297,14 @@ async function guardarFatura(e: SubmitEvent) {
   formData.append('valor', String(valor));
   formData.append('data', data);
   formData.append('departamento', departamento);
-  formData.append('tipo', 'Fatura');
+  formData.append('tipo', getValue('tipoFatura') || 'Fatura');
   formData.append('numero', getValue('numeroFatura').trim());
   formData.append('estado', getValue('estadoFatura') || 'Pendente');
   formData.append('descricao', getValue('observacoesFatura').trim());
+  formData.append('fornecedor', getValue('fornecedorFatura').trim());
+  formData.append('fornecedorNif', getValue('fornecedorNifFatura').trim());
+  const dataVencimento = getValue('dataVencimentoFatura');
+  if (dataVencimento) formData.append('dataVencimento', dataVencimento);
   const eventosData = getEventoRows('faturaEventosList');
   formData.append('eventos', JSON.stringify(eventosData));
 
@@ -1361,13 +1383,169 @@ async function carregarReceitas() {
 }
 
 async function carregarMovimentos() {
+  const params = new URLSearchParams();
+  const conta = getValue('filterMovConta');
+  const tipo = getValue('filterMovTipo');
+  const from = getValue('filterMovFrom');
+  const to = getValue('filterMovTo');
+  if (conta) params.append('conta', conta);
+  if (tipo) params.append('tipo', tipo);
+  if (from) params.append('dateFrom', from);
+  if (to) params.append('dateTo', to);
   try {
-    const resp = await fetch(API_MOVIMENTOS);
+    const resp = await fetch(`${API_MOVIMENTOS}?${params.toString()}`);
     if (!resp.ok) throw new Error('Erro ao listar movimentos');
     movimentosCache = await resp.json();
   } catch {
     movimentosCache = [];
   }
+  movimentoPage = 0;
+  renderMovimentosPage();
+}
+
+function renderMovimentosPage() {
+  const container = document.getElementById('listaMovimentos');
+  if (!container) return;
+  if (!Array.isArray(movimentosCache) || movimentosCache.length === 0) {
+    container.innerHTML = '<p class="text-muted">Nenhum movimento encontrado.</p>';
+    renderPagination('movimentosPagination', 0, 0, () => {});
+    return;
+  }
+  const page = paginate(movimentosCache, movimentoPage);
+  container.innerHTML = page.map((m: any) => {
+    const tipoLabel = m.tipo === 'entrada' ? 'Entrada' : 'Saída';
+    const amountClass = m.tipo === 'entrada' ? 'receita-color' : 'despesa-color';
+    const actions = isReadOnly() ? '' : `
+      <div class="record-actions">
+        <button class="btn-acao btn-editar-movimento" data-id="${m.id}" title="Editar">${icon('edit')}</button>
+        <button class="btn-acao btn-remover-movimento" data-id="${m.id}" title="Remover">${icon('trash')}</button>
+      </div>`;
+    return `<div class="record-row">
+      <div class="record-main">
+        <div class="record-title">${escapeHtml(m.conta || '-')}</div>
+        <div class="record-meta">
+          <span>${tipoLabel}</span>
+          ${m.referencia ? `<span>Ref. ${escapeHtml(m.referencia)}</span>` : ''}
+          ${m.descricao ? `<span>${escapeHtml(m.descricao)}</span>` : ''}
+        </div>
+      </div>
+      <div class="record-details">
+        <div class="record-amount ${amountClass}">${formatCurrency(m.valor)}</div>
+        <div class="record-date">${formatDate(m.data)}</div>
+      </div>
+      ${actions}
+    </div>`;
+  }).join('');
+  container.querySelectorAll('.btn-editar-movimento').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+      if (id) editarMovimento(parseInt(id, 10));
+    });
+  });
+  container.querySelectorAll('.btn-remover-movimento').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+      if (id) removerMovimento(parseInt(id, 10));
+    });
+  });
+  renderPagination('movimentosPagination', movimentosCache.length, movimentoPage, (p) => { movimentoPage = p; renderMovimentosPage(); });
+}
+
+async function guardarMovimento(e: SubmitEvent) {
+  e.preventDefault();
+  if (isReadOnly()) { showNotification('Sem permissões para alterar movimentos.', 'error'); return; }
+  const tipo = getValue('tipoMovimento') || 'entrada';
+  const conta = getValue('contaMovimento').trim();
+  const valor = parseFloat(getValue('valorMovimento'));
+  const data = getValue('dataMovimento');
+  if (!conta || !data || Number.isNaN(valor)) {
+    showNotification('Preencha todos os campos obrigatórios do movimento.', 'error');
+    return;
+  }
+  const payload = {
+    tipo,
+    conta,
+    valor,
+    data,
+    referencia: getValue('referenciaMovimento').trim(),
+    descricao: getValue('descricaoMovimento').trim(),
+  };
+  const url = editingMovimentoId ? `${API_MOVIMENTOS}/${editingMovimentoId}` : API_MOVIMENTOS;
+  const method = editingMovimentoId ? 'PUT' : 'POST';
+  try {
+    const resp = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) throw new Error('Erro ao guardar movimento');
+    showNotification(editingMovimentoId ? 'Movimento atualizado com sucesso!' : 'Movimento criado com sucesso!', 'success');
+    resetForm('movimentoForm');
+    toggleSection('formularioMovimento', false);
+    editingMovimentoId = null;
+    await carregarMovimentos();
+    atualizarDashboards(faturasCache, movimentosCache, receitasCache);
+  } catch (err: any) {
+    showNotification(err.message || 'Erro ao guardar movimento', 'error');
+  }
+}
+
+async function editarMovimento(id: number) {
+  const m = movimentosCache.find((x: any) => x.id === id);
+  if (!m) { showNotification('Movimento não encontrado', 'error'); return; }
+  toggleSection('formularioMovimento', true);
+  setValue('tipoMovimento', m.tipo || 'entrada');
+  setValue('contaMovimento', m.conta || '');
+  setValue('valorMovimento', m.valor?.toString() || '');
+  setValue('dataMovimento', (m.data || '').slice(0, 10));
+  setValue('referenciaMovimento', m.referencia || '');
+  setValue('descricaoMovimento', m.descricao || '');
+  editingMovimentoId = id;
+  const btn = document.getElementById('btnSalvarMovimento') as HTMLButtonElement | null;
+  if (btn) btn.textContent = 'Guardar Alterações';
+}
+
+async function removerMovimento(id: number) {
+  if (!confirm('Tem a certeza que deseja remover este movimento?')) return;
+  if (isReadOnly()) { showNotification('Sem permissões para remover movimentos.', 'error'); return; }
+  try {
+    const resp = await fetch(`${API_MOVIMENTOS}/${id}`, { method: 'DELETE' });
+    if (!resp.ok) throw new Error('Erro ao remover movimento');
+    showNotification('Movimento removido com sucesso!', 'success');
+    await carregarMovimentos();
+    atualizarDashboards(faturasCache, movimentosCache, receitasCache);
+  } catch {
+    showNotification('Erro ao remover movimento', 'error');
+  }
+}
+
+function setupMovimentos() {
+  const btnNovo = document.getElementById('btnNovoMovimento');
+  if (btnNovo) {
+    btnNovo.addEventListener('click', () => {
+      if (isReadOnly()) { showNotification('Sem permissões para criar movimentos.', 'error'); return; }
+      resetForm('movimentoForm');
+      editingMovimentoId = null;
+      const btn = document.getElementById('btnSalvarMovimento') as HTMLButtonElement | null;
+      if (btn) btn.textContent = 'Guardar';
+      toggleSection('formularioMovimento', true);
+    });
+  }
+
+  const btnCancelar = document.getElementById('btnCancelarMovimento');
+  if (btnCancelar) {
+    btnCancelar.addEventListener('click', () => {
+      toggleSection('formularioMovimento', false);
+      resetForm('movimentoForm');
+      editingMovimentoId = null;
+    });
+  }
+
+  const movimentoForm = document.getElementById('movimentoForm');
+  if (movimentoForm) movimentoForm.addEventListener('submit', guardarMovimento);
+
+  const btnFiltrosMov = document.getElementById('btnAplicarFiltrosMov');
+  if (btnFiltrosMov) btnFiltrosMov.addEventListener('click', () => carregarMovimentos());
 }
 
 function renderReceitasPage() {
@@ -1869,6 +2047,7 @@ function setupEventListeners() {
   document.getElementById('editarPartilhaForm')?.addEventListener('submit', guardarEditarPartilha as any);
 
   setupExportRelatorio();
+  setupMovimentos();
   const btnNovoEvento = document.getElementById('btnEscolherEvento');
   if (btnNovoEvento) {
     btnNovoEvento.addEventListener('click', () => {
@@ -2540,6 +2719,9 @@ async function editarFatura(id: number) {
     setValue('estadoFatura', f.estado || 'Pendente');
     setValue('observacoesFatura', f.descricao || '');
     setValue('tipoFatura', f.tipo || 'Fatura');
+    setValue('fornecedorFatura', f.fornecedor || '');
+    setValue('fornecedorNifFatura', f.fornecedorNif || '');
+    setValue('dataVencimentoFatura', (f.dataVencimento || '').slice(0, 10));
     clearEventoRows('faturaEventosList');
     if (f.faturaEventos?.length) {
       f.faturaEventos.forEach((fe: any) => {

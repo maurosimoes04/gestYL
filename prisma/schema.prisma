@@ -54,6 +54,9 @@ model Fatura {
   detalhes     Json?
   estado       String
   descricao    String?
+  fornecedor      String?
+  fornecedorNif   String?
+  dataVencimento  DateTime? @db.Date
   inventarioId Int?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -64,6 +67,7 @@ model Fatura {
   @@index([departamento])
   @@index([estado])
   @@index([data])
+  @@index([dataVencimento])
   @@map("Faturas")
 }
 
