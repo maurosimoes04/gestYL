@@ -2,6 +2,9 @@ import express from 'express';
 import path from 'path';
 import { Prisma } from '@prisma/client';
 import { syncMovimentoParaFatura } from '../services/movimentoSync';
+import { analisarFatura, definirValidacaoIA, recompararFatura } from '../services/documentAnalysis';
+import { backfillFaturasAntigas } from '../services/backfillFaturasAntigas';
+import { streamToBuffer } from '../utils/streamToBuffer';
 
 const bootLog = (...args: any[]) => {
   if (process.env.BOOT_DEBUG === 'true') console.log(...args);
@@ -120,6 +123,17 @@ router.get('/export/pdf', async (_req, res) => {
   }
 });
 
+// POST /faturas/backfill-antigas
+router.post('/backfill-antigas', async (_req, res) => {
+  try {
+    const resultado = await backfillFaturasAntigas();
+    res.json(resultado);
+  } catch (error: any) {
+    console.error('Erro ao executar backfill de despesas antigas:', error.message || error);
+    res.status(500).json({ error: 'Erro ao executar backfill de despesas antigas' });
+  }
+});
+
 // GET /faturas/:id
 router.get('/:id', async (req, res) => {
   try {
@@ -199,6 +213,9 @@ router.post('/', upload.single('anexo'), async (req, res) => {
       include: { faturaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
     });
     await syncMovimentoParaFatura(novaFatura, req.body.conta);
+    if (req.file) {
+      analisarFatura(novaFatura.id, req.file.buffer, req.file.mimetype, true).catch((e) => console.error('Análise IA (POST fatura):', e));
+    }
     const warnings: string[] = [];
     if (req.file && !payload.anexo) warnings.push(`Anexo não guardado: ${driveError}`);
     res.status(201).json({ ...novaFatura, _warnings: warnings.length ? warnings : undefined });
@@ -298,6 +315,11 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
       include: { faturaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
     });
     await syncMovimentoParaFatura(updated, req.body.conta);
+    if (req.file) {
+      analisarFatura(updated.id, req.file.buffer, req.file.mimetype, true).catch((e) => console.error('Análise IA (PUT fatura):', e));
+    } else {
+      await recompararFatura(updated.id);
+    }
     const warnings: string[] = [];
     if (req.file && !payload.anexo) warnings.push(`Anexo não guardado: ${driveError}`);
     res.json({ ...updated, _warnings: warnings.length ? warnings : undefined });
@@ -332,6 +354,45 @@ router.delete('/:id', async (req, res) => {
   } catch (error) {
     console.error('Erro ao eliminar fatura:', error.message || error);
     res.status(500).json({ error: 'Erro ao eliminar fatura' });
+  }
+});
+
+// POST /faturas/:id/analisar
+router.post('/:id/analisar', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const fatura = await prisma.fatura.findUnique({ where: { id } });
+    if (!fatura) return res.status(404).json({ error: 'Fatura não encontrada' });
+    const anexo = fatura.anexo as any;
+    if (!anexo?.driveFileId) return res.status(400).json({ error: 'Fatura sem anexo para analisar' });
+
+    const { streamFromDrive } = await import('../services/googleDrive');
+    const stream = await streamFromDrive(anexo.driveFileId);
+    const buffer = await streamToBuffer(stream);
+    await analisarFatura(id, buffer, anexo.mimeType || 'application/pdf', true);
+
+    const atualizada = await prisma.fatura.findUnique({
+      where: { id },
+      include: { faturaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
+    });
+    res.json(atualizada);
+  } catch (error: any) {
+    console.error('Erro ao reanalisar fatura:', error.message || error);
+    res.status(500).json({ error: 'Erro ao reanalisar fatura' });
+  }
+});
+
+// POST /faturas/:id/validar-ia
+router.post('/:id/validar-ia', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const validada = req.body?.validada !== false;
+    const atualizada = await definirValidacaoIA('fatura', id, validada);
+    if (!atualizada) return res.status(404).json({ error: 'Fatura não encontrada' });
+    res.json(atualizada);
+  } catch (error: any) {
+    console.error('Erro ao validar IA da fatura:', error.message || error);
+    res.status(500).json({ error: 'Erro ao validar IA da fatura' });
   }
 });
 
