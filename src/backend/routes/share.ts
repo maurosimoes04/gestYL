@@ -108,18 +108,36 @@ sharePublicRouter.post('/evento/:token/access', async (req, res) => {
     const totalReceitas = receitaEventos.reduce((s, re) => s + toNum(re.valor), 0);
 
     const faturas = faturaEventos.map(fe => ({
-      ...fe.fatura,
+      id: fe.fatura.id,
+      titulo: fe.fatura.titulo,
+      departamento: fe.fatura.departamento,
+      data: fe.fatura.data,
+      numero: fe.fatura.numero,
+      fornecedor: fe.fatura.fornecedor,
+      estado: fe.fatura.estado,
       valorEvento: toNum(fe.valor),
       anexoLink: fe.fatura.anexo ? `/share/evento/${token}/anexo/fatura/${fe.fatura.id}` : null,
     }));
     const receitas = receitaEventos.map(re => ({
-      ...re.receita,
+      id: re.receita.id,
+      titulo: re.receita.titulo,
+      categoria: re.receita.categoria,
+      data: re.receita.data,
+      financiador: re.receita.financiador,
+      estado: re.receita.estado,
       valorEvento: toNum(re.valor),
       anexoLink: re.receita.anexo ? `/share/evento/${token}/anexo/receita/${re.receita.id}` : null,
     }));
 
     return res.json({
-      evento: share.evento,
+      evento: {
+        id: share.evento.id,
+        nome: share.evento.nome,
+        descricao: share.evento.descricao,
+        departamento: share.evento.departamento,
+        dataInicio: share.evento.data_inicio,
+        dataFim: share.evento.data_fim,
+      },
       faturas,
       receitas,
       resumo: {

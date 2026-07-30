@@ -16,6 +16,17 @@ function formatDate(value) {
   return new Date(value).toLocaleDateString('pt-PT');
 }
 
+function estadoBadge(estado) {
+  const map = {
+    Paga: 'status-ok',
+    Recebido: 'status-ok',
+    Pendente: 'status-pending',
+    Previsto: 'status-pending',
+  };
+  const cls = map[estado] || 'status-default';
+  return `<span class="status-badge ${cls}">${escapeHtml(estado || '-')}</span>`;
+}
+
 function setAccessMsg(message, type) {
   const el = document.getElementById('shareAccessMsg');
   if (!el) return;
@@ -50,14 +61,19 @@ function renderTable(rows, targetId, cols, anexoLabel) {
       ? `<tr>
           <td>${escapeHtml(row.titulo) || '-'}</td>
           <td>${escapeHtml(row.categoria) || '-'}</td>
+          <td>${escapeHtml(row.financiador) || '-'}</td>
           <td>${formatDate(row.data)}</td>
+          <td>${estadoBadge(row.estado)}</td>
           <td>${formatCurrency(displayVal)}</td>
           <td>${anexo}</td>
         </tr>`
       : `<tr>
           <td>${escapeHtml(row.titulo) || '-'}</td>
           <td>${escapeHtml(row.departamento) || '-'}</td>
+          <td>${escapeHtml(row.fornecedor) || '-'}</td>
+          <td>${escapeHtml(row.numero) || '-'}</td>
           <td>${formatDate(row.data)}</td>
+          <td>${estadoBadge(row.estado)}</td>
           <td>${formatCurrency(displayVal)}</td>
           <td>${anexo}</td>
         </tr>`;
@@ -109,6 +125,14 @@ document.getElementById('shareAccessForm')?.addEventListener('submit', async (e)
     document.getElementById('shareEventoNome').textContent = data.evento?.nome || 'Evento';
     document.getElementById('shareEventoDesc').textContent = data.evento?.descricao || '';
 
+    const periodoEl = document.getElementById('shareEventoPeriodo');
+    if (periodoEl && (data.evento?.dataInicio || data.evento?.dataFim)) {
+      const inicio = data.evento?.dataInicio ? formatDate(data.evento.dataInicio) : '?';
+      const fim = data.evento?.dataFim ? formatDate(data.evento.dataFim) : '?';
+      periodoEl.textContent = inicio === fim ? inicio : `${inicio} — ${fim}`;
+      periodoEl.removeAttribute('hidden');
+    }
+
     const deptEl = document.getElementById('shareEventoDept');
     if (data.evento?.departamento) {
       deptEl.textContent = data.evento.departamento;
@@ -125,8 +149,8 @@ document.getElementById('shareAccessForm')?.addEventListener('submit', async (e)
     const receitas = (data.receitas || []).map((r) => ({ ...r, __tipo: 'receita' }));
     const faturas = (data.faturas || []).map((f) => ({ ...f, __tipo: 'fatura' }));
 
-    renderTable(receitas, 'shareReceitas', 5, 'Abrir');
-    renderTable(faturas, 'shareDespesas', 5, 'Abrir');
+    renderTable(receitas, 'shareReceitas', 7, 'Abrir');
+    renderTable(faturas, 'shareDespesas', 8, 'Abrir');
   } catch (err) {
     setAccessMsg(err.message || 'Erro ao validar partilha.', 'error');
   } finally {
