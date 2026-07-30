@@ -9,6 +9,31 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/assets/css/style.css" />
   <style>
+    body {
+      background: var(--bg-page);
+    }
+
+    .share-header {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--gray-200);
+      padding: var(--space-4) var(--space-6);
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .share-header img {
+      height: 36px;
+    }
+
+    .share-header .share-header-label {
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--text-muted);
+      padding-left: var(--space-3);
+      border-left: 1px solid var(--gray-200);
+    }
+
     .share-page {
       max-width: 900px;
       margin: 0 auto;
@@ -90,9 +115,15 @@
       margin-bottom: 4px;
     }
 
+    .share-evento-header .share-period {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-bottom: 4px;
+    }
+
     .share-evento-header .share-dept {
       display: inline-block;
-      background: #eef2ff;
+      background: var(--primary-soft);
       color: var(--primary);
       padding: 4px 12px;
       border-radius: 999px;
@@ -181,15 +212,9 @@
   </style>
 </head>
 <body>
-  <header class="main-header">
-    <div class="header-inner">
-      <a href="/" class="logo-block">
-        <img src="https://tnmycajugdovbnqydyvx.supabase.co/storage/v1/object/public/IMAGENS/logo.png" alt="Gestao Financeira YL" class="logo">
-      </a>
-      <nav class="main-nav">
-        <span class="nav-link active">Partilha de Evento</span>
-      </nav>
-    </div>
+  <header class="share-header">
+    <img src="https://tnmycajugdovbnqydyvx.supabase.co/storage/v1/object/public/IMAGENS/logo.png" alt="Gestão Financeira YL">
+    <span class="share-header-label">Partilha de Evento</span>
   </header>
 
   <div class="share-page">
@@ -215,6 +240,7 @@
       <div class="share-evento-header fade-in">
         <h2 id="shareEventoNome">Evento</h2>
         <p class="share-desc" id="shareEventoDesc"></p>
+        <p class="share-period" id="shareEventoPeriodo" hidden></p>
         <span class="share-dept" id="shareEventoDept" hidden></span>
         <p class="share-session-info" id="shareSessionInfo"></p>
       </div>
@@ -228,7 +254,9 @@
             <tr>
               <th>Titulo</th>
               <th>Categoria</th>
+              <th>Financiador</th>
               <th>Data</th>
+              <th>Estado</th>
               <th>Valor</th>
               <th>Anexo</th>
             </tr>
@@ -244,7 +272,10 @@
             <tr>
               <th>Titulo</th>
               <th>Departamento</th>
+              <th>Fornecedor</th>
+              <th>Nº Documento</th>
               <th>Data</th>
+              <th>Estado</th>
               <th>Valor</th>
               <th>Anexo</th>
             </tr>
