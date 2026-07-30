@@ -3,6 +3,8 @@ import { prisma } from '../config/prisma';
 import { Prisma } from '@prisma/client';
 import upload from '../middleware/upload';
 import { syncMovimentoParaReceita } from '../services/movimentoSync';
+import { analisarReceita, definirValidacaoIA, recompararReceita } from '../services/documentAnalysis';
+import { streamToBuffer } from '../utils/streamToBuffer';
 
 const router = express.Router();
 const RECEITAS_FOLDER_ID = process.env.GDRIVE_RECEITAS_FOLDER_ID!;
@@ -99,6 +101,9 @@ router.post('/', upload.single('anexo'), async (req, res) => {
       include: { receitaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
     });
     await syncMovimentoParaReceita(receita, req.body.conta);
+    if (req.file) {
+      analisarReceita(receita.id, req.file.buffer, req.file.mimetype, true).catch((e) => console.error('Análise IA (POST receita):', e));
+    }
     const warnings: string[] = [];
     if (req.file && !payload.anexo) warnings.push(`Anexo não guardado: ${driveError}`);
     res.status(201).json({ ...receita, _warnings: warnings.length ? warnings : undefined });
@@ -124,6 +129,45 @@ router.get('/:id', async (req, res) => {
     res.json(receita);
   } catch (err) {
     res.status(500).json({ error: 'Erro ao obter receita' });
+  }
+});
+
+// POST /receitas/:id/analisar
+router.post('/:id/analisar', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const receita = await prisma.receita.findUnique({ where: { id } });
+    if (!receita) return res.status(404).json({ error: 'Receita não encontrada' });
+    const anexo = receita.anexo as any;
+    if (!anexo?.driveFileId) return res.status(400).json({ error: 'Receita sem anexo para analisar' });
+
+    const { streamFromDrive } = await import('../services/googleDrive');
+    const stream = await streamFromDrive(anexo.driveFileId);
+    const buffer = await streamToBuffer(stream);
+    await analisarReceita(id, buffer, anexo.mimeType || 'application/pdf', true);
+
+    const atualizada = await prisma.receita.findUnique({
+      where: { id },
+      include: { receitaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
+    });
+    res.json(atualizada);
+  } catch (error: any) {
+    console.error('Erro ao reanalisar receita:', error.message || error);
+    res.status(500).json({ error: 'Erro ao reanalisar receita' });
+  }
+});
+
+// POST /receitas/:id/validar-ia
+router.post('/:id/validar-ia', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const validada = req.body?.validada !== false;
+    const atualizada = await definirValidacaoIA('receita', id, validada);
+    if (!atualizada) return res.status(404).json({ error: 'Receita não encontrada' });
+    res.json(atualizada);
+  } catch (error: any) {
+    console.error('Erro ao validar IA da receita:', error.message || error);
+    res.status(500).json({ error: 'Erro ao validar IA da receita' });
   }
 });
 
@@ -227,6 +271,11 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
       include: { receitaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
     });
     await syncMovimentoParaReceita(updated, req.body.conta);
+    if (req.file) {
+      analisarReceita(updated.id, req.file.buffer, req.file.mimetype, true).catch((e) => console.error('Análise IA (PUT receita):', e));
+    } else {
+      await recompararReceita(updated.id);
+    }
     const warnings: string[] = [];
     if (req.file && !payload.anexo) warnings.push(`Anexo não guardado: ${driveError}`);
     res.json({ ...updated, _warnings: warnings.length ? warnings : undefined });

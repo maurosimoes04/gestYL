@@ -52,6 +52,8 @@ model Fatura {
   numero       String?
   anexo        Json?
   detalhes     Json?
+  analiseIA    Json?
+  analiseTentativas Int @default(0)
   estado       String
   descricao    String?
   fornecedor      String?
@@ -140,6 +142,8 @@ model Receita {
   financiador  String?
   anexo        Json?
   observacoes  String?
+  analiseIA    Json?
+  analiseTentativas Int @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
