@@ -81,12 +81,16 @@ function renderTable(rows, targetId, cols, anexoLabel) {
 }
 
 function showExpired() {
+  document.body.classList.add('share-auth');
+  document.getElementById('shareHeader')?.setAttribute('hidden', 'true');
   document.getElementById('shareAccessSection')?.setAttribute('hidden', 'true');
   document.getElementById('shareEventoWrap')?.setAttribute('hidden', 'true');
   document.getElementById('shareExpiredSection')?.removeAttribute('hidden');
 }
 
 function showLogin() {
+  document.body.classList.add('share-auth');
+  document.getElementById('shareHeader')?.setAttribute('hidden', 'true');
   document.getElementById('shareExpiredSection')?.setAttribute('hidden', 'true');
   document.getElementById('shareEventoWrap')?.setAttribute('hidden', 'true');
   document.getElementById('shareAccessSection')?.removeAttribute('hidden');
@@ -95,6 +99,8 @@ function showLogin() {
 }
 
 function renderEvento(data) {
+  document.body.classList.remove('share-auth');
+  document.getElementById('shareHeader')?.removeAttribute('hidden');
   document.getElementById('shareAccessSection')?.setAttribute('hidden', 'true');
   document.getElementById('shareExpiredSection')?.setAttribute('hidden', 'true');
   document.getElementById('shareEventoWrap')?.removeAttribute('hidden');
