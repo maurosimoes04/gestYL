@@ -94,6 +94,52 @@ function showLogin() {
   document.getElementById('shareAccessMsg')?.setAttribute('hidden', 'true');
 }
 
+function renderEvento(data) {
+  document.getElementById('shareAccessSection')?.setAttribute('hidden', 'true');
+  document.getElementById('shareExpiredSection')?.setAttribute('hidden', 'true');
+  document.getElementById('shareEventoWrap')?.removeAttribute('hidden');
+
+  document.getElementById('shareEventoNome').textContent = data.evento?.nome || 'Evento';
+  document.getElementById('shareEventoDesc').textContent = data.evento?.descricao || '';
+
+  const periodoEl = document.getElementById('shareEventoPeriodo');
+  if (periodoEl && (data.evento?.dataInicio || data.evento?.dataFim)) {
+    const inicio = data.evento?.dataInicio ? formatDate(data.evento.dataInicio) : '?';
+    const fim = data.evento?.dataFim ? formatDate(data.evento.dataFim) : '?';
+    periodoEl.textContent = inicio === fim ? inicio : `${inicio} — ${fim}`;
+    periodoEl.removeAttribute('hidden');
+  }
+
+  const deptEl = document.getElementById('shareEventoDept');
+  if (data.evento?.departamento) {
+    deptEl.textContent = data.evento.departamento;
+    deptEl.removeAttribute('hidden');
+  }
+
+  const infoEl = document.getElementById('shareSessionInfo');
+  if (infoEl && data.shareExpiresAt) {
+    infoEl.textContent = `Partilha válida até ${new Date(data.shareExpiresAt).toLocaleString('pt-PT')}`;
+  }
+
+  const downloadBtn = document.getElementById('shareDownloadBtn');
+  if (downloadBtn) {
+    if (data.downloadLink) {
+      downloadBtn.removeAttribute('hidden');
+      downloadBtn.onclick = () => { window.location.href = data.downloadLink; };
+    } else {
+      downloadBtn.setAttribute('hidden', 'true');
+    }
+  }
+
+  renderResumo(data.resumo || { totalReceitas: 0, totalDespesas: 0, saldo: 0 });
+
+  const receitas = (data.receitas || []).map((r) => ({ ...r, __tipo: 'receita' }));
+  const faturas = (data.faturas || []).map((f) => ({ ...f, __tipo: 'fatura' }));
+
+  renderTable(receitas, 'shareReceitas', 7, 'Abrir');
+  renderTable(faturas, 'shareDespesas', 8, 'Abrir');
+}
+
 document.getElementById('shareReauthBtn')?.addEventListener('click', showLogin);
 
 document.getElementById('shareAccessForm')?.addEventListener('submit', async (e) => {
@@ -119,41 +165,23 @@ document.getElementById('shareAccessForm')?.addEventListener('submit', async (e)
     }
     if (!resp.ok) throw new Error(data.error || 'Erro ao validar partilha');
 
-    document.getElementById('shareAccessSection')?.setAttribute('hidden', 'true');
-    document.getElementById('shareEventoWrap')?.removeAttribute('hidden');
-
-    document.getElementById('shareEventoNome').textContent = data.evento?.nome || 'Evento';
-    document.getElementById('shareEventoDesc').textContent = data.evento?.descricao || '';
-
-    const periodoEl = document.getElementById('shareEventoPeriodo');
-    if (periodoEl && (data.evento?.dataInicio || data.evento?.dataFim)) {
-      const inicio = data.evento?.dataInicio ? formatDate(data.evento.dataInicio) : '?';
-      const fim = data.evento?.dataFim ? formatDate(data.evento.dataFim) : '?';
-      periodoEl.textContent = inicio === fim ? inicio : `${inicio} — ${fim}`;
-      periodoEl.removeAttribute('hidden');
-    }
-
-    const deptEl = document.getElementById('shareEventoDept');
-    if (data.evento?.departamento) {
-      deptEl.textContent = data.evento.departamento;
-      deptEl.removeAttribute('hidden');
-    }
-
-    const infoEl = document.getElementById('shareSessionInfo');
-    if (infoEl && data.shareExpiresAt) {
-      infoEl.textContent = `Partilha válida até ${new Date(data.shareExpiresAt).toLocaleString('pt-PT')}`;
-    }
-
-    renderResumo(data.resumo || { totalReceitas: 0, totalDespesas: 0, saldo: 0 });
-
-    const receitas = (data.receitas || []).map((r) => ({ ...r, __tipo: 'receita' }));
-    const faturas = (data.faturas || []).map((f) => ({ ...f, __tipo: 'fatura' }));
-
-    renderTable(receitas, 'shareReceitas', 7, 'Abrir');
-    renderTable(faturas, 'shareDespesas', 8, 'Abrir');
+    renderEvento(data);
   } catch (err) {
     setAccessMsg(err.message || 'Erro ao validar partilha.', 'error');
   } finally {
     if (btn) { btn.textContent = originalText; btn.disabled = false; }
   }
 });
+
+// Ao carregar a página, tenta restaurar a sessão sem pedir a password de novo
+// (o cookie de acesso emitido em /access continua válido durante 12h).
+(async () => {
+  try {
+    const resp = await fetch(`/share/evento/${token}/session`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    renderEvento(data);
+  } catch {
+    // Sem sessão válida — mantém o ecrã de login visível.
+  }
+})();
