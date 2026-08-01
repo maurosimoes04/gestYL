@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import archiver from 'archiver';
 import { prisma } from '../config/prisma';
 import { logAudit } from '../services/audit';
+import { getLogoBuffer } from '../utils/logo';
 
 const ACCESS_TTL_HOURS = 12;
 const DEFAULT_EXPIRES_DAYS = 30;
@@ -96,6 +97,29 @@ function formatDatePt(d: Date) {
   return new Date(d).toLocaleDateString('pt-PT');
 }
 
+type Row = { cells: [string, string]; fill?: string; color?: string; bold?: boolean };
+
+// Desenha uma tabela de 2 colunas (descrição | valor), com paginação automática
+// e altura de linha dinâmica (para descrições que quebram em várias linhas).
+function drawTable(doc: any, rows: Row[]) {
+  const startX = 40, tableWidth = 520, colWidths = [380, 140], padY = 6, minRowHeight = 24;
+  let y = doc.y;
+  rows.forEach((row) => {
+    doc.font(row.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(10);
+    const textHeight = doc.heightOfString(row.cells[0], { width: colWidths[0] - 16 });
+    const rowHeight = Math.max(minRowHeight, textHeight + padY * 2);
+    if (y + rowHeight > doc.page.height - 50) { doc.addPage(); y = doc.y; }
+    if (row.fill) doc.rect(startX, y, tableWidth, rowHeight).fill(row.fill);
+    doc.fillColor(row.color || '#0f172a').font(row.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(10);
+    doc.text(row.cells[0], startX + 10, y + padY, { width: colWidths[0] - 16, align: 'left' });
+    doc.text(row.cells[1], startX + colWidths[0] + 10, y + padY, { width: colWidths[1] - 20, align: 'right' });
+    y += rowHeight;
+    doc.moveTo(startX, y - 1).lineTo(startX + tableWidth, y - 1).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
+  });
+  doc.y = y + 8;
+  doc.fillColor('#0f172a').strokeColor('#0f172a');
+}
+
 async function buildEventoPayload(share: any, token: string) {
   const [faturaEventos, receitaEventos] = await Promise.all([
     prisma.faturaEvento.findMany({
@@ -155,6 +179,7 @@ async function buildEventoPayload(share: any, token: string) {
       saldo: totalReceitas - totalDespesas,
     },
     downloadLink: temAnexos ? `/share/evento/${token}/download` : null,
+    relatorioLink: `/share/evento/${token}/relatorio`,
     shareExpiresAt: share.expiresAt,
   };
 }
@@ -357,6 +382,103 @@ sharePublicRouter.get('/evento/:token/download', async (req, res) => {
   } catch (err) {
     console.error('Erro ao descarregar partilha:', err.message || err);
     if (!res.headersSent) res.status(500).json({ error: 'Erro ao gerar descarga' });
+  }
+});
+
+// GET /share/evento/:token/relatorio — relatório PDF do evento
+sharePublicRouter.get('/evento/:token/relatorio', async (req, res) => {
+  try {
+    const token = req.params.token as string;
+    const result = await requireAccessToken(token, req);
+    if ('error' in result) return res.status(result.status).json({ error: result.error, expired: (result as any).expired });
+    const share = result.share;
+
+    const [faturaEventos, receitaEventos] = await Promise.all([
+      prisma.faturaEvento.findMany({ where: { eventoId: share.eventoId }, include: { fatura: true }, orderBy: { fatura: { data: 'desc' } } }),
+      prisma.receitaEvento.findMany({ where: { eventoId: share.eventoId }, include: { receita: true }, orderBy: { receita: { data: 'desc' } } }),
+    ]);
+
+    const toNum = (v: any) => Number(v) || 0;
+    const fmt = (v: number) => `${v.toFixed(2)} €`;
+    const totalDespesas = faturaEventos.reduce((s, fe) => s + toNum(fe.valor), 0);
+    const totalReceitas = receitaEventos.reduce((s, re) => s + toNum(re.valor), 0);
+    const saldo = totalReceitas - totalDespesas;
+
+    const { default: PDFDocument } = await import('pdfkit');
+    const doc = new PDFDocument({ margin: 40 });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="Relatorio-${sanitizeFilename(share.evento.nome)}.pdf"`);
+    doc.pipe(res);
+
+    // Cabeçalho
+    const logo = await getLogoBuffer();
+    doc.rect(40, 30, 520, 60).fill('#0f172a');
+    if (logo) { try { doc.image(logo, 50, 40, { height: 40 }); } catch {} }
+    doc.fillColor('#ffffff').fontSize(15).font('Helvetica-Bold').text('Relatório de Evento', 200, 46, { width: 340, align: 'right' });
+    doc.fontSize(9).font('Helvetica').text(`Emitido em ${formatDatePt(new Date())}`, 200, 68, { width: 340, align: 'right' });
+    doc.moveDown(3).fillColor('#0f172a');
+
+    // Identificação do evento
+    doc.fontSize(16).font('Helvetica-Bold').fillColor('#0f172a').text(share.evento.nome, 40, 110, { width: 520 });
+    doc.moveDown(0.3);
+    const meta: string[] = [];
+    if (share.evento.departamento) meta.push(`Departamento: ${share.evento.departamento}`);
+    if (share.evento.data_inicio || share.evento.data_fim) {
+      const ini = share.evento.data_inicio ? formatDatePt(share.evento.data_inicio) : '?';
+      const fim = share.evento.data_fim ? formatDatePt(share.evento.data_fim) : '?';
+      meta.push(`Período: ${ini === fim ? ini : `${ini} — ${fim}`}`);
+    }
+    if (meta.length) doc.fontSize(10).font('Helvetica').fillColor('#475569').text(meta.join('   ·   '), { width: 520 });
+    if (share.evento.descricao) doc.moveDown(0.2).fontSize(10).fillColor('#475569').text(share.evento.descricao, { width: 520 });
+    doc.moveDown(1).fillColor('#0f172a');
+
+    const rows: Row[] = [];
+    rows.push({ cells: ['Resumo Financeiro', ''], fill: '#f1f5f9', bold: true });
+    rows.push({ cells: ['Total de Receitas', fmt(totalReceitas)], fill: '#e2fee3', color: '#15803d', bold: true });
+    rows.push({ cells: ['Total de Despesas', fmt(totalDespesas)], fill: '#ffe2e5', color: '#b91c1c', bold: true });
+    rows.push({ cells: ['Saldo do Evento', fmt(saldo)], fill: saldo >= 0 ? '#dcfce7' : '#fee2e2', color: saldo >= 0 ? '#166534' : '#b91c1c', bold: true });
+    drawTable(doc, rows);
+
+    // Receitas
+    const recRows: Row[] = [];
+    recRows.push({ cells: ['Receitas', 'Valor'], fill: '#f1f5f9', bold: true });
+    if (receitaEventos.length === 0) {
+      recRows.push({ cells: ['Sem receitas registadas.', ''] });
+    } else {
+      receitaEventos.forEach((re) => {
+        const r = re.receita;
+        const label = `${formatDatePt(r.data)} — ${r.titulo}${r.financiador ? ` (${r.financiador})` : ''} · ${r.estado}`;
+        recRows.push({ cells: [label, fmt(toNum(re.valor))] });
+      });
+      recRows.push({ cells: ['Subtotal Receitas', fmt(totalReceitas)], fill: '#f8fafc', color: '#15803d', bold: true });
+    }
+    doc.moveDown(0.5);
+    drawTable(doc, recRows);
+
+    // Despesas
+    const despRows: Row[] = [];
+    despRows.push({ cells: ['Despesas', 'Valor'], fill: '#f1f5f9', bold: true });
+    if (faturaEventos.length === 0) {
+      despRows.push({ cells: ['Sem despesas registadas.', ''] });
+    } else {
+      faturaEventos.forEach((fe) => {
+        const f = fe.fatura;
+        const detalhe = f.fornecedor || f.numero || f.departamento || '';
+        const label = `${formatDatePt(f.data)} — ${f.titulo}${detalhe ? ` (${detalhe})` : ''} · ${f.estado}`;
+        despRows.push({ cells: [label, fmt(toNum(fe.valor))] });
+      });
+      despRows.push({ cells: ['Subtotal Despesas', fmt(totalDespesas)], fill: '#f8fafc', color: '#b91c1c', bold: true });
+    }
+    doc.moveDown(0.5);
+    drawTable(doc, despRows);
+
+    doc.moveDown(1).fontSize(8).font('Helvetica').fillColor('#94a3b8')
+      .text('Documento gerado automaticamente pela plataforma de Gestão Financeira Young-Link.', 40, doc.y, { width: 520, align: 'center' });
+
+    doc.end();
+  } catch (err) {
+    console.error('Erro ao gerar relatório da partilha:', err.message || err);
+    if (!res.headersSent) res.status(500).json({ error: 'Erro ao gerar relatório' });
   }
 });
 
