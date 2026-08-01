@@ -137,6 +137,12 @@ function renderEvento(data) {
     }
   }
 
+  const relatorioBtn = document.getElementById('shareRelatorioBtn');
+  if (relatorioBtn && data.relatorioLink) {
+    relatorioBtn.removeAttribute('hidden');
+    relatorioBtn.onclick = () => { window.open(data.relatorioLink, '_blank'); };
+  }
+
   renderResumo(data.resumo || { totalReceitas: 0, totalDespesas: 0, saldo: 0 });
 
   const receitas = (data.receitas || []).map((r) => ({ ...r, __tipo: 'receita' }));

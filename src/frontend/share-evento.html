@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/style.css" />
+  <link rel="stylesheet" href="/assets/css/style.css?v=20260801" />
   <style>
     /* O atributo hidden tem de vencer os display:flex/block definidos abaixo */
     [hidden] { display: none !important; }
@@ -186,16 +186,70 @@
     }
 
     .share-header-actions {
-      margin-top: 14px;
+      margin-top: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    /* Resumo em cards (a classe base .summary-card não existe no CSS global) */
+    .share-page .dashboard-grid {
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .share-page .summary-card {
+      background: var(--bg-card);
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      padding: 18px 20px;
+    }
+
+    .share-page .summary-card .label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 8px;
+    }
+
+    .share-page .summary-card .value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
     }
 
     .share-section-title {
       font-size: 1.05rem;
       font-weight: 700;
       color: var(--text-dark);
-      margin: 24px 0 8px;
-      padding-bottom: 6px;
-      border-bottom: 2px solid #eef2ff;
+      margin: 4px 0 0;
+    }
+
+    /* Tabelas dentro de um card, para não ficarem "nuas" sobre o fundo */
+    .share-page .table-wrapper {
+      background: var(--bg-card);
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      padding: 6px 20px 14px;
+      margin-top: 12px;
+      margin-bottom: 24px;
+    }
+
+    .share-page .table-wrapper table {
+      margin-top: 0;
+    }
+
+    .share-page .table-wrapper thead {
+      background: none;
+    }
+
+    .share-page .table-wrapper thead th {
+      border-bottom: 1px solid var(--gray-200);
     }
 
     .share-expired-card {
@@ -256,8 +310,11 @@
     @media (max-width: 600px) {
       .share-page { padding: 16px 12px 32px; }
       .share-login-card,
-      .share-expired-card { padding: 20px; margin-top: 24px; }
+      .share-expired-card { padding: 20px; }
       .share-evento-header { padding: 16px; }
+      .share-page .dashboard-grid { grid-template-columns: 1fr; gap: 12px; }
+      .share-page .summary-card .value { font-size: 1.3rem; }
+      .share-page .table-wrapper { padding: 4px 12px 12px; }
     }
   </style>
 </head>
@@ -295,6 +352,7 @@
         <span class="share-dept" id="shareEventoDept" hidden></span>
         <p class="share-session-info" id="shareSessionInfo"></p>
         <div class="share-header-actions">
+          <button type="button" class="main-action" id="shareRelatorioBtn" hidden>Gerar relatório (PDF)</button>
           <button type="button" class="ghost-action" id="shareDownloadBtn" hidden>Descarregar tudo (.zip)</button>
         </div>
       </div>
@@ -355,6 +413,6 @@
 
   </div>
 
-  <script src="/assets/js/share-evento.js"></script>
+  <script src="/assets/js/share-evento.js?v=20260801"></script>
 </body>
 </html>
