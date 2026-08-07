@@ -33,7 +33,7 @@ function drawHeader(doc: InstanceType<PDFDocumentType>, titulo: string, periodoL
   doc.moveDown(2).fillColor('#0f172a');
 }
 
-type Row = { cells: [string, string]; fill?: string; color?: string; bold?: boolean };
+type Row = { cells: [string, string]; fill?: string; color?: string; bold?: boolean; indent?: number };
 
 function drawTable(doc: InstanceType<PDFDocumentType>, rows: Row[]) {
   const startX = 40, tableWidth = 520, colWidths = [360, 160], rowHeight = 26;
@@ -42,13 +42,72 @@ function drawTable(doc: InstanceType<PDFDocumentType>, rows: Row[]) {
     if (y + rowHeight > doc.page.height - 50) { doc.addPage(); y = doc.y; }
     if (row.fill) doc.rect(startX, y, tableWidth, rowHeight).fill(row.fill);
     doc.fillColor(row.color || '#0f172a').font(row.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(11);
-    doc.text(row.cells[0], startX + 10, y + 6, { width: colWidths[0] - 16, align: 'left' });
+    const indentPx = (row.indent || 0) * 14;
+    doc.text(row.cells[0], startX + 10 + indentPx, y + 6, { width: colWidths[0] - 16 - indentPx, align: 'left' });
     doc.text(row.cells[1], startX + colWidths[0] + 10, y + 6, { width: colWidths[1] - 20, align: 'right' });
     y += rowHeight;
     doc.moveTo(startX, y - 1).lineTo(startX + tableWidth, y - 1).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
   });
   doc.y = y + 8;
   doc.fillColor('#0f172a').strokeColor('#0f172a');
+}
+
+type HierarchyLeaf = { total: number; rubricas: Map<string, number> };
+type HierarchyGroup = { total: number; grupos: Map<string, HierarchyLeaf> };
+
+function buildHierarchy(
+  items: { id: number; titulo: string | null; valor: any; groupKey: string | null }[],
+  allocationsByItemId: Map<number, { label: string; valor: number }[]>,
+  directLabel: string,
+): Map<string, HierarchyGroup> {
+  const tree = new Map<string, HierarchyGroup>();
+
+  items.forEach((item) => {
+    const nivel1 = item.groupKey || 'Sem informação';
+    const valorTotal = toNum(item.valor);
+    const titulo = (item.titulo || 'Sem título').trim();
+
+    const allocs = allocationsByItemId.get(item.id) || [];
+    const allocatedSum = allocs.reduce((s, a) => s + a.valor, 0);
+    const unallocated = Math.max(0, valorTotal - allocatedSum);
+
+    if (!tree.has(nivel1)) tree.set(nivel1, { total: 0, grupos: new Map() });
+    const grupo1 = tree.get(nivel1)!;
+
+    const addToNivel2 = (nivel2: string, valor: number) => {
+      if (valor <= 0) return;
+      if (!grupo1.grupos.has(nivel2)) grupo1.grupos.set(nivel2, { total: 0, rubricas: new Map() });
+      const grupo2 = grupo1.grupos.get(nivel2)!;
+      grupo2.total += valor;
+      grupo2.rubricas.set(titulo, (grupo2.rubricas.get(titulo) || 0) + valor);
+      grupo1.total += valor;
+    };
+
+    allocs.forEach((a) => addToNivel2(a.label, a.valor));
+    addToNivel2(directLabel, unallocated);
+  });
+
+  return tree;
+}
+
+function renderHierarchyRows(
+  tree: Map<string, HierarchyGroup>,
+  opts: { fillNivel1: string; colorNivel1: string; fillNivel2: string },
+): Row[] {
+  const rows: Row[] = [];
+  const nivel1Sorted = Array.from(tree.entries()).sort((a, b) => b[1].total - a[1].total);
+  nivel1Sorted.forEach(([nome1, grupo1]) => {
+    rows.push({ cells: [nome1, fmt(grupo1.total)], fill: opts.fillNivel1, color: opts.colorNivel1, bold: true });
+    const nivel2Sorted = Array.from(grupo1.grupos.entries()).sort((a, b) => b[1].total - a[1].total);
+    nivel2Sorted.forEach(([nome2, grupo2]) => {
+      rows.push({ cells: [nome2, fmt(grupo2.total)], fill: opts.fillNivel2, bold: true, indent: 1 });
+      const rubricasSorted = Array.from(grupo2.rubricas.entries()).sort((a, b) => b[1] - a[1]);
+      rubricasSorted.forEach(([titulo, valor]) => {
+        rows.push({ cells: [titulo, fmt(valor)], indent: 2 });
+      });
+    });
+  });
+  return rows;
 }
 
 function renderBars(doc: InstanceType<PDFDocumentType>, title: string, data: { label: string; value: number }[], maxWidth = 320) {
@@ -97,6 +156,7 @@ router.get('/pdf', async (req, res) => {
     const { default: PDFDocument } = await import('pdfkit');
     const tipo: TipoRelatorio = (req.query.tipo as TipoRelatorio) || 'ambos';
     const { inicio, fim, label: periodoLabel } = parsePeriodo(req.query);
+    const isAnual = ((req.query.periodo as string) || 'custom') === 'anual';
 
     type FaturaRow = Awaited<ReturnType<typeof prisma.fatura.findMany>>[number];
     type ReceitaRow = Awaited<ReturnType<typeof prisma.receita.findMany>>[number];
@@ -144,6 +204,32 @@ router.get('/pdf', async (req, res) => {
       eventoReceitas[nome] = (eventoReceitas[nome] || 0) + toNum(re.valor);
     });
 
+    // Hierarquia Departamento/Categoria > Atividade > Rubrica (só para o relatório anual)
+    const faturaAllocMap = new Map<number, { label: string; valor: number }[]>();
+    faturaEventos.forEach((fe: any) => {
+      const nome = fe.evento?.nome || `Evento ${fe.eventoId}`;
+      const arr = faturaAllocMap.get(fe.faturaId) || [];
+      arr.push({ label: nome, valor: toNum(fe.valor) });
+      faturaAllocMap.set(fe.faturaId, arr);
+    });
+    const receitaAllocMap = new Map<number, { label: string; valor: number }[]>();
+    receitaEventos.forEach((re: any) => {
+      const nome = re.evento?.nome || `Evento ${re.eventoId}`;
+      const arr = receitaAllocMap.get(re.receitaId) || [];
+      arr.push({ label: nome, valor: toNum(re.valor) });
+      receitaAllocMap.set(re.receitaId, arr);
+    });
+    const despesaTree = buildHierarchy(
+      (faturas as any[]).map((f) => ({ id: f.id, titulo: f.titulo, valor: f.valor, groupKey: f.departamento })),
+      faturaAllocMap,
+      'Despesas diretas',
+    );
+    const receitaTree = buildHierarchy(
+      (receitas as any[]).map((r) => ({ id: r.id, titulo: r.titulo, valor: r.valor, groupKey: r.categoria })),
+      receitaAllocMap,
+      'Receitas diretas',
+    );
+
     // PDF
     const doc = new PDFDocument({ margin: 40 });
     res.header('Content-Type', 'application/pdf');
@@ -151,7 +237,9 @@ router.get('/pdf', async (req, res) => {
     doc.pipe(res);
 
     const logo = await getLogoBuffer();
-    const tituloRel = tipo === 'despesas' ? 'Relatório de Despesas' : tipo === 'receitas' ? 'Relatório de Receitas' : 'Relatório Financeiro';
+    const tituloRel = isAnual
+      ? 'Relatório Anual de Atividade'
+      : (tipo === 'despesas' ? 'Relatório de Despesas' : tipo === 'receitas' ? 'Relatório de Receitas' : 'Relatório Financeiro');
     drawHeader(doc, tituloRel, periodoLabel, logo);
 
     // --- Tabela resumo ---
@@ -159,24 +247,34 @@ router.get('/pdf', async (req, res) => {
     rows.push({ cells: ['Resumo do Período', periodoLabel], fill: '#f8fafc', bold: true });
     if (tipo !== 'receitas') rows.push({ cells: ['Total de Despesas', fmt(totalDespesas)], fill: '#ffe2e5', color: '#b91c1c', bold: true });
     if (tipo !== 'despesas') rows.push({ cells: ['Total de Receitas', fmt(totalReceitas)], fill: '#e2fee3', color: '#15803d', bold: true });
-    if (tipo === 'ambos') rows.push({ cells: ['Saldo do Período', fmt(saldo)], fill: saldo >= 0 ? '#dcfce7' : '#fee2e2', color: saldo >= 0 ? '#166534' : '#b91c1c', bold: true });
+    if (tipo === 'ambos') rows.push({ cells: [isAnual ? 'Resultado do Ano' : 'Saldo do Período', fmt(saldo)], fill: saldo >= 0 ? '#dcfce7' : '#fee2e2', color: saldo >= 0 ? '#166534' : '#b91c1c', bold: true });
 
     if (tipo !== 'receitas') {
-      rows.push({ cells: ['Despesas por Departamento', ''], fill: '#f1f5f9', bold: true });
-      Object.entries(depDespesas).sort((a, b) => b[1] - a[1]).forEach(([dep, val]) => rows.push({ cells: [dep, fmt(val)] }));
-      rows.push({ cells: ['Despesas por Categoria', ''], fill: '#f1f5f9', bold: true });
-      Object.entries(catDespesas).sort((a, b) => b[1] - a[1]).forEach(([cat, val]) => rows.push({ cells: [cat, fmt(val)] }));
-      rows.push({ cells: ['Despesas por Evento', ''], fill: '#f1f5f9', bold: true });
-      Object.entries(eventoDespesas).sort((a, b) => b[1] - a[1]).forEach(([ev, val]) => rows.push({ cells: [ev, fmt(val)] }));
+      if (isAnual) {
+        rows.push({ cells: ['Despesas por Departamento / Atividade / Rubrica', ''], fill: '#f1f5f9', bold: true });
+        rows.push(...renderHierarchyRows(despesaTree, { fillNivel1: '#ffe2e5', colorNivel1: '#b91c1c', fillNivel2: '#fff1f2' }));
+      } else {
+        rows.push({ cells: ['Despesas por Departamento', ''], fill: '#f1f5f9', bold: true });
+        Object.entries(depDespesas).sort((a, b) => b[1] - a[1]).forEach(([dep, val]) => rows.push({ cells: [dep, fmt(val)] }));
+        rows.push({ cells: ['Despesas por Categoria', ''], fill: '#f1f5f9', bold: true });
+        Object.entries(catDespesas).sort((a, b) => b[1] - a[1]).forEach(([cat, val]) => rows.push({ cells: [cat, fmt(val)] }));
+        rows.push({ cells: ['Despesas por Evento', ''], fill: '#f1f5f9', bold: true });
+        Object.entries(eventoDespesas).sort((a, b) => b[1] - a[1]).forEach(([ev, val]) => rows.push({ cells: [ev, fmt(val)] }));
+      }
     }
 
     if (tipo !== 'despesas') {
-      rows.push({ cells: ['Receitas por Departamento', ''], fill: '#f1f5f9', bold: true });
-      Object.entries(depReceitas).sort((a, b) => b[1] - a[1]).forEach(([dep, val]) => rows.push({ cells: [dep, fmt(val)] }));
-      rows.push({ cells: ['Receitas por Categoria', ''], fill: '#f1f5f9', bold: true });
-      Object.entries(catReceitas).sort((a, b) => b[1] - a[1]).forEach(([cat, val]) => rows.push({ cells: [cat, fmt(val)] }));
-      rows.push({ cells: ['Receitas por Evento', ''], fill: '#f1f5f9', bold: true });
-      Object.entries(eventoReceitas).sort((a, b) => b[1] - a[1]).forEach(([ev, val]) => rows.push({ cells: [ev, fmt(val)] }));
+      if (isAnual) {
+        rows.push({ cells: ['Receitas por Categoria / Atividade / Rubrica', ''], fill: '#f1f5f9', bold: true });
+        rows.push(...renderHierarchyRows(receitaTree, { fillNivel1: '#dcfce7', colorNivel1: '#15803d', fillNivel2: '#f0fdf4' }));
+      } else {
+        rows.push({ cells: ['Receitas por Departamento', ''], fill: '#f1f5f9', bold: true });
+        Object.entries(depReceitas).sort((a, b) => b[1] - a[1]).forEach(([dep, val]) => rows.push({ cells: [dep, fmt(val)] }));
+        rows.push({ cells: ['Receitas por Categoria', ''], fill: '#f1f5f9', bold: true });
+        Object.entries(catReceitas).sort((a, b) => b[1] - a[1]).forEach(([cat, val]) => rows.push({ cells: [cat, fmt(val)] }));
+        rows.push({ cells: ['Receitas por Evento', ''], fill: '#f1f5f9', bold: true });
+        Object.entries(eventoReceitas).sort((a, b) => b[1] - a[1]).forEach(([ev, val]) => rows.push({ cells: [ev, fmt(val)] }));
+      }
     }
 
     doc.moveDown(1).fontSize(12).font('Helvetica-Bold').text('Orçamento / Resumo Financeiro');

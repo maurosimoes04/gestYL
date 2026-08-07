@@ -17,34 +17,46 @@
 <body>
 
   <!-- ==================================================
-       HEADER
+       APP SHELL (sidebar + conteúdo)
   =================================================== -->
-  <header class="main-header">
-    <div class="header-inner">
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
       <a href="#dashboard" class="logo-block">
         <img src="https://tnmycajugdovbnqydyvx.supabase.co/storage/v1/object/public/IMAGENS/logo.png" alt="Gestão Financeira YL" class="logo">
       </a>
 
       <nav class="main-nav">
-        <a href="#dashboard" class="nav-link active" data-target="resumo">Resumo</a>
-        <a href="#faturas" class="nav-link" data-target="faturas">Despesas</a>
-        <a href="#receitas" class="nav-link" data-target="receitas">Receitas</a>
-        <a href="#eventos" class="nav-link" data-target="eventos">Eventos</a>
-        <a href="#inventario" class="nav-link" data-target="inventario">Inventário</a>
+        <a href="#dashboard" class="nav-link active" data-target="resumo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span>Resumo</span></a>
+        <a href="#faturas" class="nav-link" data-target="faturas"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg><span>Despesas</span></a>
+        <a href="#receitas" class="nav-link" data-target="receitas"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg><span>Receitas</span></a>
+        <a href="#eventos" class="nav-link" data-target="eventos"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>Eventos</span></a>
+        <a href="#inventario" class="nav-link" data-target="inventario"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span>Inventário</span></a>
+        <a href="#tesouraria" class="nav-link" data-target="tesouraria"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="6" x2="12" y2="18"/><path d="M15 9.5c0-1.5-1.5-2.5-3-2.5s-3 1-3 2.5 1.5 2 3 2.5 3 1 3 2.5-1.5 2.5-3 2.5-3-1-3-2.5"/></svg><span>Tesouraria</span></a>
+        <a href="#ia" class="nav-link nav-link-ia" data-target="ia"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="4"/></svg><span>Verificação IA</span><span id="iaAlertBadge" class="nav-badge" hidden>0</span></a>
       </nav>
 
-      <button id="btnLogout" class="logout-btn" hidden>Terminar sessão</button>
+      <div class="sidebar-footer">
+        <button id="btnLogout" class="logout-btn" hidden>Terminar sessão</button>
+      </div>
+    </aside>
 
-    </div>
-  </header>
+    <div class="sidebar-backdrop" id="sidebarBackdrop" hidden></div>
 
-  <div id="readonlyBanner" class="readonly-banner" hidden>
-    Acesso de visualização (Conselho Fiscal). Alterações estão bloqueadas.
-  </div>
+    <div class="app-content">
+      <div class="mobile-topbar">
+        <button type="button" id="btnSidebarToggle" class="sidebar-toggle" aria-label="Abrir menu">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <img src="https://tnmycajugdovbnqydyvx.supabase.co/storage/v1/object/public/IMAGENS/logo.png" alt="Gestão Financeira YL" class="mobile-logo">
+      </div>
 
-  <!-- ==================================================
-       MAIN
-  =================================================== -->
+      <div id="readonlyBanner" class="readonly-banner" hidden>
+        Acesso de visualização (Conselho Fiscal). Alterações estão bloqueadas.
+      </div>
+
+      <!-- ==================================================
+           MAIN
+      =================================================== -->
   <main>
 
     <!-- ================= DASHBOARD ================= -->
@@ -79,26 +91,14 @@
     </section>
 
     <!-- ================= INVENTÁRIO ================= -->
-    <section id="acoesRapidasInventario" class="section-animate" hidden>
+    <section id="inventario" class="section-animate" hidden>
       <div class="section-header">
         <h2>Inventário</h2>
+        <div class="section-header-actions">
+          <button type="button" id="qaExportInventario" class="ghost-action">Exportar PDF</button>
+          <button type="button" id="qaNovoInventario" class="main-action">Novo item</button>
+        </div>
       </div>
-      <div class="quick-actions">
-        <button id="qaNovoInventario" class="quick-card primary">
-          <div class="quick-title">Novo item</div>
-          <div class="quick-desc">Adicionar item de inventário.</div>
-          <span class="quick-cta">Abrir formulário →</span>
-        </button>
-
-        <button class="quick-card ghost" id="qaExportInventario">
-          <div class="quick-title">Exportar PDF</div>
-          <div class="quick-desc">Descarregar lista de inventário.</div>
-          <span class="quick-cta">Exportar →</span>
-        </button>
-      </div>
-    </section>
-
-    <section id="inventario" class="section-animate" hidden>
 
       <div class="filtros">
         <input type="text" id="filterInvQ" placeholder="Pesquisar nome/categoria/local">
@@ -123,36 +123,65 @@
       </div>
     </section>
 
+    <datalist id="contasSugeridas">
+      <option value="Caixa">
+      <option value="Banco Principal">
+    </datalist>
 
-    <!-- ================= AÇÕES RÁPIDAS ================= -->
-    <section id="acoesRapidas" class="section-animate">
-      <h2>Ações rápidas</h2>
-      <div class="quick-actions">
-        <button id="qaNovaFatura" class="quick-card primary">
-          <div class="quick-title">Nova Despesa</div>
-          <div class="quick-desc">Registe uma despesa com evento opcional.</div>
-          <span class="quick-cta">Abrir formulário →</span>
-        </button>
-
-        <button class="quick-card ghost" id="qaExportRelatorio">
-          <div class="quick-title">Relatório PDF</div>
-          <div class="quick-desc">Gerar relatório com período e tipo configurável.</div>
-          <span class="quick-cta">Abrir opções →</span>
-        </button>
-
-        <button id="qaNovoEvento" class="quick-card neutral">
-          <div class="quick-title">Novo Evento</div>
-          <div class="quick-desc">Crie um evento e associe futuras despesas.</div>
-          <span class="quick-cta">Adicionar evento →</span>
-        </button>
+    <!-- ================= TESOURARIA ================= -->
+    <section id="tesouraria" class="section-animate" hidden>
+      <div class="section-header">
+        <h2>Tesouraria</h2>
+        <button type="button" id="btnNovoMovimento" class="main-action">Novo Movimento</button>
       </div>
+
+      <div class="filtros">
+        <input type="text" id="filterMovConta" placeholder="Conta (ex: Caixa, Banco CGD)">
+        <select id="filterMovTipo">
+          <option value="">Todos os tipos</option>
+          <option value="entrada">Entrada</option>
+          <option value="saida">Saída</option>
+        </select>
+        <input type="date" id="filterMovFrom">
+        <input type="date" id="filterMovTo">
+        <button id="btnAplicarFiltrosMov" class="main-action">Aplicar</button>
+      </div>
+
+      <div id="listaMovimentos" class="record-list">
+        <p class="text-muted">A carregar...</p>
+      </div>
+      <div class="pagination" id="movimentosPagination"></div>
     </section>
+
+    <div id="formularioMovimento" class="modal-backdrop drawer" hidden>
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Novo Movimento</h3>
+          <button type="button" class="modal-close" id="btnCancelarMovimento" aria-label="Fechar">×</button>
+        </div>
+        <form id="movimentoForm" class="form-modern">
+          <div class="form-grid">
+            <div class="form-field"><label for="tipoMovimento">Tipo <span class="form-required">*</span></label><select id="tipoMovimento" required><option value="entrada">Entrada</option><option value="saida">Saída</option></select></div>
+            <div class="form-field"><label for="contaMovimento">Conta <span class="form-required">*</span></label><input id="contaMovimento" list="contasSugeridas" required placeholder="ex: Caixa, Banco CGD"></div>
+            <div class="form-field"><label for="valorMovimento">Valor (€) <span class="form-required">*</span></label><input type="number" step="0.01" id="valorMovimento" required min="0" placeholder="0.00"></div>
+            <div class="form-field"><label for="dataMovimento">Data <span class="form-required">*</span></label><input type="date" id="dataMovimento" required></div>
+            <div class="form-field"><label for="referenciaMovimento">Referência <span class="form-optional">opcional</span></label><input id="referenciaMovimento" placeholder="ex: nº de transferência"></div>
+          </div>
+          <div class="form-field"><label for="descricaoMovimento">Descrição</label><textarea id="descricaoMovimento" placeholder="Notas adicionais..."></textarea></div>
+          <div class="form-btns"><button type="submit" class="main-action btn" id="btnSalvarMovimento">Guardar</button></div>
+        </form>
+      </div>
+    </div>
 
     <!-- ================= DESPESAS ================= -->
     <section id="faturas" class="section-animate">
       <div class="section-header">
         <h2>Despesas</h2>
-        <button type="button" id="btnEscolherFatura" class="main-action">Nova Despesa</button>
+        <div class="section-header-actions">
+          <button type="button" id="qaExportRelatorio" class="ghost-action">Relatório PDF</button>
+          <button type="button" id="qaNovoEvento" class="ghost-action">Novo Evento</button>
+          <button type="button" id="btnEscolherFatura" class="main-action">Nova Despesa</button>
+        </div>
       </div>
 
       <div class="filtros">
@@ -166,6 +195,7 @@
           <option value="">Todos os estados</option>
           <option>Paga</option>
           <option>Pendente</option>
+          <option value="vencidas">Vencidas</option>
         </select>
         <select id="filterEvento">
           <option value="">Todos os eventos</option>
@@ -185,33 +215,15 @@
     </section>
 
     <!-- ================= AÇÕES RÁPIDAS RECEITAS ================= -->
-    <section id="acoesRapidasReceitas" class="section-animate" hidden>
-      <h2>Ações rápidas</h2>
-      <div class="quick-actions">
-        <button id="qaNovaReceita" class="quick-card primary">
-          <div class="quick-title">Nova Receita</div>
-          <div class="quick-desc">Registe uma entrada e associe a um evento.</div>
-          <span class="quick-cta">Abrir formulário →</span>
-        </button>
-        <button class="quick-card ghost" id="qaExportRelatorioReceitas">
-          <div class="quick-title">Relatório PDF</div>
-          <div class="quick-desc">Gerar relatório com período e tipo configurável.</div>
-          <span class="quick-cta">Abrir opções →</span>
-        </button>
-
-        <button id="qaNovoEventoReceitas" class="quick-card neutral">
-          <div class="quick-title">Novo Evento</div>
-          <div class="quick-desc">Crie um evento e associe futuras receitas.</div>
-          <span class="quick-cta">Adicionar evento →</span>
-        </button>
-      </div>
-    </section>
-
     <!-- ================= RECEITAS ================= -->
     <section id="receitas" class="section-animate" hidden>
       <div class="section-header">
         <h2>Receitas</h2>
-        <button id="btnNovaReceita" class="main-action">Nova Receita</button>
+        <div class="section-header-actions">
+          <button type="button" id="qaExportRelatorioReceitas" class="ghost-action">Relatório PDF</button>
+          <button type="button" id="qaNovoEventoReceitas" class="ghost-action">Novo Evento</button>
+          <button id="btnNovaReceita" class="main-action">Nova Receita</button>
+        </div>
       </div>
 
       <div class="filtros">
@@ -260,7 +272,51 @@
       </div>
     </section>
 
+    <!-- ================= IA ================= -->
+    <section id="ia" class="section-animate" hidden>
+      <div class="section-header">
+        <h2>Verificação IA</h2>
+        <div class="section-header-actions">
+          <button type="button" id="btnRecarregarIA" class="ghost-action">Atualizar</button>
+          <button type="button" id="btnBackfillIA" class="main-action">Preencher antigas</button>
+        </div>
+      </div>
+
+      <div class="ia-summary-grid" id="iaSummaryCards">
+        <div class="ia-summary-card">
+          <span class="ia-summary-label">Validadas</span>
+          <strong id="iaCountValidada">0</strong>
+        </div>
+        <div class="ia-summary-card">
+          <span class="ia-summary-label">Em análise</span>
+          <strong id="iaCountAnalise">0</strong>
+        </div>
+        <div class="ia-summary-card">
+          <span class="ia-summary-label">Alertas / erros</span>
+          <strong id="iaCountAlerta">0</strong>
+        </div>
+      </div>
+
+      <div class="ia-doc-tabs" role="tablist" aria-label="Tipo de documento">
+        <button type="button" class="ia-doc-tab active" data-ia-tipo="faturas">Faturas</button>
+        <button type="button" class="ia-doc-tab" data-ia-tipo="receitas">Receitas</button>
+      </div>
+
+      <div class="ia-tabs" role="tablist" aria-label="Filtros da IA">
+        <button type="button" class="ia-tab active" data-ia-filter="todas">Todas</button>
+        <button type="button" class="ia-tab" data-ia-filter="validadas">Validadas</button>
+        <button type="button" class="ia-tab" data-ia-filter="analise">Em análise</button>
+        <button type="button" class="ia-tab" data-ia-filter="alertas">Alertas / erros</button>
+      </div>
+
+      <div id="iaLista" class="ia-list">
+        <p class="text-muted">A carregar estado da IA...</p>
+      </div>
+    </section>
+
   </main>
+    </div>
+  </div>
 
   <!-- Modal Detalhes Evento -->
   <div id="eventoDetailModal" class="modal-backdrop" hidden>
@@ -453,7 +509,7 @@
   </div>
 
   <!-- Modal Form Despesa -->
-  <div id="formularioFatura" class="modal-backdrop" hidden>
+  <div id="formularioFatura" class="modal-backdrop drawer" hidden>
     <div class="modal-card modal-card-lg">
       <div class="modal-header">
         <h3>Nova Despesa</h3>
@@ -464,9 +520,11 @@
           <div class="form-fieldset-title">Informações principais</div>
           <div class="form-grid">
             <div class="form-field"><label for="nomeFatura">Nome <span class="form-required">*</span></label><input id="nomeFatura" required placeholder="Descrição da despesa"></div>
-            <div class="form-field"><label for="tipoFatura">Tipo <span class="form-required">*</span></label><input id="tipoFatura" required placeholder="ex: Fatura, Recibo"></div>
+            <div class="form-field"><label for="tipoFatura">Tipo <span class="form-required">*</span></label><select id="tipoFatura" required><option>Fatura</option><option>Recibo</option><option>Recibo Verde</option><option>Nota de Crédito</option><option>Outro</option></select></div>
             <div class="form-field"><label for="numeroFatura">Número <span class="form-required">*</span></label><input id="numeroFatura" required placeholder="ex: FT 2026/001"></div>
             <div class="form-field"><label for="departamento">Departamento <span class="form-required">*</span></label><select id="departamento" required><option value="">Selecionar...</option></select></div>
+            <div class="form-field"><label for="fornecedorFatura">Fornecedor <span class="form-optional">opcional</span></label><input id="fornecedorFatura" placeholder="Nome do fornecedor"></div>
+            <div class="form-field"><label for="fornecedorNifFatura">NIF do fornecedor <span class="form-optional">opcional</span></label><input id="fornecedorNifFatura" placeholder="ex: 500123456"></div>
           </div>
         </div>
         <div class="form-fieldset">
@@ -474,7 +532,9 @@
           <div class="form-grid">
             <div class="form-field"><label for="valorFatura">Valor (€) <span class="form-required">*</span></label><input type="number" step="0.01" id="valorFatura" required min="0" placeholder="0.00"></div>
             <div class="form-field"><label for="dataFatura">Data <span class="form-required">*</span></label><input type="date" id="dataFatura" required></div>
+            <div class="form-field"><label for="dataVencimentoFatura">Data de vencimento <span class="form-optional">opcional</span></label><input type="date" id="dataVencimentoFatura"></div>
             <div class="form-field"><label for="estadoFatura">Estado</label><select id="estadoFatura"><option>Pendente</option><option>Paga</option></select></div>
+            <div class="form-field" id="contaFaturaWrap" hidden><label for="contaFatura">Conta <span class="form-optional">opcional</span></label><input id="contaFatura" list="contasSugeridas" placeholder="ex: Caixa, Banco Principal"></div>
             <div class="form-field form-field-full">
               <label>Eventos <span class="form-optional">opcional</span></label>
               <div class="multi-evento-wrap" id="faturaEventosWrap">
@@ -515,7 +575,7 @@
   </div>
 
   <!-- Modal Form Receita -->
-  <div id="formularioReceita" class="modal-backdrop" hidden>
+  <div id="formularioReceita" class="modal-backdrop drawer" hidden>
     <div class="modal-card modal-card-lg">
       <div class="modal-header">
         <h3>Nova Receita</h3>
@@ -546,6 +606,7 @@
             <div class="form-field"><label for="valorReceita">Valor (€) <span class="form-required">*</span></label><input type="number" step="0.01" id="valorReceita" required min="0" placeholder="0.00"></div>
             <div class="form-field"><label for="dataReceita">Data <span class="form-required">*</span></label><input type="date" id="dataReceita" required></div>
             <div class="form-field"><label for="estadoReceita">Estado</label><select id="estadoReceita"><option>Previsto</option><option>Pendente</option><option>Recebido</option></select></div>
+            <div class="form-field" id="contaReceitaWrap" hidden><label for="contaReceita">Conta <span class="form-optional">opcional</span></label><input id="contaReceita" list="contasSugeridas" placeholder="ex: Caixa, Banco Principal"></div>
           </div>
         </div>
         <div class="form-fieldset">
@@ -576,7 +637,7 @@
   </div>
 
   <!-- Modal Form Evento -->
-  <div id="formularioEvento" class="modal-backdrop" hidden>
+  <div id="formularioEvento" class="modal-backdrop drawer" hidden>
     <div class="modal-card modal-card-lg">
       <div class="modal-header">
         <h3>Novo Evento</h3>
@@ -599,7 +660,7 @@
   </div>
 
   <!-- Modal Form Inventário -->
-  <div id="formularioInventario" class="modal-backdrop" hidden>
+  <div id="formularioInventario" class="modal-backdrop drawer" hidden>
     <div class="modal-card modal-card-lg">
       <div class="modal-header">
         <h3>Novo item de inventário</h3>

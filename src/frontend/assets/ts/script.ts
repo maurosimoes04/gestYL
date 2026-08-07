@@ -24,10 +24,12 @@ let departamentosCache: string[] = [];
 
 const SECTION_GROUPS: Record<string, string[]> = {
   resumo: ['dashboard', 'dashboardAno', 'insights'],
-  faturas: ['acoesRapidas', 'faturas'],
-  receitas: ['acoesRapidasReceitas', 'receitas'],
+  faturas: ['faturas'],
+  receitas: ['receitas'],
   eventos: ['eventos'],
-  inventario: ['acoesRapidasInventario', 'inventario']
+  ia: ['ia'],
+  inventario: ['inventario'],
+  tesouraria: ['tesouraria']
 };
 
 let chartInstance: any = null;
@@ -41,12 +43,16 @@ let editingReceitaId: number | null = null;
 let removeFaturaAnexo = false;
 let removeReceitaAnexo = false;
 let editingInventarioId: number | null = null;
+let editingMovimentoId: number | null = null;
+let movimentoPage = 0;
 let sharingEventoId: number | null = null;
 let eventosCache: any[] = [];
 let faturasCache: any[] = [];
 let receitasCache: any[] = [];
 let movimentosCache: any[] = [];
 let inventarioCache: any[] = [];
+let iaTipoAtual: 'faturas' | 'receitas' = 'faturas';
+let iaFiltroAtual: 'todas' | 'validadas' | 'analise' | 'alertas' = 'todas';
 let authToken = localStorage.getItem('authToken') || '';
 let authRole: 'admin' | 'direcao' | 'fiscal' | '' = (localStorage.getItem('authRole') as any) || '';
 let isAuthenticated = false;
@@ -90,7 +96,7 @@ function updateAuthUI() {
   const hasWrite = authRole === 'direcao' || authRole === 'admin';
   const writeButtons = [
     'btnEscolherEvento', 'btnEscolherFatura', 'qaNovaFatura', 'qaNovoEvento',
-    'qaNovoEventoReceitas', 'qaNovaReceita', 'btnNovaReceita', 'qaNovoInventario'
+    'qaNovoEventoReceitas', 'qaNovaReceita', 'btnNovaReceita', 'qaNovoInventario', 'btnBackfillIA'
   ];
   writeButtons.forEach(id => {
     const el = document.getElementById(id);
@@ -283,6 +289,8 @@ const ICONS: Record<string, string> = {
   plus: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>',
   download: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>',
   file: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>',
+  chevronLeft: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>',
+  chevronRight: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>',
 };
 
 function icon(name: string): string {
@@ -325,6 +333,306 @@ function estadoBadge(estado: string | null): string {
   return `<span class="${cls}">${escapeHtml(estado)}</span>`;
 }
 
+function isFaturaVencida(f: any): boolean {
+  return f.estado === 'Pendente' && !!f.dataVencimento && new Date(f.dataVencimento) < new Date();
+}
+
+function vencidaBadge(f: any): string {
+  return isFaturaVencida(f) ? '<span class="status-badge status-overdue">Vencida</span>' : '';
+}
+
+function renderAnaliseIA(item: any, tipo: 'fatura' | 'receita'): string {
+  if (!item.anexo) return '';
+  const btnClass = tipo === 'fatura' ? 'btn-reanalisar-fatura' : 'btn-reanalisar-receita';
+  const reanalisarBtn = isReadOnly() ? '' : `<button type="button" class="ghost-action ${btnClass}" data-id="${item.id}">Reanalisar</button>`;
+  if (!item.analiseIA) {
+    const tentativas = item.analiseTentativas || 0;
+    const label = tentativas >= 3 ? 'Não foi possível analisar (3 tentativas)' : `A analisar... (tentativa ${tentativas}/3)`;
+    return `<div class="analise-ia"><span class="status-badge status-default">${label}</span>${reanalisarBtn}</div>`;
+  }
+  const validacaoManual = item.analiseIA.validacaoManual?.validada === true;
+  if (validacaoManual) {
+    return `<div class="analise-ia"><span class="status-badge status-ok">✓ Validada manualmente</span>${reanalisarBtn}</div>`;
+  }
+  const divergencias: string[] = item.analiseIA.divergencias || [];
+  if (divergencias.length > 0) {
+    const lista = divergencias.map((d: string) => `<div class="analise-divergencia">${escapeHtml(d)}</div>`).join('');
+    return `<div class="analise-ia"><span class="status-badge status-overdue">⚠ ${divergencias.length} divergência(s)</span>${reanalisarBtn}${lista}</div>`;
+  }
+  return `<div class="analise-ia"><span class="status-badge status-ok">✓ Verificado</span>${reanalisarBtn}</div>`;
+}
+
+type IAItem = {
+  id: number;
+  tipo: 'fatura' | 'receita';
+  titulo: string;
+  subtitulo: string;
+  data: string | null;
+  valor: any;
+  anexo: any;
+  analiseIA: any;
+  analiseTentativas?: number;
+  estadoLabel: string;
+  status: 'validadas' | 'analise' | 'alertas';
+  statusLabel: string;
+  manualValidada: boolean;
+};
+
+function getIAStatus(item: any): 'validadas' | 'analise' | 'alertas' {
+  const manualValidada = item.analiseIA?.validacaoManual?.validada === true;
+  if (manualValidada) return 'validadas';
+  if (!item.analiseIA) {
+    return (item.analiseTentativas || 0) >= 3 ? 'alertas' : 'analise';
+  }
+  const divergencias: string[] = item.analiseIA.divergencias || [];
+  if (divergencias.length > 0) return 'alertas';
+  return 'validadas';
+}
+
+function getIAStatusLabel(item: any, status: 'validadas' | 'analise' | 'alertas') {
+  const tentativas = item.analiseTentativas || 0;
+  if (item.analiseIA?.validacaoManual?.validada === true) return 'Validada manualmente';
+  if (status === 'analise') return tentativas >= 3 ? 'Em erro' : 'Em análise';
+  if (status === 'alertas') {
+    if (!item.analiseIA) return 'Sem resposta da IA';
+    const divergencias: string[] = item.analiseIA.divergencias || [];
+    return divergencias.length ? `${divergencias.length} alerta(s)` : 'Erro na análise';
+  }
+  return item.analiseIA ? 'Verificada' : 'Sem análise';
+}
+
+function getIAItems(): IAItem[] {
+  const items: IAItem[] = [
+    ...faturasCache.map((f: any) => {
+      const status = getIAStatus(f);
+      return {
+        id: f.id,
+        tipo: 'fatura' as const,
+        titulo: f.titulo || '-',
+        subtitulo: f.fornecedor || f.departamento || 'Despesa',
+        data: f.data || null,
+        valor: f.valor,
+        anexo: f.anexo,
+        analiseIA: f.analiseIA,
+        analiseTentativas: f.analiseTentativas || 0,
+        estadoLabel: f.estado || 'Despesa',
+        status,
+        statusLabel: getIAStatusLabel(f, status),
+        manualValidada: f.analiseIA?.validacaoManual?.validada === true,
+      };
+    }),
+    ...receitasCache.map((r: any) => {
+      const status = getIAStatus(r);
+      return {
+        id: r.id,
+        tipo: 'receita' as const,
+        titulo: r.titulo || '-',
+        subtitulo: r.financiador || r.categoria || 'Receita',
+        data: r.data || null,
+        valor: r.valor,
+        anexo: r.anexo,
+        analiseIA: r.analiseIA,
+        analiseTentativas: r.analiseTentativas || 0,
+        estadoLabel: r.estado || 'Receita',
+        status,
+        statusLabel: getIAStatusLabel(r, status),
+        manualValidada: r.analiseIA?.validacaoManual?.validada === true,
+      };
+    }),
+  ];
+  return items
+    .filter((item) => item.anexo)
+    .sort((a, b) => {
+      const da = a.analiseIA?.analisadoEm || a.data || '';
+      const db = b.analiseIA?.analisadoEm || b.data || '';
+      return String(db).localeCompare(String(da));
+    });
+}
+
+function getIAItemsByTipo(tipo: 'faturas' | 'receitas'): IAItem[] {
+  const items = getIAItems();
+  return items.filter((item) => (tipo === 'faturas' ? item.tipo === 'fatura' : item.tipo === 'receita'));
+}
+
+function renderIASection() {
+  const container = document.getElementById('iaLista');
+  if (!container) return;
+
+  const items = getIAItemsByTipo(iaTipoAtual);
+  const validadas = items.filter((item) => item.status === 'validadas').length;
+  const analise = items.filter((item) => item.status === 'analise').length;
+  const alertas = items.filter((item) => item.status === 'alertas').length;
+  const totalAlertas = getIAItems().filter((item) => item.status === 'alertas').length;
+
+  const countValidada = document.getElementById('iaCountValidada');
+  const countAnalise = document.getElementById('iaCountAnalise');
+  const countAlerta = document.getElementById('iaCountAlerta');
+  const badge = document.getElementById('iaAlertBadge');
+  if (countValidada) countValidada.textContent = String(validadas);
+  if (countAnalise) countAnalise.textContent = String(analise);
+  if (countAlerta) countAlerta.textContent = String(alertas);
+  if (badge) {
+    if (totalAlertas > 0) {
+      badge.textContent = String(totalAlertas);
+      badge.removeAttribute('hidden');
+    } else {
+      badge.setAttribute('hidden', 'true');
+    }
+  }
+
+  const filtrados = iaFiltroAtual === 'todas' ? items : items.filter((item) => item.status === iaFiltroAtual);
+  if (filtrados.length === 0) {
+    container.innerHTML = '<p class="text-muted">Sem itens nesta categoria.</p>';
+    return;
+  }
+
+  container.innerHTML = filtrados.map((item) => {
+    const tipoBadge = item.tipo === 'fatura' ? 'Despesa' : 'Receita';
+    const statusBadgeClass = item.status === 'validadas' ? 'status-ok' : item.status === 'analise' ? 'status-default' : 'status-overdue';
+    const statusBadge = `<span class="status-badge ${statusBadgeClass}">${escapeHtml(item.statusLabel)}</span>`;
+    const acaoValidacao = isReadOnly() ? '' : `
+      <button type="button" class="ghost-action btn-ia-validar" data-tipo="${item.tipo}" data-id="${item.id}" data-validada="${item.manualValidada ? 'false' : 'true'}">
+        ${item.manualValidada ? 'Remover validação' : 'Marcar validada'}
+      </button>`;
+    const divergencias = item.analiseIA?.divergencias || [];
+    const divergenciasHtml = divergencias.length
+      ? `<div class="ia-item-warnings">${divergencias.map((d: string) => `<div class="analise-divergencia">${escapeHtml(d)}</div>`).join('')}</div>`
+      : '';
+    return `
+      <article class="ia-card">
+        <div class="ia-card-top">
+          <div>
+            <div class="ia-card-title">${escapeHtml(item.titulo)}</div>
+            <div class="ia-card-meta">
+              <span class="record-tag">${tipoBadge}</span>
+              <span class="record-tag">${escapeHtml(item.subtitulo)}</span>
+              <span class="record-tag">${formatDate(item.data)}</span>
+            </div>
+          </div>
+          <div class="ia-card-statuses">
+            ${statusBadge}
+          </div>
+        </div>
+        <div class="ia-card-body">
+          <div class="ia-card-value ${item.tipo === 'fatura' ? 'despesa-color' : 'receita-color'}">${formatCurrency(item.valor)}</div>
+          <div class="ia-card-submeta">
+            ${item.anexo ? '<span class="record-tag">Com anexo</span>' : ''}
+            <span class="record-tag">${escapeHtml(item.estadoLabel)}</span>
+          </div>
+          ${divergenciasHtml}
+        </div>
+        <div class="ia-card-actions">
+          ${acaoValidacao}
+          <button type="button" class="ghost-action btn-ia-ir-item" data-tipo="${item.tipo}" data-id="${item.id}">Abrir registo</button>
+        </div>
+      </article>
+    `;
+  }).join('');
+
+  document.querySelectorAll('.ia-doc-tab').forEach((btn) => {
+    btn.classList.toggle('active', (btn as HTMLElement).dataset.iaTipo === iaTipoAtual);
+  });
+  document.querySelectorAll('.ia-tab').forEach((btn) => {
+    btn.classList.toggle('active', (btn as HTMLElement).dataset.iaFilter === iaFiltroAtual);
+  });
+  document.querySelectorAll('.nav-link[data-target="ia"]').forEach((btn) => {
+    btn.classList.toggle('has-alerts', totalAlertas > 0);
+  });
+
+  container.querySelectorAll('.btn-ia-validar').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      const el = e.currentTarget as HTMLElement;
+      const tipo = el.getAttribute('data-tipo') as 'fatura' | 'receita' | null;
+      const id = Number(el.getAttribute('data-id'));
+      const validada = el.getAttribute('data-validada') === 'true';
+      if (!tipo || Number.isNaN(id)) return;
+      void alterarValidacaoIA(tipo, id, validada);
+    });
+  });
+
+  container.querySelectorAll('.btn-ia-ir-item').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      const el = e.currentTarget as HTMLElement;
+      const tipo = el.getAttribute('data-tipo') as 'fatura' | 'receita' | null;
+      const id = Number(el.getAttribute('data-id'));
+      if (!tipo || Number.isNaN(id)) return;
+      setActiveSection(tipo === 'fatura' ? 'faturas' : 'receitas');
+      if (tipo === 'fatura') void editarFatura(id);
+      else void editarReceita(id);
+    });
+  });
+}
+
+async function alterarValidacaoIA(tipo: 'fatura' | 'receita', id: number, validada: boolean) {
+  if (isReadOnly()) {
+    showNotification('Sem permissões para validar IA.', 'error');
+    return;
+  }
+  try {
+    const url = tipo === 'fatura' ? `${API_FATURAS}/${id}/validar-ia` : `${API_RECEITAS}/${id}/validar-ia`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ validada }),
+    });
+    if (!resp.ok) throw new Error('Erro ao atualizar validação da IA');
+    showNotification(validada ? 'Item marcado como validado.' : 'Validação removida.', 'success');
+    await Promise.all([carregarFaturas(), carregarReceitas()]);
+    renderIASection();
+  } catch (error: any) {
+    showNotification(error.message || 'Erro ao atualizar validação da IA', 'error');
+  }
+}
+
+async function refreshIAPanel() {
+  await Promise.all([carregarFaturas(), carregarReceitas()]);
+  renderIASection();
+}
+
+async function executarBackfillFaturasAntigas() {
+  if (isReadOnly()) {
+    showNotification('Sem permissões para preencher despesas antigas.', 'error');
+    return;
+  }
+  if (!confirm('Isto vai analisar PDFs antigos, preencher campos em falta e sincronizar tesouraria de despesas pagas. Continuar?')) return;
+
+  showLoading('A preencher despesas antigas...');
+  try {
+    const resp = await fetch(`${API_FATURAS}/backfill-antigas`, { method: 'POST' });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.error || 'Erro ao preencher despesas antigas');
+    showNotification(`Backfill concluído: ${data.atualizadas || 0} despesas atualizadas e ${data.movimentosSincronizados || 0} movimentos sincronizados.`, 'success');
+    await Promise.all([carregarFaturas(), carregarReceitas()]);
+    renderIASection();
+  } catch (error: any) {
+    showNotification(error.message || 'Erro ao preencher despesas antigas', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+async function reanalisarFatura(id: number) {
+  try {
+    const resp = await fetch(`${API_FATURAS}/${id}/analisar`, { method: 'POST' });
+    if (!resp.ok) throw new Error('Erro ao reanalisar despesa');
+    showNotification('Despesa reanalisada com sucesso!', 'success');
+    await carregarFaturas();
+  } catch {
+    showNotification('Erro ao reanalisar despesa', 'error');
+  }
+}
+
+async function reanalisarReceita(id: number) {
+  try {
+    const resp = await fetch(`${API_RECEITAS}/${id}/analisar`, { method: 'POST' });
+    if (!resp.ok) throw new Error('Erro ao reanalisar receita');
+    showNotification('Receita reanalisada com sucesso!', 'success');
+    await carregarReceitas();
+  } catch {
+    showNotification('Erro ao reanalisar receita', 'error');
+  }
+}
+
 const PAGE_SIZE = 15;
 let faturaPage = 0;
 let receitaPage = 0;
@@ -334,10 +642,14 @@ function renderPagination(containerId: string, total: number, currentPage: numbe
   if (!container) return;
   const totalPages = Math.ceil(total / PAGE_SIZE);
   if (totalPages <= 1) { container.innerHTML = ''; return; }
+  const start = currentPage * PAGE_SIZE + 1;
+  const end = Math.min(total, (currentPage + 1) * PAGE_SIZE);
   container.innerHTML = `
-    <button class="pagination-prev" ${currentPage === 0 ? 'disabled' : ''}>← Anterior</button>
-    <span class="pagination-info">Página ${currentPage + 1} de ${totalPages} (${total} registos)</span>
-    <button class="pagination-next" ${currentPage >= totalPages - 1 ? 'disabled' : ''}>Seguinte →</button>
+    <span class="pagination-info">A mostrar <strong>${start}–${end}</strong> de ${total}</span>
+    <div class="pagination-controls">
+      <button type="button" class="pagination-prev btn-acao" ${currentPage === 0 ? 'disabled' : ''} aria-label="Página anterior">${icon('chevronLeft')}</button>
+      <button type="button" class="pagination-next btn-acao" ${currentPage >= totalPages - 1 ? 'disabled' : ''} aria-label="Página seguinte">${icon('chevronRight')}</button>
+    </div>
   `;
   container.querySelector('.pagination-prev')?.addEventListener('click', () => { if (currentPage > 0) onPageChange(currentPage - 1); });
   container.querySelector('.pagination-next')?.addEventListener('click', () => { if (currentPage < totalPages - 1) onPageChange(currentPage + 1); });
@@ -370,6 +682,12 @@ function setDefaultExportPeriodo() {
   setValue('exportFrom', first.toISOString().slice(0, 10));
   setValue('exportTo', last.toISOString().slice(0, 10));
   setValue('exportAno', String(now.getFullYear()));
+}
+
+function toggleContaField(estadoValue: string, wrapId: string, condicao: string) {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  wrap.toggleAttribute('hidden', estadoValue !== condicao);
 }
 
 function toggleExportPeriodoFields(periodo: string) {
@@ -497,7 +815,7 @@ function setActiveNav(target: string) {
 
 const loadedSections = new Set<string>();
 
-function setActiveSection(target: 'resumo' | 'faturas' | 'receitas' | 'eventos' | 'inventario') {
+function setActiveSection(target: 'resumo' | 'faturas' | 'receitas' | 'eventos' | 'ia' | 'inventario' | 'tesouraria') {
   hideForms();
   const showSet = new Set(SECTION_GROUPS[target]);
   Object.values(SECTION_GROUPS).flat().forEach(id => {
@@ -525,8 +843,16 @@ async function lazyLoadSection(target: string) {
     case 'eventos':
       await carregarEventosResumo();
       break;
+    case 'ia':
+      if (!faturasCache.length || !receitasCache.length) await Promise.all([carregarFaturas(), carregarReceitas()]);
+      renderIASection();
+      break;
     case 'inventario':
       if (!inventarioCache.length) await carregarInventario();
+      break;
+    case 'tesouraria':
+      if (!movimentosCache.length) await carregarMovimentos();
+      else renderMovimentosPage();
       break;
   }
 }
@@ -1181,7 +1507,8 @@ async function carregarFaturas() {
   if (to) params.append('dateTo', to);
   if (q) params.append('q', q);
   if (departamento) params.append('departamento', departamento);
-  if (estado) params.append('estado', estado);
+  if (estado === 'vencidas') params.append('vencidas', 'true');
+  else if (estado) params.append('estado', estado);
   if (eventoId) params.append('eventoId', eventoId);
 
   showSkeleton('listaFaturas', 5);
@@ -1193,11 +1520,13 @@ async function carregarFaturas() {
     renderFaturasPage();
     atualizarDashboards(faturasCache, movimentosCache, receitasCache);
     atualizarSelectFaturaInventario();
+    renderIASection();
   } catch {
     const container = document.getElementById('listaFaturas');
     if (container) container.innerHTML = '<p class="text-muted">Erro ao carregar despesas.</p>';
     atualizarDashboards([], movimentosCache, receitasCache);
     atualizarSelectFaturaInventario();
+    renderIASection();
   }
 }
 
@@ -1228,22 +1557,31 @@ function renderFaturasPage() {
           <span>${escapeHtml(f.tipo || 'Fatura')}</span>
           ${f.numero ? `<span>Nº ${escapeHtml(f.numero)}</span>` : ''}
           <span>${escapeHtml(f.departamento || '-')}</span>
+          ${f.fornecedor ? `<span>${escapeHtml(f.fornecedor)}</span>` : ''}
           ${eventoTags}
         </div>
       </div>
       <div class="record-details">
         <div class="record-amount despesa-color">${formatCurrency(f.valor)}</div>
-        <div class="record-date">${formatDate(f.data)}</div>
+        <div class="record-date">${formatDate(f.data)}${f.dataVencimento ? ` <span class="text-muted">(vence ${formatDate(f.dataVencimento)})</span>` : ''}</div>
         ${estadoBadge(f.estado)}
+        ${vencidaBadge(f)}
         ${anexoLink ? `<button class="btn-anexo-open record-anexo" data-url="${escapeHtml(anexoLink)}">${icon('file')}</button>` : ''}
       </div>
       ${actions}
+      ${renderAnaliseIA(f, 'fatura')}
     </div>`;
   }).join('');
   container.querySelectorAll('.btn-anexo-open').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const url = (e.currentTarget as HTMLElement).getAttribute('data-url');
       if (url) openAnexo(url);
+    });
+  });
+  container.querySelectorAll('.btn-reanalisar-fatura').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+      if (id) reanalisarFatura(parseInt(id, 10));
     });
   });
   if (!isReadOnly()) {
@@ -1279,10 +1617,16 @@ async function guardarFatura(e: SubmitEvent) {
   formData.append('valor', String(valor));
   formData.append('data', data);
   formData.append('departamento', departamento);
-  formData.append('tipo', 'Fatura');
+  formData.append('tipo', getValue('tipoFatura') || 'Fatura');
   formData.append('numero', getValue('numeroFatura').trim());
   formData.append('estado', getValue('estadoFatura') || 'Pendente');
   formData.append('descricao', getValue('observacoesFatura').trim());
+  formData.append('fornecedor', getValue('fornecedorFatura').trim());
+  formData.append('fornecedorNif', getValue('fornecedorNifFatura').trim());
+  const dataVencimento = getValue('dataVencimentoFatura');
+  if (dataVencimento) formData.append('dataVencimento', dataVencimento);
+  const contaFatura = getValue('contaFatura').trim();
+  if (contaFatura) formData.append('conta', contaFatura);
   const eventosData = getEventoRows('faturaEventosList');
   formData.append('eventos', JSON.stringify(eventosData));
 
@@ -1353,21 +1697,182 @@ async function carregarReceitas() {
     receitaPage = 0;
     renderReceitasPage();
     atualizarDashboards(faturasCache, movimentosCache, receitasCache);
+    renderIASection();
   } catch {
     const container = document.getElementById('listaReceitas');
     if (container) container.innerHTML = '<p class="text-muted">Erro ao carregar receitas.</p>';
     atualizarDashboards(faturasCache, movimentosCache, receitasCache);
+    renderIASection();
   }
 }
 
 async function carregarMovimentos() {
+  const params = new URLSearchParams();
+  const conta = getValue('filterMovConta');
+  const tipo = getValue('filterMovTipo');
+  const from = getValue('filterMovFrom');
+  const to = getValue('filterMovTo');
+  if (conta) params.append('conta', conta);
+  if (tipo) params.append('tipo', tipo);
+  if (from) params.append('dateFrom', from);
+  if (to) params.append('dateTo', to);
   try {
-    const resp = await fetch(API_MOVIMENTOS);
+    const resp = await fetch(`${API_MOVIMENTOS}?${params.toString()}`);
     if (!resp.ok) throw new Error('Erro ao listar movimentos');
     movimentosCache = await resp.json();
   } catch {
     movimentosCache = [];
   }
+  movimentoPage = 0;
+  renderMovimentosPage();
+}
+
+function renderMovimentosPage() {
+  const container = document.getElementById('listaMovimentos');
+  if (!container) return;
+  if (!Array.isArray(movimentosCache) || movimentosCache.length === 0) {
+    container.innerHTML = '<p class="text-muted">Nenhum movimento encontrado.</p>';
+    renderPagination('movimentosPagination', 0, 0, () => {});
+    return;
+  }
+  const page = paginate(movimentosCache, movimentoPage);
+  container.innerHTML = page.map((m: any) => {
+    const tipoLabel = m.tipo === 'entrada' ? 'Entrada' : 'Saída';
+    const amountClass = m.tipo === 'entrada' ? 'receita-color' : 'despesa-color';
+    const origemTag = m.fatura ? `<span class="record-tag">Despesa: ${escapeHtml(m.fatura.titulo)}</span>`
+      : m.receita ? `<span class="record-tag">Receita: ${escapeHtml(m.receita.titulo)}</span>` : '';
+    const actions = (isReadOnly() || m.faturaId || m.receitaId) ? '' : `
+      <div class="record-actions">
+        <button class="btn-acao btn-editar-movimento" data-id="${m.id}" title="Editar">${icon('edit')}</button>
+        <button class="btn-acao btn-remover-movimento" data-id="${m.id}" title="Remover">${icon('trash')}</button>
+      </div>`;
+    return `<div class="record-row">
+      <div class="record-main">
+        <div class="record-title">${escapeHtml(m.conta || '-')}</div>
+        <div class="record-meta">
+          <span>${tipoLabel}</span>
+          ${m.referencia ? `<span>Ref. ${escapeHtml(m.referencia)}</span>` : ''}
+          ${m.descricao ? `<span>${escapeHtml(m.descricao)}</span>` : ''}
+          ${origemTag}
+        </div>
+      </div>
+      <div class="record-details">
+        <div class="record-amount ${amountClass}">${formatCurrency(m.valor)}</div>
+        <div class="record-date">${formatDate(m.data)}</div>
+      </div>
+      ${actions}
+    </div>`;
+  }).join('');
+  container.querySelectorAll('.btn-editar-movimento').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+      if (id) editarMovimento(parseInt(id, 10));
+    });
+  });
+  container.querySelectorAll('.btn-remover-movimento').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+      if (id) removerMovimento(parseInt(id, 10));
+    });
+  });
+  renderPagination('movimentosPagination', movimentosCache.length, movimentoPage, (p) => { movimentoPage = p; renderMovimentosPage(); });
+}
+
+async function guardarMovimento(e: SubmitEvent) {
+  e.preventDefault();
+  if (isReadOnly()) { showNotification('Sem permissões para alterar movimentos.', 'error'); return; }
+  const tipo = getValue('tipoMovimento') || 'entrada';
+  const conta = getValue('contaMovimento').trim();
+  const valor = parseFloat(getValue('valorMovimento'));
+  const data = getValue('dataMovimento');
+  if (!conta || !data || Number.isNaN(valor)) {
+    showNotification('Preencha todos os campos obrigatórios do movimento.', 'error');
+    return;
+  }
+  const payload = {
+    tipo,
+    conta,
+    valor,
+    data,
+    referencia: getValue('referenciaMovimento').trim(),
+    descricao: getValue('descricaoMovimento').trim(),
+  };
+  const url = editingMovimentoId ? `${API_MOVIMENTOS}/${editingMovimentoId}` : API_MOVIMENTOS;
+  const method = editingMovimentoId ? 'PUT' : 'POST';
+  try {
+    const resp = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) throw new Error('Erro ao guardar movimento');
+    showNotification(editingMovimentoId ? 'Movimento atualizado com sucesso!' : 'Movimento criado com sucesso!', 'success');
+    resetForm('movimentoForm');
+    toggleSection('formularioMovimento', false);
+    editingMovimentoId = null;
+    await carregarMovimentos();
+    atualizarDashboards(faturasCache, movimentosCache, receitasCache);
+  } catch (err: any) {
+    showNotification(err.message || 'Erro ao guardar movimento', 'error');
+  }
+}
+
+async function editarMovimento(id: number) {
+  const m = movimentosCache.find((x: any) => x.id === id);
+  if (!m) { showNotification('Movimento não encontrado', 'error'); return; }
+  toggleSection('formularioMovimento', true);
+  setValue('tipoMovimento', m.tipo || 'entrada');
+  setValue('contaMovimento', m.conta || '');
+  setValue('valorMovimento', m.valor?.toString() || '');
+  setValue('dataMovimento', (m.data || '').slice(0, 10));
+  setValue('referenciaMovimento', m.referencia || '');
+  setValue('descricaoMovimento', m.descricao || '');
+  editingMovimentoId = id;
+  const btn = document.getElementById('btnSalvarMovimento') as HTMLButtonElement | null;
+  if (btn) btn.textContent = 'Guardar Alterações';
+}
+
+async function removerMovimento(id: number) {
+  if (!confirm('Tem a certeza que deseja remover este movimento?')) return;
+  if (isReadOnly()) { showNotification('Sem permissões para remover movimentos.', 'error'); return; }
+  try {
+    const resp = await fetch(`${API_MOVIMENTOS}/${id}`, { method: 'DELETE' });
+    if (!resp.ok) throw new Error('Erro ao remover movimento');
+    showNotification('Movimento removido com sucesso!', 'success');
+    await carregarMovimentos();
+    atualizarDashboards(faturasCache, movimentosCache, receitasCache);
+  } catch {
+    showNotification('Erro ao remover movimento', 'error');
+  }
+}
+
+function setupMovimentos() {
+  const btnNovo = document.getElementById('btnNovoMovimento');
+  if (btnNovo) {
+    btnNovo.addEventListener('click', () => {
+      if (isReadOnly()) { showNotification('Sem permissões para criar movimentos.', 'error'); return; }
+      resetForm('movimentoForm');
+      editingMovimentoId = null;
+      const btn = document.getElementById('btnSalvarMovimento') as HTMLButtonElement | null;
+      if (btn) btn.textContent = 'Guardar';
+      toggleSection('formularioMovimento', true);
+    });
+  }
+
+  const btnCancelar = document.getElementById('btnCancelarMovimento');
+  if (btnCancelar) {
+    btnCancelar.addEventListener('click', () => {
+      toggleSection('formularioMovimento', false);
+      resetForm('movimentoForm');
+      editingMovimentoId = null;
+    });
+  }
+
+  const movimentoForm = document.getElementById('movimentoForm');
+  if (movimentoForm) movimentoForm.addEventListener('submit', guardarMovimento);
+
+  const btnFiltrosMov = document.getElementById('btnAplicarFiltrosMov');
+  if (btnFiltrosMov) btnFiltrosMov.addEventListener('click', () => carregarMovimentos());
 }
 
 function renderReceitasPage() {
@@ -1407,12 +1912,19 @@ function renderReceitasPage() {
         ${anexoLink ? `<button class="btn-anexo-open record-anexo" data-url="${escapeHtml(anexoLink)}">${icon('file')}</button>` : ''}
       </div>
       ${actions}
+      ${renderAnaliseIA(r, 'receita')}
     </div>`;
   }).join('');
   container.querySelectorAll('.btn-anexo-open').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const url = (e.currentTarget as HTMLElement).getAttribute('data-url');
       if (url) openAnexo(url);
+    });
+  });
+  container.querySelectorAll('.btn-reanalisar-receita').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+      if (id) reanalisarReceita(parseInt(id, 10));
     });
   });
   if (!isReadOnly()) {
@@ -1449,6 +1961,8 @@ async function guardarReceita(e: SubmitEvent) {
   formData.append('categoria', categoria);
   formData.append('estado', getValue('estadoReceita') || 'Previsto');
   formData.append('financiador', getValue('financiadorReceita').trim());
+  const contaReceita = getValue('contaReceita').trim();
+  if (contaReceita) formData.append('conta', contaReceita);
   formData.append('valor', String(valor));
   formData.append('data', data);
   formData.append('observacoes', getValue('observacoesReceita').trim());
@@ -1869,6 +2383,7 @@ function setupEventListeners() {
   document.getElementById('editarPartilhaForm')?.addEventListener('submit', guardarEditarPartilha as any);
 
   setupExportRelatorio();
+  setupMovimentos();
   const btnNovoEvento = document.getElementById('btnEscolherEvento');
   if (btnNovoEvento) {
     btnNovoEvento.addEventListener('click', () => {
@@ -1917,6 +2432,7 @@ function setupEventListeners() {
       editingFaturaId = null;
       removeFaturaAnexo = false;
       clearEventoRows('faturaEventosList');
+      toggleContaField(getValue('estadoFatura') || 'Pendente', 'contaFaturaWrap', 'Paga');
       const ea = document.getElementById('existingAnexoFatura');
       if (ea) ea.setAttribute('hidden', 'true');
       const df = document.getElementById('dropFatura');
@@ -1937,6 +2453,7 @@ function setupEventListeners() {
       editingFaturaId = null;
       removeFaturaAnexo = false;
       clearEventoRows('faturaEventosList');
+      toggleContaField(getValue('estadoFatura') || 'Pendente', 'contaFaturaWrap', 'Paga');
       const ea = document.getElementById('existingAnexoFatura');
       if (ea) ea.setAttribute('hidden', 'true');
       const df = document.getElementById('dropFatura');
@@ -1974,6 +2491,11 @@ function setupEventListeners() {
   const faturaForm = document.getElementById('faturaForm');
   if (faturaForm) faturaForm.addEventListener('submit', guardarFatura);
 
+  const estadoFaturaSelect = document.getElementById('estadoFatura') as HTMLSelectElement | null;
+  if (estadoFaturaSelect) {
+    estadoFaturaSelect.addEventListener('change', () => toggleContaField(estadoFaturaSelect.value, 'contaFaturaWrap', 'Paga'));
+  }
+
   const btnNovaReceita = document.getElementById('btnNovaReceita');
   if (btnNovaReceita) {
     btnNovaReceita.addEventListener('click', () => {
@@ -1984,6 +2506,7 @@ function setupEventListeners() {
       editingReceitaId = null;
       removeReceitaAnexo = false;
       clearEventoRows('receitaEventosList');
+      toggleContaField(getValue('estadoReceita') || 'Previsto', 'contaReceitaWrap', 'Recebido');
       const ea = document.getElementById('existingAnexoReceita');
       if (ea) ea.setAttribute('hidden', 'true');
       const dr = document.getElementById('dropReceita');
@@ -2008,6 +2531,11 @@ function setupEventListeners() {
   const receitaForm = document.getElementById('receitaForm');
   if (receitaForm) receitaForm.addEventListener('submit', guardarReceita);
 
+  const estadoReceitaSelect = document.getElementById('estadoReceita') as HTMLSelectElement | null;
+  if (estadoReceitaSelect) {
+    estadoReceitaSelect.addEventListener('change', () => toggleContaField(estadoReceitaSelect.value, 'contaReceitaWrap', 'Recebido'));
+  }
+
   const btnFiltros = document.getElementById('btnAplicarFiltros');
   if (btnFiltros) btnFiltros.addEventListener('click', () => carregarFaturas());
 
@@ -2024,6 +2552,7 @@ function setupEventListeners() {
       editingReceitaId = null;
       removeReceitaAnexo = false;
       clearEventoRows('receitaEventosList');
+      toggleContaField(getValue('estadoReceita') || 'Previsto', 'contaReceitaWrap', 'Recebido');
       const ea = document.getElementById('existingAnexoReceita');
       if (ea) ea.setAttribute('hidden', 'true');
       const dr = document.getElementById('dropReceita');
@@ -2078,14 +2607,67 @@ function setupEventListeners() {
     });
   }
 
+  const btnRecarregarIA = document.getElementById('btnRecarregarIA');
+  if (btnRecarregarIA) {
+    btnRecarregarIA.addEventListener('click', () => {
+      void refreshIAPanel();
+    });
+  }
+
+  const btnBackfillIA = document.getElementById('btnBackfillIA');
+  if (btnBackfillIA) {
+    btnBackfillIA.addEventListener('click', () => {
+      void executarBackfillFaturasAntigas();
+    });
+  }
+
+  document.querySelectorAll('.ia-doc-tab').forEach((tab) => {
+    tab.addEventListener('click', (e) => {
+      const target = (e.currentTarget as HTMLElement).dataset.iaTipo as 'faturas' | 'receitas' | undefined;
+      if (!target) return;
+      iaTipoAtual = target;
+      iaFiltroAtual = 'todas';
+      document.querySelectorAll('.ia-doc-tab').forEach((btn) => btn.classList.toggle('active', (btn as HTMLElement).dataset.iaTipo === target));
+      document.querySelectorAll('.ia-tab').forEach((btn) => btn.classList.toggle('active', (btn as HTMLElement).dataset.iaFilter === 'todas'));
+      renderIASection();
+    });
+  });
+
+  document.querySelectorAll('.ia-tab').forEach((tab) => {
+    tab.addEventListener('click', (e) => {
+      const target = (e.currentTarget as HTMLElement).dataset.iaFilter as 'todas' | 'validadas' | 'analise' | 'alertas' | undefined;
+      if (!target) return;
+      iaFiltroAtual = target;
+      document.querySelectorAll('.ia-tab').forEach((btn) => btn.classList.toggle('active', (btn as HTMLElement).dataset.iaFilter === target));
+      renderIASection();
+    });
+  });
+
   document.querySelectorAll('.main-nav .nav-link').forEach(link => {
     link.addEventListener('click', (e) => {
       e.preventDefault();
-      const target = (e.currentTarget as HTMLElement).dataset.target as 'resumo' | 'faturas' | 'receitas' | 'eventos' | 'inventario' | undefined;
+      const target = (e.currentTarget as HTMLElement).dataset.target as 'resumo' | 'faturas' | 'receitas' | 'eventos' | 'ia' | 'inventario' | 'tesouraria' | undefined;
       if (!target) return;
       setActiveSection(target);
+      closeSidebar();
     });
   });
+
+  const sidebar = document.getElementById('sidebar');
+  const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+  const btnSidebarToggle = document.getElementById('btnSidebarToggle');
+  if (btnSidebarToggle) btnSidebarToggle.addEventListener('click', openSidebar);
+  if (sidebarBackdrop) sidebarBackdrop.addEventListener('click', closeSidebar);
+}
+
+function openSidebar() {
+  document.getElementById('sidebar')?.classList.add('open');
+  document.getElementById('sidebarBackdrop')?.removeAttribute('hidden');
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar')?.classList.remove('open');
+  document.getElementById('sidebarBackdrop')?.setAttribute('hidden', 'true');
 }
 
 // --- Dashboards (Resumo Geral e Ano) ---
@@ -2481,6 +3063,8 @@ async function editarReceita(id: number) {
     setValue('valorReceita', r.valor?.toString() || '');
     setValue('dataReceita', (r.data || '').slice(0, 10));
     setValue('observacoesReceita', r.observacoes || '');
+    setValue('contaReceita', r.movimento?.conta || '');
+    toggleContaField(r.estado || 'Previsto', 'contaReceitaWrap', 'Recebido');
     clearEventoRows('receitaEventosList');
     if (r.receitaEventos?.length) {
       r.receitaEventos.forEach((re: any) => {
@@ -2540,6 +3124,11 @@ async function editarFatura(id: number) {
     setValue('estadoFatura', f.estado || 'Pendente');
     setValue('observacoesFatura', f.descricao || '');
     setValue('tipoFatura', f.tipo || 'Fatura');
+    setValue('fornecedorFatura', f.fornecedor || '');
+    setValue('fornecedorNifFatura', f.fornecedorNif || '');
+    setValue('dataVencimentoFatura', (f.dataVencimento || '').slice(0, 10));
+    setValue('contaFatura', f.movimento?.conta || '');
+    toggleContaField(f.estado || 'Pendente', 'contaFaturaWrap', 'Paga');
     clearEventoRows('faturaEventosList');
     if (f.faturaEventos?.length) {
       f.faturaEventos.forEach((fe: any) => {
