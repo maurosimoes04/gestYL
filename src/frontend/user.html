@@ -168,7 +168,7 @@
             <div class="form-field"><label for="referenciaMovimento">Referência <span class="form-optional">opcional</span></label><input id="referenciaMovimento" placeholder="ex: nº de transferência"></div>
           </div>
           <div class="form-field"><label for="descricaoMovimento">Descrição</label><textarea id="descricaoMovimento" placeholder="Notas adicionais..."></textarea></div>
-          <div class="form-btns"><button type="submit" class="main-action btn" id="btnSalvarMovimento">Guardar</button></div>
+          <div class="form-btns"><button type="button" class="ghost-action js-cancel-form">Cancelar</button><button type="submit" class="main-action btn" id="btnSalvarMovimento">Guardar</button></div>
         </form>
       </div>
     </div>
@@ -565,7 +565,7 @@
             </div>
           </div>
         </div>
-        <div class="form-btns"><button type="submit" class="main-action btn" id="btnSalvarFatura">Guardar</button></div>
+        <div class="form-btns"><button type="button" class="ghost-action js-cancel-form">Cancelar</button><button type="submit" class="main-action btn" id="btnSalvarFatura">Guardar</button></div>
         <div class="form-loading-overlay" id="faturaLoadingOverlay" hidden>
           <div class="loader-spinner"></div>
           <p>A guardar despesa...</p>
@@ -587,6 +587,16 @@
           <div class="form-grid">
             <div class="form-field"><label for="tituloReceita">Título <span class="form-required">*</span></label><input id="tituloReceita" required placeholder="Descrição da receita"></div>
             <div class="form-field"><label for="categoriaReceita">Categoria <span class="form-required">*</span></label><select id="categoriaReceita" required><option value="">Selecionar...</option><option>Quotas</option><option>Patrocínios/Doações</option><option>Cofinanciamentos</option><option>Vendas/Serviços</option><option>Reembolsos</option><option>Outros</option></select></div>
+            <div class="form-field form-field-full"><label for="financiadorReceita">Financiador <span class="form-optional">opcional</span></label><input id="financiadorReceita" placeholder="ex: Câmara Municipal"></div>
+          </div>
+        </div>
+        <div class="form-fieldset">
+          <div class="form-fieldset-title">Valores e datas</div>
+          <div class="form-grid">
+            <div class="form-field"><label for="valorReceita">Valor (€) <span class="form-required">*</span></label><input type="number" step="0.01" id="valorReceita" required min="0" placeholder="0.00"></div>
+            <div class="form-field"><label for="dataReceita">Data <span class="form-required">*</span></label><input type="date" id="dataReceita" required></div>
+            <div class="form-field"><label for="estadoReceita">Estado</label><select id="estadoReceita"><option>Previsto</option><option>Pendente</option><option>Recebido</option></select></div>
+            <div class="form-field" id="contaReceitaWrap" hidden><label for="contaReceita">Conta <span class="form-optional">opcional</span></label><input id="contaReceita" list="contasSugeridas" placeholder="ex: Caixa, Banco Principal"></div>
             <div class="form-field form-field-full">
               <label>Eventos <span class="form-optional">opcional</span></label>
               <div class="multi-evento-wrap" id="receitaEventosWrap">
@@ -597,16 +607,6 @@
                 </div>
               </div>
             </div>
-            <div class="form-field"><label for="financiadorReceita">Financiador <span class="form-optional">opcional</span></label><input id="financiadorReceita" placeholder="ex: Câmara Municipal"></div>
-          </div>
-        </div>
-        <div class="form-fieldset">
-          <div class="form-fieldset-title">Valores e datas</div>
-          <div class="form-grid">
-            <div class="form-field"><label for="valorReceita">Valor (€) <span class="form-required">*</span></label><input type="number" step="0.01" id="valorReceita" required min="0" placeholder="0.00"></div>
-            <div class="form-field"><label for="dataReceita">Data <span class="form-required">*</span></label><input type="date" id="dataReceita" required></div>
-            <div class="form-field"><label for="estadoReceita">Estado</label><select id="estadoReceita"><option>Previsto</option><option>Pendente</option><option>Recebido</option></select></div>
-            <div class="form-field" id="contaReceitaWrap" hidden><label for="contaReceita">Conta <span class="form-optional">opcional</span></label><input id="contaReceita" list="contasSugeridas" placeholder="ex: Caixa, Banco Principal"></div>
           </div>
         </div>
         <div class="form-fieldset">
@@ -627,7 +627,7 @@
             </div>
           </div>
         </div>
-        <div class="form-btns"><button type="submit" class="main-action btn" id="btnSalvarReceita">Guardar</button></div>
+        <div class="form-btns"><button type="button" class="ghost-action js-cancel-form">Cancelar</button><button type="submit" class="main-action btn" id="btnSalvarReceita">Guardar</button></div>
         <div class="form-loading-overlay" id="receitaLoadingOverlay" hidden>
           <div class="loader-spinner"></div>
           <p>A guardar receita...</p>
@@ -654,7 +654,7 @@
           </div>
           <div class="form-field"><label for="eventoDescricao">Descrição <span class="form-optional">opcional</span></label><textarea id="eventoDescricao" placeholder="Detalhes sobre o evento..."></textarea></div>
         </div>
-        <div class="form-btns"><button type="submit" id="eventoSubmitButton" class="main-action">Guardar</button></div>
+        <div class="form-btns"><button type="button" class="ghost-action js-cancel-form">Cancelar</button><button type="submit" id="eventoSubmitButton" class="main-action">Guardar</button></div>
       </form>
     </div>
   </div>
@@ -694,7 +694,7 @@
           </div>
           <div class="form-field"><label for="invNotas">Notas</label><textarea id="invNotas" placeholder="Observações adicionais..."></textarea></div>
         </div>
-        <div class="form-btns"><button type="submit" class="main-action">Guardar</button></div>
+        <div class="form-btns"><button type="button" class="ghost-action js-cancel-form">Cancelar</button><button type="submit" class="main-action">Guardar</button></div>
       </form>
     </div>
   </div>
