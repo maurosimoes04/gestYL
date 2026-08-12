@@ -92,6 +92,7 @@ model Inventario {
   id               Int       @id @default(autoincrement())
   tipo             String
   nome             String
+  codigoPatrimonio String?   @unique
   categoria        String?
   quantidade       Float     @default(0)
   unidade          String?

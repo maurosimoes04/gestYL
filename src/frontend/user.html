@@ -95,14 +95,18 @@
       <div class="section-header">
         <h2>Inventário</h2>
         <div class="section-header-actions">
+          <button type="button" id="qaEtiquetasInventario" class="ghost-action">Imprimir etiquetas</button>
           <button type="button" id="qaExportInventario" class="ghost-action">Exportar PDF</button>
           <button type="button" id="qaNovoInventario" class="main-action">Novo item</button>
         </div>
       </div>
 
-      <div class="filtros">
-        <input type="text" id="filterInvQ" placeholder="Pesquisar nome/categoria/local">
-        <button id="btnAplicarFiltrosInv" class="main-action">Aplicar</button>
+      <div class="dashboard-grid inv-summary-grid" id="invResumo"></div>
+
+      <div class="filtros filtros-inv">
+        <input type="text" id="filterInvQ" placeholder="Pesquisar nome, categoria ou local...">
+        <select id="filterInvEstado"><option value="">Todos os estados</option></select>
+        <select id="filterInvCategoria"><option value="">Todas as categorias</option></select>
       </div>
 
       <div class="inv-tabs">
@@ -669,6 +673,11 @@
       <form id="inventarioForm" class="form-modern">
         <div class="form-fieldset">
           <div class="form-fieldset-title">Identificação</div>
+          <div class="form-field form-field-full" id="invCodigoWrap" hidden>
+            <label for="invCodigo">Código de património</label>
+            <input id="invCodigo" readonly>
+            <span class="form-hint">Gerado automaticamente para bens fixos. Usado nas etiquetas.</span>
+          </div>
           <div class="form-grid">
             <div class="form-field"><label for="invTipo">Tipo <span class="form-required">*</span></label><select id="invTipo" required><option value="">Selecionar...</option><option value="consumivel">Consumível</option><option value="fixo">Fixo</option></select></div>
             <div class="form-field"><label for="invNome">Nome <span class="form-required">*</span></label><input id="invNome" required placeholder="Nome do item"></div>

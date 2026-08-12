@@ -472,6 +472,76 @@ body {
   color: var(--warning);
 }
 
+/* Resumo do inventário (cards no topo) */
+#inventario .inv-summary-grid {
+  grid-template-columns: repeat(4, 1fr);
+  margin-bottom: 16px;
+}
+.inv-summary-grid .summary-card {
+  background: var(--bg-card);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 14px 16px;
+}
+.inv-summary-grid .summary-card .label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 6px;
+}
+.inv-summary-grid .summary-card .value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Filtros do inventário: controlos com largura natural (não esticados) */
+.filtros-inv {
+  grid-template-columns: minmax(220px, 1.5fr) minmax(150px, 1fr) minmax(150px, 1fr);
+}
+
+/* Chip do código de património no card */
+.inv-codigo-chip {
+  background: var(--primary-soft);
+  color: var(--primary);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/* "Stock baixo" junto ao nome */
+.inv-card-name .inv-stock-alert {
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+/* Corpo do card alinhado ao topo com altura consistente */
+.inv-card-body {
+  align-content: start;
+}
+
+/* Hint em campos de formulário (ex.: código auto-gerado) */
+.form-hint {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+@media (max-width: 900px) {
+  #inventario .inv-summary-grid { grid-template-columns: repeat(2, 1fr); }
+  .filtros-inv { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+  .filtros-inv { grid-template-columns: 1fr; }
+}
+
 .readonly-banner {
   max-width: 1200px;
   margin: 10px auto;

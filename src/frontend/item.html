@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Item de Inventário — Young-Link</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/style.css?v=20260812" />
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: radial-gradient(circle at 22% 18%, rgba(59,130,246,0.35), transparent 36%),
+                  radial-gradient(circle at 78% 10%, rgba(45,212,191,0.35), transparent 40%),
+                  linear-gradient(135deg, #13233a, #0e1b2d 55%, #0f2e35);
+    }
+    .item-card {
+      width: min(440px, 94vw);
+      background: var(--bg-card);
+      border-radius: 18px;
+      box-shadow: 0 18px 38px rgba(0,0,0,0.45);
+      overflow: hidden;
+    }
+    .item-head {
+      background: #0f172a;
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .item-head img { height: 30px; }
+    .item-head .item-head-label {
+      color: #cbd5e1;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding-left: 12px;
+      border-left: 1px solid #334155;
+    }
+    .item-body { padding: 24px; }
+    .item-codigo {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--primary);
+      font-variant-numeric: tabular-nums;
+    }
+    .item-nome {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin: 2px 0 16px;
+    }
+    .item-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+    .item-chip {
+      background: var(--bg-muted);
+      color: var(--text-muted);
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .item-rows { display: grid; gap: 0; }
+    .item-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 0;
+      border-top: 1px solid var(--gray-100);
+      font-size: 0.9rem;
+    }
+    .item-row .k { color: var(--text-muted); font-weight: 600; }
+    .item-row .v { color: var(--text-dark); font-weight: 600; text-align: right; }
+    .item-footer {
+      padding: 14px 24px;
+      border-top: 1px solid var(--gray-200);
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      text-align: center;
+    }
+    .item-msg { text-align: center; color: var(--text-muted); padding: 20px 0; }
+  </style>
+</head>
+<body>
+  <div class="item-card">
+    <div class="item-head">
+      <img src="https://tnmycajugdovbnqydyvx.supabase.co/storage/v1/object/public/IMAGENS/logo.png" alt="Young-Link">
+      <span class="item-head-label">Inventário</span>
+    </div>
+    <div class="item-body" id="itemBody">
+      <p class="item-msg">A carregar...</p>
+    </div>
+    <div class="item-footer">Associação Young-Link · Gestão de Património</div>
+  </div>
+  <script src="/assets/js/item.js?v=20260812"></script>
+</body>
+</html>
