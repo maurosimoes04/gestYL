@@ -6,6 +6,7 @@ import archiver from 'archiver';
 import { prisma } from '../config/prisma';
 import { logAudit } from '../services/audit';
 import { getLogoBuffer } from '../utils/logo';
+import { drawDetailTable } from '../utils/pdfTable';
 
 const ACCESS_TTL_HOURS = 12;
 const DEFAULT_EXPIRES_DAYS = 30;
@@ -439,38 +440,73 @@ sharePublicRouter.get('/evento/:token/relatorio', async (req, res) => {
     rows.push({ cells: ['Saldo do Evento', fmt(saldo)], fill: saldo >= 0 ? '#dcfce7' : '#fee2e2', color: saldo >= 0 ? '#166534' : '#b91c1c', bold: true });
     drawTable(doc, rows);
 
-    // Receitas
-    const recRows: Row[] = [];
-    recRows.push({ cells: ['Receitas', 'Valor'], fill: '#f1f5f9', bold: true });
+    // Receitas — tabela detalhada
+    doc.moveDown(0.5).fontSize(12).font('Helvetica-Bold').fillColor('#0f172a').text('Receitas');
+    doc.moveDown(0.3);
     if (receitaEventos.length === 0) {
-      recRows.push({ cells: ['Sem receitas registadas.', ''] });
+      doc.fontSize(9).font('Helvetica').fillColor('#64748b').text('Sem receitas registadas.');
+      doc.moveDown(0.5);
     } else {
-      receitaEventos.forEach((re) => {
-        const r = re.receita;
-        const label = `${formatDatePt(r.data)} — ${r.titulo}${r.financiador ? ` (${r.financiador})` : ''} · ${r.estado}`;
-        recRows.push({ cells: [label, fmt(toNum(re.valor))] });
+      drawDetailTable(doc, {
+        columns: [
+          { header: 'Data', key: 'data', width: 60 },
+          { header: 'Descrição', key: 'titulo', width: 150 },
+          { header: 'Categoria', key: 'categoria', width: 92 },
+          { header: 'Financiador', key: 'financiador', width: 118 },
+          { header: 'Estado', key: 'estado', width: 45 },
+          { header: 'Valor', key: 'valor', width: 50, align: 'right' },
+        ],
+        zebra: true,
+        rows: receitaEventos.map((re) => {
+          const r = re.receita;
+          return {
+            data: formatDatePt(r.data),
+            titulo: r.titulo || '-',
+            categoria: r.categoria || '-',
+            financiador: r.financiador || '-',
+            estado: r.estado || '-',
+            valor: fmt(toNum(re.valor)),
+          };
+        }),
+        totalRow: { data: '', titulo: 'Subtotal Receitas', categoria: '', financiador: '', estado: '', valor: fmt(totalReceitas) },
+        totalColor: '#15803d',
       });
-      recRows.push({ cells: ['Subtotal Receitas', fmt(totalReceitas)], fill: '#f8fafc', color: '#15803d', bold: true });
     }
-    doc.moveDown(0.5);
-    drawTable(doc, recRows);
 
-    // Despesas
-    const despRows: Row[] = [];
-    despRows.push({ cells: ['Despesas', 'Valor'], fill: '#f1f5f9', bold: true });
+    // Despesas — tabela detalhada
+    doc.moveDown(0.5).fontSize(12).font('Helvetica-Bold').fillColor('#0f172a').text('Despesas');
+    doc.moveDown(0.3);
     if (faturaEventos.length === 0) {
-      despRows.push({ cells: ['Sem despesas registadas.', ''] });
+      doc.fontSize(9).font('Helvetica').fillColor('#64748b').text('Sem despesas registadas.');
+      doc.moveDown(0.5);
     } else {
-      faturaEventos.forEach((fe) => {
-        const f = fe.fatura;
-        const detalhe = f.fornecedor || f.numero || f.departamento || '';
-        const label = `${formatDatePt(f.data)} — ${f.titulo}${detalhe ? ` (${detalhe})` : ''} · ${f.estado}`;
-        despRows.push({ cells: [label, fmt(toNum(fe.valor))] });
+      drawDetailTable(doc, {
+        columns: [
+          { header: 'Data', key: 'data', width: 60 },
+          { header: 'Nº Documento', key: 'numero', width: 78 },
+          { header: 'Descrição', key: 'titulo', width: 105 },
+          { header: 'Fornecedor', key: 'fornecedor', width: 103 },
+          { header: 'Depart.', key: 'departamento', width: 66 },
+          { header: 'Estado', key: 'estado', width: 43 },
+          { header: 'Valor', key: 'valor', width: 50, align: 'right' },
+        ],
+        zebra: true,
+        rows: faturaEventos.map((fe) => {
+          const f = fe.fatura;
+          return {
+            data: formatDatePt(f.data),
+            numero: f.numero || '-',
+            titulo: f.titulo || '-',
+            fornecedor: f.fornecedor || '-',
+            departamento: f.departamento || '-',
+            estado: f.estado || '-',
+            valor: fmt(toNum(fe.valor)),
+          };
+        }),
+        totalRow: { data: '', numero: '', titulo: 'Subtotal Despesas', fornecedor: '', departamento: '', estado: '', valor: fmt(totalDespesas) },
+        totalColor: '#b91c1c',
       });
-      despRows.push({ cells: ['Subtotal Despesas', fmt(totalDespesas)], fill: '#f8fafc', color: '#b91c1c', bold: true });
     }
-    doc.moveDown(0.5);
-    drawTable(doc, despRows);
 
     doc.moveDown(1).fontSize(8).font('Helvetica').fillColor('#94a3b8')
       .text('Documento gerado automaticamente pela plataforma de Gestão Financeira Young-Link.', 40, doc.y, { width: 520, align: 'center' });
