@@ -2410,6 +2410,14 @@ function setupEventListeners() {
     });
   }
 
+  // Botões "Cancelar" da barra de ação dos formulários: reutilizam o handler do × do próprio drawer.
+  document.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('.js-cancel-form');
+    if (!btn) return;
+    const closeBtn = btn.closest('.modal-card')?.querySelector('.modal-close') as HTMLElement | null;
+    closeBtn?.click();
+  });
+
   const btnCancelarEvento = document.getElementById('btnCancelarEvento');
   if (btnCancelarEvento) {
     btnCancelarEvento.addEventListener('click', () => {
