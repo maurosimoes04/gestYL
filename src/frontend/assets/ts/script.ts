@@ -47,8 +47,10 @@ let editingMovimentoId: number | null = null;
 let movimentoPage = 0;
 let sharingEventoId: number | null = null;
 let eventosCache: any[] = [];
-let faturasCache: any[] = [];
-let receitasCache: any[] = [];
+let faturasCache: any[] = [];      // TODAS as faturas (não filtradas) — resumo/dashboards/IA/selects
+let receitasCache: any[] = [];     // TODAS as receitas (não filtradas)
+let faturasListaCache: any[] = []; // faturas filtradas — apenas para a lista das Despesas
+let receitasListaCache: any[] = [];// receitas filtradas — apenas para a lista das Receitas
 let movimentosCache: any[] = [];
 let inventarioCache: any[] = [];
 let iaTipoAtual: 'faturas' | 'receitas' = 'faturas';
@@ -1503,7 +1505,25 @@ function atualizarSelectFaturaInventario() {
   if (current) select.value = current;
 }
 
-async function carregarFaturas() {
+// Carrega TODAS as faturas (sem filtros) para o resumo/dashboards, IA e selects.
+// Independente dos filtros aplicados na lista das Despesas.
+async function carregarFaturasResumo() {
+  try {
+    const resp = await fetch(API_FATURAS);
+    if (!resp.ok) throw new Error('Erro ao listar faturas');
+    faturasCache = await resp.json();
+  } catch {
+    faturasCache = [];
+  }
+  atualizarDashboards(faturasCache, movimentosCache, receitasCache);
+  atualizarSelectFaturaInventario();
+  renderIASection();
+}
+
+// Carrega a lista das Despesas aplicando os filtros. Por omissão também
+// atualiza o resumo (não filtrado); com soLista=true (botão de filtros)
+// atualiza APENAS a lista, deixando o resumo intacto.
+async function carregarFaturas(soLista = false) {
   const params = new URLSearchParams();
   const from = getValue('filterFrom');
   const to = getValue('filterTo');
@@ -1523,30 +1543,26 @@ async function carregarFaturas() {
   try {
     const resp = await fetch(`${API_FATURAS}?${params.toString()}`);
     if (!resp.ok) throw new Error('Erro ao listar faturas');
-    faturasCache = await resp.json();
+    faturasListaCache = await resp.json();
     faturaPage = 0;
     renderFaturasPage();
-    atualizarDashboards(faturasCache, movimentosCache, receitasCache);
-    atualizarSelectFaturaInventario();
-    renderIASection();
   } catch {
+    faturasListaCache = [];
     const container = document.getElementById('listaFaturas');
     if (container) container.innerHTML = '<p class="text-muted">Erro ao carregar despesas.</p>';
-    atualizarDashboards([], movimentosCache, receitasCache);
-    atualizarSelectFaturaInventario();
-    renderIASection();
   }
+  if (!soLista) await carregarFaturasResumo();
 }
 
 function renderFaturasPage() {
   const container = document.getElementById('listaFaturas');
   if (!container) return;
-  if (!Array.isArray(faturasCache) || faturasCache.length === 0) {
+  if (!Array.isArray(faturasListaCache) || faturasListaCache.length === 0) {
     container.innerHTML = '<p class="text-muted">Nenhuma despesa encontrada.</p>';
     renderPagination('faturasPagination', 0, 0, () => {});
     return;
   }
-  const page = paginate(faturasCache, faturaPage);
+  const page = paginate(faturasListaCache, faturaPage);
   container.innerHTML = page.map((f: any) => {
     const eventoTags = (f.faturaEventos || []).map((fe: any) => {
       const nome = fe.evento?.nome || eventosCache.find((ev: any) => ev.id === fe.eventoId)?.nome || '';
@@ -1606,7 +1622,7 @@ function renderFaturasPage() {
       });
     });
   }
-  renderPagination('faturasPagination', faturasCache.length, faturaPage, (p) => { faturaPage = p; renderFaturasPage(); });
+  renderPagination('faturasPagination', faturasListaCache.length, faturaPage, (p) => { faturaPage = p; renderFaturasPage(); });
 }
 
 async function guardarFatura(e: SubmitEvent) {
@@ -1681,7 +1697,20 @@ async function guardarFatura(e: SubmitEvent) {
 }
 
 // --- Receitas: carregar e criar ---
-async function carregarReceitas() {
+// Carrega TODAS as receitas (sem filtros) para o resumo/dashboards e IA.
+async function carregarReceitasResumo() {
+  try {
+    const resp = await fetch(API_RECEITAS);
+    if (!resp.ok) throw new Error('Erro ao listar receitas');
+    receitasCache = await resp.json();
+  } catch {
+    receitasCache = [];
+  }
+  atualizarDashboards(faturasCache, movimentosCache, receitasCache);
+  renderIASection();
+}
+
+async function carregarReceitas(soLista = false) {
   const params = new URLSearchParams();
   const from = getValue('filterReceitaFrom');
   const to = getValue('filterReceitaTo');
@@ -1701,17 +1730,15 @@ async function carregarReceitas() {
     const url = params.toString() ? `${API_RECEITAS}?${params.toString()}` : API_RECEITAS;
     const resp = await fetch(url);
     if (!resp.ok) throw new Error('Erro ao listar receitas');
-    receitasCache = await resp.json();
+    receitasListaCache = await resp.json();
     receitaPage = 0;
     renderReceitasPage();
-    atualizarDashboards(faturasCache, movimentosCache, receitasCache);
-    renderIASection();
   } catch {
+    receitasListaCache = [];
     const container = document.getElementById('listaReceitas');
     if (container) container.innerHTML = '<p class="text-muted">Erro ao carregar receitas.</p>';
-    atualizarDashboards(faturasCache, movimentosCache, receitasCache);
-    renderIASection();
   }
+  if (!soLista) await carregarReceitasResumo();
 }
 
 async function carregarMovimentos() {
@@ -1886,12 +1913,12 @@ function setupMovimentos() {
 function renderReceitasPage() {
   const container = document.getElementById('listaReceitas');
   if (!container) return;
-  if (!Array.isArray(receitasCache) || receitasCache.length === 0) {
+  if (!Array.isArray(receitasListaCache) || receitasListaCache.length === 0) {
     container.innerHTML = '<p class="text-muted">Nenhuma receita encontrada.</p>';
     renderPagination('receitasPagination', 0, 0, () => {});
     return;
   }
-  const page = paginate(receitasCache, receitaPage);
+  const page = paginate(receitasListaCache, receitaPage);
   container.innerHTML = page.map((r: any) => {
     const eventoTags = (r.receitaEventos || []).map((re: any) => {
       const nome = re.evento?.nome || eventosCache.find((ev: any) => ev.id === re.eventoId)?.nome || '';
@@ -1949,7 +1976,7 @@ function renderReceitasPage() {
       });
     });
   }
-  renderPagination('receitasPagination', receitasCache.length, receitaPage, (p) => { receitaPage = p; renderReceitasPage(); });
+  renderPagination('receitasPagination', receitasListaCache.length, receitaPage, (p) => { receitaPage = p; renderReceitasPage(); });
 }
 
 async function guardarReceita(e: SubmitEvent) {
@@ -2643,10 +2670,10 @@ function setupEventListeners() {
   }
 
   const btnFiltros = document.getElementById('btnAplicarFiltros');
-  if (btnFiltros) btnFiltros.addEventListener('click', () => carregarFaturas());
+  if (btnFiltros) btnFiltros.addEventListener('click', () => carregarFaturas(true));
 
   const btnFiltrosReceita = document.getElementById('btnAplicarFiltrosReceita');
-  if (btnFiltrosReceita) btnFiltrosReceita.addEventListener('click', () => carregarReceitas());
+  if (btnFiltrosReceita) btnFiltrosReceita.addEventListener('click', () => carregarReceitas(true));
 
   const qaNovaReceita = document.getElementById('qaNovaReceita');
   if (qaNovaReceita) {
