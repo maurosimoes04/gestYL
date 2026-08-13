@@ -47,8 +47,10 @@ let editingMovimentoId: number | null = null;
 let movimentoPage = 0;
 let sharingEventoId: number | null = null;
 let eventosCache: any[] = [];
-let faturasCache: any[] = [];
-let receitasCache: any[] = [];
+let faturasCache: any[] = [];      // TODAS as faturas (não filtradas) — resumo/dashboards/IA/selects
+let receitasCache: any[] = [];     // TODAS as receitas (não filtradas)
+let faturasListaCache: any[] = []; // faturas filtradas — apenas para a lista das Despesas
+let receitasListaCache: any[] = [];// receitas filtradas — apenas para a lista das Receitas
 let movimentosCache: any[] = [];
 let inventarioCache: any[] = [];
 let iaTipoAtual: 'faturas' | 'receitas' = 'faturas';
@@ -291,6 +293,7 @@ const ICONS: Record<string, string> = {
   file: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>',
   chevronLeft: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>',
   chevronRight: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>',
+  tag: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg>',
 };
 
 function icon(name: string): string {
@@ -669,6 +672,13 @@ function formatDate(value: string | null) {
 }
 function monthName(idx: number) {
   return ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx] || '';
+}
+function debounce<T extends (...args: any[]) => void>(fn: T, ms: number): (...args: Parameters<T>) => void {
+  let t: ReturnType<typeof setTimeout> | null = null;
+  return (...args: Parameters<T>) => {
+    if (t) clearTimeout(t);
+    t = setTimeout(() => fn(...args), ms);
+  };
 }
 
 function monthShortLabel(dateObj: Date) {
@@ -1495,7 +1505,25 @@ function atualizarSelectFaturaInventario() {
   if (current) select.value = current;
 }
 
-async function carregarFaturas() {
+// Carrega TODAS as faturas (sem filtros) para o resumo/dashboards, IA e selects.
+// Independente dos filtros aplicados na lista das Despesas.
+async function carregarFaturasResumo() {
+  try {
+    const resp = await fetch(API_FATURAS);
+    if (!resp.ok) throw new Error('Erro ao listar faturas');
+    faturasCache = await resp.json();
+  } catch {
+    faturasCache = [];
+  }
+  atualizarDashboards(faturasCache, movimentosCache, receitasCache);
+  atualizarSelectFaturaInventario();
+  renderIASection();
+}
+
+// Carrega a lista das Despesas aplicando os filtros. Por omissão também
+// atualiza o resumo (não filtrado); com soLista=true (botão de filtros)
+// atualiza APENAS a lista, deixando o resumo intacto.
+async function carregarFaturas(soLista = false) {
   const params = new URLSearchParams();
   const from = getValue('filterFrom');
   const to = getValue('filterTo');
@@ -1515,30 +1543,26 @@ async function carregarFaturas() {
   try {
     const resp = await fetch(`${API_FATURAS}?${params.toString()}`);
     if (!resp.ok) throw new Error('Erro ao listar faturas');
-    faturasCache = await resp.json();
+    faturasListaCache = await resp.json();
     faturaPage = 0;
     renderFaturasPage();
-    atualizarDashboards(faturasCache, movimentosCache, receitasCache);
-    atualizarSelectFaturaInventario();
-    renderIASection();
   } catch {
+    faturasListaCache = [];
     const container = document.getElementById('listaFaturas');
     if (container) container.innerHTML = '<p class="text-muted">Erro ao carregar despesas.</p>';
-    atualizarDashboards([], movimentosCache, receitasCache);
-    atualizarSelectFaturaInventario();
-    renderIASection();
   }
+  if (!soLista) await carregarFaturasResumo();
 }
 
 function renderFaturasPage() {
   const container = document.getElementById('listaFaturas');
   if (!container) return;
-  if (!Array.isArray(faturasCache) || faturasCache.length === 0) {
+  if (!Array.isArray(faturasListaCache) || faturasListaCache.length === 0) {
     container.innerHTML = '<p class="text-muted">Nenhuma despesa encontrada.</p>';
     renderPagination('faturasPagination', 0, 0, () => {});
     return;
   }
-  const page = paginate(faturasCache, faturaPage);
+  const page = paginate(faturasListaCache, faturaPage);
   container.innerHTML = page.map((f: any) => {
     const eventoTags = (f.faturaEventos || []).map((fe: any) => {
       const nome = fe.evento?.nome || eventosCache.find((ev: any) => ev.id === fe.eventoId)?.nome || '';
@@ -1598,7 +1622,7 @@ function renderFaturasPage() {
       });
     });
   }
-  renderPagination('faturasPagination', faturasCache.length, faturaPage, (p) => { faturaPage = p; renderFaturasPage(); });
+  renderPagination('faturasPagination', faturasListaCache.length, faturaPage, (p) => { faturaPage = p; renderFaturasPage(); });
 }
 
 async function guardarFatura(e: SubmitEvent) {
@@ -1673,7 +1697,20 @@ async function guardarFatura(e: SubmitEvent) {
 }
 
 // --- Receitas: carregar e criar ---
-async function carregarReceitas() {
+// Carrega TODAS as receitas (sem filtros) para o resumo/dashboards e IA.
+async function carregarReceitasResumo() {
+  try {
+    const resp = await fetch(API_RECEITAS);
+    if (!resp.ok) throw new Error('Erro ao listar receitas');
+    receitasCache = await resp.json();
+  } catch {
+    receitasCache = [];
+  }
+  atualizarDashboards(faturasCache, movimentosCache, receitasCache);
+  renderIASection();
+}
+
+async function carregarReceitas(soLista = false) {
   const params = new URLSearchParams();
   const from = getValue('filterReceitaFrom');
   const to = getValue('filterReceitaTo');
@@ -1693,17 +1730,15 @@ async function carregarReceitas() {
     const url = params.toString() ? `${API_RECEITAS}?${params.toString()}` : API_RECEITAS;
     const resp = await fetch(url);
     if (!resp.ok) throw new Error('Erro ao listar receitas');
-    receitasCache = await resp.json();
+    receitasListaCache = await resp.json();
     receitaPage = 0;
     renderReceitasPage();
-    atualizarDashboards(faturasCache, movimentosCache, receitasCache);
-    renderIASection();
   } catch {
+    receitasListaCache = [];
     const container = document.getElementById('listaReceitas');
     if (container) container.innerHTML = '<p class="text-muted">Erro ao carregar receitas.</p>';
-    atualizarDashboards(faturasCache, movimentosCache, receitasCache);
-    renderIASection();
   }
+  if (!soLista) await carregarReceitasResumo();
 }
 
 async function carregarMovimentos() {
@@ -1878,12 +1913,12 @@ function setupMovimentos() {
 function renderReceitasPage() {
   const container = document.getElementById('listaReceitas');
   if (!container) return;
-  if (!Array.isArray(receitasCache) || receitasCache.length === 0) {
+  if (!Array.isArray(receitasListaCache) || receitasListaCache.length === 0) {
     container.innerHTML = '<p class="text-muted">Nenhuma receita encontrada.</p>';
     renderPagination('receitasPagination', 0, 0, () => {});
     return;
   }
-  const page = paginate(receitasCache, receitaPage);
+  const page = paginate(receitasListaCache, receitaPage);
   container.innerHTML = page.map((r: any) => {
     const eventoTags = (r.receitaEventos || []).map((re: any) => {
       const nome = re.evento?.nome || eventosCache.find((ev: any) => ev.id === re.eventoId)?.nome || '';
@@ -1941,7 +1976,7 @@ function renderReceitasPage() {
       });
     });
   }
-  renderPagination('receitasPagination', receitasCache.length, receitaPage, (p) => { receitaPage = p; renderReceitasPage(); });
+  renderPagination('receitasPagination', receitasListaCache.length, receitaPage, (p) => { receitaPage = p; renderReceitasPage(); });
 }
 
 async function guardarReceita(e: SubmitEvent) {
@@ -2022,45 +2057,78 @@ function renderInvEstadoBadge(estado: string | null): string {
   return `<span class="${cls}">${escapeHtml(estado)}</span>`;
 }
 
+function invExpiring(item: any): boolean {
+  return !!item.dataValidade && new Date(item.dataValidade) < new Date(Date.now() + 30 * 86400000);
+}
+function invLow(item: any): boolean {
+  return !!item.quantidadeMinima && item.quantidade < item.quantidadeMinima;
+}
+
 function renderInvGrid(items: any[], container: HTMLElement, emptyMsg: string) {
   if (!items || items.length === 0) {
     container.innerHTML = `<p class="text-muted">${emptyMsg}</p>`;
     return;
   }
   container.innerHTML = items.map((item: any) => {
-    const low = item.quantidadeMinima && item.quantidade < item.quantidadeMinima;
-    const stockClass = low ? 'inv-stock-low' : 'inv-stock-ok';
-    const qtdDisplay = item.quantidade != null ? `${item.quantidade}${item.unidade ? ' ' + escapeHtml(item.unidade) : ''}` : '-';
-    const actions = isReadOnly() ? '' : `
-      <div class="inv-card-actions">
-        <button class="btn-acao btn-editar-inv" data-id="${item.id}" title="Editar">${icon('edit')}</button>
-        <button class="btn-acao btn-remover-inv" data-id="${item.id}" title="Remover">${icon('trash')}</button>
-      </div>`;
+    const isFixo = item.tipo === 'fixo';
+    const low = invLow(item);
+    const expiring = invExpiring(item);
     const validade = item.dataValidade ? formatDate(item.dataValidade) : null;
-    const now = new Date();
-    const expiring = item.dataValidade && new Date(item.dataValidade) < new Date(now.getTime() + 30 * 86400000);
+    const qtdNum = Number(item.quantidade) || 0;
+    const custo = item.custoUnitario != null ? Number(item.custoUnitario) : null;
+    const valorTotal = custo != null ? (isFixo ? custo : custo * (qtdNum || 1)) : null;
+    const qtdDisplay = item.quantidade != null ? `${item.quantidade}${item.unidade ? ' ' + escapeHtml(item.unidade) : ''}` : '-';
+
+    const etiquetaBtn = isFixo && item.codigoPatrimonio
+      ? `<button class="btn-acao btn-etiqueta-inv" data-id="${item.id}" title="Etiqueta">${icon('tag')}</button>` : '';
+    const actions = isReadOnly()
+      ? (etiquetaBtn ? `<div class="inv-card-actions">${etiquetaBtn}</div>` : '')
+      : `<div class="inv-card-actions">
+          ${etiquetaBtn}
+          <button class="btn-acao btn-editar-inv" data-id="${item.id}" title="Editar">${icon('edit')}</button>
+          <button class="btn-acao btn-remover-inv" data-id="${item.id}" title="Remover">${icon('trash')}</button>
+        </div>`;
+
+    const codigoChip = isFixo && item.codigoPatrimonio ? `<span class="inv-codigo-chip">${escapeHtml(item.codigoPatrimonio)}</span>` : '';
+
+    // Corpo do card difere entre fixo e consumível
+    let bodyStats = '';
+    if (isFixo) {
+      bodyStats = `
+        ${item.localizacao ? `<div class="inv-card-stat"><span class="inv-stat-label">Localização</span><span class="inv-stat-value">${escapeHtml(item.localizacao)}</span></div>` : ''}
+        ${item.dataAquisicao ? `<div class="inv-card-stat"><span class="inv-stat-label">Aquisição</span><span class="inv-stat-value">${formatDate(item.dataAquisicao)}</span></div>` : ''}
+        ${valorTotal != null ? `<div class="inv-card-stat"><span class="inv-stat-label">Valor</span><span class="inv-stat-value">${formatCurrency(valorTotal)}</span></div>` : ''}
+      `;
+    } else {
+      bodyStats = `
+        <div class="inv-card-stat"><span class="inv-stat-label">Quantidade</span><span class="inv-stat-value ${low ? 'inv-stock-low' : 'inv-stock-ok'}">${qtdDisplay}</span></div>
+        ${custo != null ? `<div class="inv-card-stat"><span class="inv-stat-label">Custo unit.</span><span class="inv-stat-value">${formatCurrency(custo)}</span></div>` : ''}
+        ${valorTotal != null ? `<div class="inv-card-stat"><span class="inv-stat-label">Valor total</span><span class="inv-stat-value">${formatCurrency(valorTotal)}</span></div>` : ''}
+        ${item.localizacao ? `<div class="inv-card-stat"><span class="inv-stat-label">Localização</span><span class="inv-stat-value">${escapeHtml(item.localizacao)}</span></div>` : ''}
+        ${validade ? `<div class="inv-card-stat"><span class="inv-stat-label">Validade</span><span class="inv-stat-value ${expiring ? 'inv-expiring' : ''}">${validade}</span></div>` : ''}
+      `;
+    }
+
     return `<div class="inv-card">
       <div class="inv-card-head">
-        <div class="inv-card-name">${escapeHtml(item.nome)}</div>
+        <div class="inv-card-name">${escapeHtml(item.nome)}${low ? '<span class="inv-stock-alert">Stock baixo</span>' : ''}</div>
         ${actions}
       </div>
       <div class="inv-card-meta">
+        ${codigoChip}
         ${item.categoria ? `<span class="inv-tag">${escapeHtml(item.categoria)}</span>` : ''}
         ${renderInvEstadoBadge(item.estado)}
       </div>
-      <div class="inv-card-body">
-        <div class="inv-card-stat">
-          <span class="inv-stat-label">Quantidade</span>
-          <span class="inv-stat-value ${stockClass}">${qtdDisplay}</span>
-          ${low ? '<span class="inv-stock-alert">Stock baixo</span>' : ''}
-        </div>
-        ${item.custoUnitario ? `<div class="inv-card-stat"><span class="inv-stat-label">Custo unit.</span><span class="inv-stat-value">${formatCurrency(item.custoUnitario)}</span></div>` : ''}
-        ${item.localizacao ? `<div class="inv-card-stat"><span class="inv-stat-label">Localização</span><span class="inv-stat-value">${escapeHtml(item.localizacao)}</span></div>` : ''}
-        ${validade ? `<div class="inv-card-stat"><span class="inv-stat-label">Validade</span><span class="inv-stat-value ${expiring ? 'inv-expiring' : ''}">${validade}</span></div>` : ''}
-      </div>
+      <div class="inv-card-body">${bodyStats}</div>
     </div>`;
   }).join('');
 
+  container.querySelectorAll('.btn-etiqueta-inv').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
+      if (id) window.open(`${API_INVENTARIO}/etiquetas/pdf?ids=${id}`, '_blank');
+    });
+  });
   if (!isReadOnly()) {
     container.querySelectorAll('.btn-editar-inv').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -2075,6 +2143,63 @@ function renderInvGrid(items: any[], container: HTMLElement, emptyMsg: string) {
       });
     });
   }
+}
+
+function renderInventarioResumo(items: any[]) {
+  const wrap = document.getElementById('invResumo');
+  if (!wrap) return;
+  const total = items.length;
+  const valorTotal = items.reduce((s, it) => {
+    const custo = it.custoUnitario != null ? Number(it.custoUnitario) : 0;
+    const qtd = it.tipo === 'fixo' ? 1 : (Number(it.quantidade) || 1);
+    return s + custo * qtd;
+  }, 0);
+  const stockBaixo = items.filter(invLow).length;
+  const aExpirar = items.filter(invExpiring).length;
+  wrap.innerHTML = `
+    <div class="summary-card"><div class="label">Itens</div><div class="value">${total}</div></div>
+    <div class="summary-card"><div class="label">Valor do inventário</div><div class="value">${formatCurrency(valorTotal)}</div></div>
+    <div class="summary-card"><div class="label">Stock baixo</div><div class="value ${stockBaixo ? 'inv-stock-low' : ''}">${stockBaixo}</div></div>
+    <div class="summary-card"><div class="label">A expirar (30d)</div><div class="value ${aExpirar ? 'inv-expiring' : ''}">${aExpirar}</div></div>
+  `;
+}
+
+function preencherFiltrosInventario(items: any[]) {
+  const estados = Array.from(new Set(items.map((i) => i.estado).filter(Boolean))).sort();
+  const categorias = Array.from(new Set(items.map((i) => i.categoria).filter(Boolean))).sort();
+  const selEstado = document.getElementById('filterInvEstado') as HTMLSelectElement | null;
+  const selCat = document.getElementById('filterInvCategoria') as HTMLSelectElement | null;
+  if (selEstado) {
+    const cur = selEstado.value;
+    selEstado.innerHTML = '<option value="">Todos os estados</option>' + estados.map((e) => `<option>${escapeHtml(e)}</option>`).join('');
+    selEstado.value = cur;
+  }
+  if (selCat) {
+    const cur = selCat.value;
+    selCat.innerHTML = '<option value="">Todas as categorias</option>' + categorias.map((c) => `<option>${escapeHtml(c)}</option>`).join('');
+    selCat.value = cur;
+  }
+}
+
+function renderInventarioFromCache() {
+  const gridConsumivel = document.getElementById('invGridConsumivel');
+  const gridFixo = document.getElementById('invGridFixo');
+  if (!gridConsumivel || !gridFixo) return;
+  const all = Array.isArray(inventarioCache) ? inventarioCache : [];
+  preencherFiltrosInventario(all);
+  const fEstado = getValue('filterInvEstado');
+  const fCat = getValue('filterInvCategoria');
+  const filtrado = all.filter((i: any) => (!fEstado || i.estado === fEstado) && (!fCat || i.categoria === fCat));
+
+  renderInventarioResumo(filtrado);
+  const consumiveis = filtrado.filter((i: any) => i.tipo === 'consumivel');
+  const fixos = filtrado.filter((i: any) => i.tipo === 'fixo');
+  renderInvGrid(consumiveis, gridConsumivel, 'Nenhum item consumível encontrado.');
+  renderInvGrid(fixos, gridFixo, 'Nenhum item fixo encontrado.');
+  const countCons = document.getElementById('invCountConsumivel');
+  const countFix = document.getElementById('invCountFixo');
+  if (countCons) countCons.textContent = `(${consumiveis.length})`;
+  if (countFix) countFix.textContent = `(${fixos.length})`;
 }
 
 async function carregarInventario() {
@@ -2094,15 +2219,7 @@ async function carregarInventario() {
     const resp = await fetch(url);
     if (!resp.ok) throw new Error('Erro ao listar inventário');
     inventarioCache = await resp.json();
-    const consumiveis = Array.isArray(inventarioCache) ? inventarioCache.filter((i: any) => i.tipo === 'consumivel') : [];
-    const fixos = Array.isArray(inventarioCache) ? inventarioCache.filter((i: any) => i.tipo === 'fixo') : [];
-
-    renderInvGrid(consumiveis, gridConsumivel, 'Nenhum item consumível encontrado.');
-    renderInvGrid(fixos, gridFixo, 'Nenhum item fixo encontrado.');
-    const countCons = document.getElementById('invCountConsumivel');
-    const countFix = document.getElementById('invCountFixo');
-    if (countCons) countCons.textContent = `(${consumiveis.length})`;
-    if (countFix) countFix.textContent = `(${fixos.length})`;
+    renderInventarioFromCache();
   } catch {
     inventarioCache = [];
     gridConsumivel.innerHTML = '<p class="text-muted">Erro ao carregar inventário.</p>';
@@ -2150,6 +2267,14 @@ async function editarInventario(id: number) {
     setValue('invDataAquisicao', (item.dataAquisicao || '').slice(0, 10));
     setValue('invDataValidade', (item.dataValidade || '').slice(0, 10));
     setValue('invNotas', item.notas || '');
+    // Código de património (só leitura, apenas para fixos já com código)
+    const codigoWrap = document.getElementById('invCodigoWrap');
+    if (item.codigoPatrimonio) {
+      setValue('invCodigo', item.codigoPatrimonio);
+      codigoWrap?.removeAttribute('hidden');
+    } else {
+      codigoWrap?.setAttribute('hidden', 'true');
+    }
     editingInventarioId = id;
   } catch {
     showNotification('❌ Erro ao carregar item', 'error');
@@ -2410,6 +2535,14 @@ function setupEventListeners() {
     });
   }
 
+  // Botões "Cancelar" da barra de ação dos formulários: reutilizam o handler do × do próprio drawer.
+  document.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('.js-cancel-form');
+    if (!btn) return;
+    const closeBtn = btn.closest('.modal-card')?.querySelector('.modal-close') as HTMLElement | null;
+    closeBtn?.click();
+  });
+
   const btnCancelarEvento = document.getElementById('btnCancelarEvento');
   if (btnCancelarEvento) {
     btnCancelarEvento.addEventListener('click', () => {
@@ -2537,10 +2670,10 @@ function setupEventListeners() {
   }
 
   const btnFiltros = document.getElementById('btnAplicarFiltros');
-  if (btnFiltros) btnFiltros.addEventListener('click', () => carregarFaturas());
+  if (btnFiltros) btnFiltros.addEventListener('click', () => carregarFaturas(true));
 
   const btnFiltrosReceita = document.getElementById('btnAplicarFiltrosReceita');
-  if (btnFiltrosReceita) btnFiltrosReceita.addEventListener('click', () => carregarReceitas());
+  if (btnFiltrosReceita) btnFiltrosReceita.addEventListener('click', () => carregarReceitas(true));
 
   const qaNovaReceita = document.getElementById('qaNovaReceita');
   if (qaNovaReceita) {
@@ -2575,8 +2708,22 @@ function setupEventListeners() {
   const inventarioForm = document.getElementById('inventarioForm');
   if (inventarioForm) inventarioForm.addEventListener('submit', guardarInventario);
 
-  const btnAplicarFiltrosInv = document.getElementById('btnAplicarFiltrosInv');
-  if (btnAplicarFiltrosInv) btnAplicarFiltrosInv.addEventListener('click', () => carregarInventario());
+  // Filtros do inventário: pesquisa automática (debounce) + estado/categoria filtram localmente.
+  const filterInvQ = document.getElementById('filterInvQ');
+  if (filterInvQ) filterInvQ.addEventListener('input', debounce(() => carregarInventario(), 300));
+  ['filterInvEstado', 'filterInvCategoria'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', () => renderInventarioFromCache());
+  });
+
+  const qaEtiquetasInventario = document.getElementById('qaEtiquetasInventario');
+  if (qaEtiquetasInventario) {
+    qaEtiquetasInventario.addEventListener('click', () => {
+      const fixos = (inventarioCache || []).filter((i: any) => i.tipo === 'fixo' && i.codigoPatrimonio);
+      if (!fixos.length) { showNotification('Não há bens fixos com código para etiquetar.', 'error'); return; }
+      window.open(`${API_INVENTARIO}/etiquetas/pdf`, '_blank');
+    });
+  }
 
   document.querySelectorAll('.inv-tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -2595,6 +2742,7 @@ function setupEventListeners() {
       if (isReadOnly()) { showNotification('Sem permissões para criar itens.', 'error'); return; }
       setActiveSection('inventario');
       resetForm('inventarioForm');
+      document.getElementById('invCodigoWrap')?.setAttribute('hidden', 'true');
       toggleSection('formularioInventario', true);
       editingInventarioId = null;
     });

@@ -83,6 +83,13 @@ app.get('/share/evento/:token', (_req, res) => {
 });
 app.use('/share', sharePublicRouter);
 
+// Página pública do item (destino do QR das etiquetas de inventário)
+const { inventarioPublicRouter } = require('./routes/inventario');
+app.get('/item/:codigo', (_req, res) => {
+  res.sendFile(path.join(frontendPath, 'item.html'));
+});
+app.use('/item-info', inventarioPublicRouter);
+
 // Rotas públicas de autenticação (com rate limiting)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

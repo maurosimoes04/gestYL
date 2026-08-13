@@ -1,6 +1,7 @@
 import express from 'express';
 import { prisma } from '../config/prisma';
 import { getLogoBuffer } from '../utils/logo';
+import { drawDetailTable } from '../utils/pdfTable';
 
 const router = express.Router();
 
@@ -125,40 +126,6 @@ router.get('/:id/pdf', async (req, res) => {
       doc.moveTo(startX, doc.y - 1).lineTo(startX + tableWidth, doc.y - 1).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
     };
 
-    const col3Widths = [300, 120, 100];
-    const drawRow3 = (
-      label: string,
-      value: string,
-      linkLabel: string,
-      link?: string,
-      fill?: string,
-      color?: string,
-      bold = false
-    ) => {
-      const y = doc.y;
-      if (fill) doc.rect(startX, y, tableWidth, rowHeight).fill(fill);
-      doc.fillColor(color || '#0f172a').font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(10);
-      doc.text(label, startX + 10, y + 6, { width: col3Widths[0] - 16, align: 'left' });
-      doc.text(value, startX + col3Widths[0] + 10, y + 6, { width: col3Widths[1] - 20, align: 'right' });
-      const linkX = startX + col3Widths[0] + col3Widths[1] + 10;
-      if (link) {
-        doc.fillColor('#2563eb');
-        doc.text(linkLabel, linkX, y + 6, {
-          width: col3Widths[2] - 20,
-          align: 'left',
-          link,
-          underline: true,
-        });
-        doc.fillColor(color || '#0f172a');
-      } else {
-        doc.text(linkLabel, linkX, y + 6, { width: col3Widths[2] - 20, align: 'left' });
-      }
-      doc.y = y + rowHeight;
-      doc.moveTo(startX, doc.y - 1).lineTo(startX + tableWidth, doc.y - 1).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
-    };
-
-    const getAnexoLink = (anexo: any) => anexo?.driveWebViewLink || anexo?.driveWebContentLink || '';
-
     drawRow('Total de Receitas', fmt(totalReceitas), '#e2fee3', '#15803d', true);
     drawRow('Total de Despesas', fmt(totalDespesas), '#ffe2e5', '#b91c1c', true);
     drawRow('Saldo', fmt(saldo), saldo >= 0 ? '#dcfce7' : '#fee2e2', saldo >= 0 ? '#166534' : '#b91c1c', true);
@@ -176,33 +143,57 @@ router.get('/:id/pdf', async (req, res) => {
     if (receitas.length > 0) {
       doc.fontSize(12).font('Helvetica-Bold').text('Receitas');
       doc.moveDown(0.3);
-      drawRow3('Título', 'Valor', 'Anexo', undefined, '#f1f5f9', '#0f172a', true);
-      receitas.forEach((r) => {
-        const link = getAnexoLink(r.anexo);
-        drawRow3(
-          `${fmtDate(r.data)} — ${r.titulo} (${r.categoria})`,
-          fmt(toNum(r.valorEvento)),
-          link ? 'Abrir' : '-',
-          link || undefined
-        );
+      drawDetailTable(doc, {
+        columns: [
+          { header: 'Data', key: 'data', width: 60 },
+          { header: 'Descrição', key: 'titulo', width: 150 },
+          { header: 'Categoria', key: 'categoria', width: 92 },
+          { header: 'Financiador', key: 'financiador', width: 118 },
+          { header: 'Estado', key: 'estado', width: 45 },
+          { header: 'Valor', key: 'valor', width: 50, align: 'right' },
+        ],
+        zebra: true,
+        rows: receitas.map((r) => ({
+          data: fmtDate(r.data),
+          titulo: r.titulo || '-',
+          categoria: r.categoria || '-',
+          financiador: r.financiador || '-',
+          estado: r.estado || '-',
+          valor: fmt(toNum(r.valorEvento)),
+        })),
+        totalRow: { data: '', titulo: 'Total de Receitas', categoria: '', financiador: '', estado: '', valor: fmt(totalReceitas) },
+        totalColor: '#15803d',
       });
-      doc.moveDown(1).fillColor('#0f172a').strokeColor('#0f172a');
+      doc.moveDown(0.5).fillColor('#0f172a').strokeColor('#0f172a');
     }
 
     if (faturas.length > 0) {
       doc.fontSize(12).font('Helvetica-Bold').text('Despesas');
       doc.moveDown(0.3);
-      drawRow3('Título', 'Valor', 'Anexo', undefined, '#f1f5f9', '#0f172a', true);
-      faturas.forEach((f) => {
-        const link = getAnexoLink(f.anexo);
-        drawRow3(
-          `${fmtDate(f.data)} — ${f.titulo} (${f.departamento})`,
-          fmt(toNum(f.valorEvento)),
-          link ? 'Abrir' : '-',
-          link || undefined
-        );
+      drawDetailTable(doc, {
+        columns: [
+          { header: 'Data', key: 'data', width: 60 },
+          { header: 'Nº Documento', key: 'numero', width: 78 },
+          { header: 'Descrição', key: 'titulo', width: 105 },
+          { header: 'Fornecedor', key: 'fornecedor', width: 103 },
+          { header: 'Depart.', key: 'departamento', width: 66 },
+          { header: 'Estado', key: 'estado', width: 43 },
+          { header: 'Valor', key: 'valor', width: 50, align: 'right' },
+        ],
+        zebra: true,
+        rows: faturas.map((f) => ({
+          data: fmtDate(f.data),
+          numero: f.numero || '-',
+          titulo: f.titulo || '-',
+          fornecedor: f.fornecedor || '-',
+          departamento: f.departamento || '-',
+          estado: f.estado || '-',
+          valor: fmt(toNum(f.valorEvento)),
+        })),
+        totalRow: { data: '', numero: '', titulo: 'Total de Despesas', fornecedor: '', departamento: '', estado: '', valor: fmt(totalDespesas) },
+        totalColor: '#b91c1c',
       });
-      doc.moveDown(1).fillColor('#0f172a').strokeColor('#0f172a');
+      doc.moveDown(0.5).fillColor('#0f172a').strokeColor('#0f172a');
     }
 
     doc.end();
