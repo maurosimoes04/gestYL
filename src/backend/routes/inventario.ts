@@ -139,28 +139,30 @@ router.get('/etiquetas/pdf', async (req, res) => {
       // Moldura da etiqueta
       doc.roundedRect(x, y, cellW, cellH, 8).lineWidth(1).strokeColor('#cbd5e1').stroke();
 
-      // Faixa superior com logo
+      // Faixa superior com logo (maior e mais visível)
+      const bandH = 46;
+      const logoH = 30;
       doc.save();
-      doc.roundedRect(x, y, cellW, 30, 8).fill('#0f172a');
-      doc.rect(x, y + 15, cellW, 15).fill('#0f172a');
-      if (logo) { try { doc.image(logo, x + 10, y + 7, { height: 16 }); } catch {} }
-      doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(8)
-        .text('INVENTÁRIO', x + 10, y + 11, { width: cellW - 20, align: 'right' });
+      doc.roundedRect(x, y, cellW, bandH, 8).fill('#0f172a');
+      doc.rect(x, y + bandH - 10, cellW, 10).fill('#0f172a');
+      if (logo) { try { doc.image(logo, x + 12, y + (bandH - logoH) / 2, { height: logoH }); } catch {} }
+      doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(8.5)
+        .text('INVENTÁRIO', x + 10, y + bandH / 2 - 5, { width: cellW - 22, align: 'right' });
       doc.restore();
 
       // QR à direita
-      const qrSize = Math.min(cellH - 46, 90);
+      const qrSize = Math.min(cellH - bandH - 18, 92);
       const qrBuf = await QRCode.toBuffer(`${base}/item/${encodeURIComponent(it.codigoPatrimonio!)}`, { margin: 1, width: 300 });
       const qrX = x + cellW - qrSize - 12;
-      const qrY = y + 40;
+      const qrY = y + bandH + 8;
       try { doc.image(qrBuf, qrX, qrY, { width: qrSize, height: qrSize }); } catch {}
 
       // Texto à esquerda: código em destaque + nome
       const textW = cellW - qrSize - 34;
       doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(16)
-        .text(it.codigoPatrimonio!, x + 12, y + 44, { width: textW });
+        .text(it.codigoPatrimonio!, x + 12, y + bandH + 12, { width: textW });
       doc.fillColor('#334155').font('Helvetica').fontSize(9)
-        .text(it.nome, x + 12, y + 68, { width: textW, height: cellH - 80, ellipsis: true });
+        .text(it.nome, x + 12, y + bandH + 36, { width: textW, height: cellH - bandH - 48, ellipsis: true });
       if (it.localizacao) {
         doc.fillColor('#64748b').font('Helvetica').fontSize(8)
           .text(it.localizacao, x + 12, y + cellH - 20, { width: textW, ellipsis: true });
