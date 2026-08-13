@@ -140,8 +140,8 @@ router.get('/etiquetas/pdf', async (req, res) => {
       doc.roundedRect(x, y, cellW, cellH, 8).lineWidth(1).strokeColor('#cbd5e1').stroke();
 
       // Faixa superior com logo (maior e mais visível)
-      const bandH = 46;
-      const logoH = 30;
+      const bandH = 56;
+      const logoH = 40;
       doc.save();
       doc.roundedRect(x, y, cellW, bandH, 8).fill('#0f172a');
       doc.rect(x, y + bandH - 10, cellW, 10).fill('#0f172a');
