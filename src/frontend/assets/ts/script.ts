@@ -2126,7 +2126,7 @@ function renderInvGrid(items: any[], container: HTMLElement, emptyMsg: string) {
   container.querySelectorAll('.btn-etiqueta-inv').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const id = (e.currentTarget as HTMLElement).getAttribute('data-id');
-      if (id) window.open(`${API_INVENTARIO}/etiquetas/pdf?ids=${id}`, '_blank');
+      if (id) void descarregarPdfAutenticado(`${API_INVENTARIO}/etiquetas/pdf?ids=${id}`, `etiqueta-${id}.pdf`, 'A gerar etiqueta...');
     });
   });
   if (!isReadOnly()) {
@@ -2224,6 +2224,29 @@ async function carregarInventario() {
     inventarioCache = [];
     gridConsumivel.innerHTML = '<p class="text-muted">Erro ao carregar inventário.</p>';
     gridFixo.innerHTML = '<p class="text-muted">Erro ao carregar inventário.</p>';
+  }
+}
+
+// Descarrega um PDF de um endpoint protegido, usando o fetch autenticado
+// (com Bearer token). window.open não serve porque não envia o header.
+async function descarregarPdfAutenticado(url: string, filename: string, loadingMsg = 'A gerar PDF...') {
+  showPdfLoading(loadingMsg);
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('Erro no download');
+    const blob = await resp.blob();
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(objUrl);
+    hidePdfLoading();
+  } catch {
+    hidePdfLoading();
+    showNotification('Erro ao gerar o PDF.', 'error');
   }
 }
 
@@ -2721,7 +2744,7 @@ function setupEventListeners() {
     qaEtiquetasInventario.addEventListener('click', () => {
       const fixos = (inventarioCache || []).filter((i: any) => i.tipo === 'fixo' && i.codigoPatrimonio);
       if (!fixos.length) { showNotification('Não há bens fixos com código para etiquetar.', 'error'); return; }
-      window.open(`${API_INVENTARIO}/etiquetas/pdf`, '_blank');
+      void descarregarPdfAutenticado(`${API_INVENTARIO}/etiquetas/pdf`, 'etiquetas-inventario.pdf', 'A gerar etiquetas...');
     });
   }
 
