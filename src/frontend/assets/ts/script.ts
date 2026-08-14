@@ -1033,10 +1033,8 @@ async function guardarEvento(e: SubmitEvent) {
   const method = editingEventoId ? 'PUT' : 'POST';
   const btn = document.getElementById('eventoSubmitButton') as HTMLButtonElement | null;
 
-  if (btn) {
-    btn.classList.add('loading');
-    btn.disabled = true;
-  }
+  if (btn) { btn.disabled = true; }
+  showPdfLoading(editingEventoId ? 'A atualizar evento...' : 'A guardar evento...');
 
   try {
     const resp = await fetch(url, {
@@ -1052,18 +1050,13 @@ async function guardarEvento(e: SubmitEvent) {
     resetForm('eventoForm');
     toggleSection('formularioEvento', false);
     editingEventoId = null;
-    if (btn) {
-      btn.textContent = 'Guardar';
-      btn.classList.remove('loading');
-      btn.disabled = false;
-    }
+    if (btn) { btn.textContent = 'Guardar'; btn.disabled = false; }
     await Promise.all([carregarEventosResumo(), carregarEventosSelect()]);
+    hidePdfLoading();
   } catch (err: any) {
     showNotification(`❌ ${err.message || 'Erro ao guardar evento'}`, 'error');
-    if (btn) {
-      btn.classList.remove('loading');
-      btn.disabled = false;
-    }
+    if (btn) { btn.disabled = false; }
+    hidePdfLoading();
   }
 }
 
@@ -1662,10 +1655,9 @@ async function guardarFatura(e: SubmitEvent) {
   const url = editingFaturaId ? `${API_FATURAS}/${editingFaturaId}` : API_FATURAS;
   const method = editingFaturaId ? 'PUT' : 'POST';
   const btn = document.getElementById('btnSalvarFatura') as HTMLButtonElement | null;
-  const overlay = document.getElementById('faturaLoadingOverlay');
 
-  if (btn) { btn.classList.add('loading'); btn.disabled = true; }
-  if (overlay) { overlay.removeAttribute('hidden'); }
+  if (btn) { btn.disabled = true; }
+  showPdfLoading(editingFaturaId ? 'A atualizar despesa...' : 'A guardar despesa...');
 
   try {
     const resp = await fetch(url, {
@@ -1686,13 +1678,13 @@ async function guardarFatura(e: SubmitEvent) {
     toggleSection('formularioFatura', false);
     editingFaturaId = null;
     removeFaturaAnexo = false;
-    if (btn) { btn.textContent = 'Guardar'; btn.classList.remove('loading'); btn.disabled = false; }
-    if (overlay) { overlay.setAttribute('hidden', 'true'); }
+    if (btn) { btn.textContent = 'Guardar'; btn.disabled = false; }
     await Promise.all([carregarFaturas(), carregarEventosResumo(), carregarMovimentos()]);
+    hidePdfLoading();
   } catch (err: any) {
     showNotification(`${err.message || 'Erro ao guardar fatura'}`, 'error');
-    if (btn) { btn.classList.remove('loading'); btn.disabled = false; }
-    if (overlay) { overlay.setAttribute('hidden', 'true'); }
+    if (btn) { btn.disabled = false; }
+    hidePdfLoading();
   }
 }
 
@@ -1834,6 +1826,7 @@ async function guardarMovimento(e: SubmitEvent) {
   };
   const url = editingMovimentoId ? `${API_MOVIMENTOS}/${editingMovimentoId}` : API_MOVIMENTOS;
   const method = editingMovimentoId ? 'PUT' : 'POST';
+  showPdfLoading(editingMovimentoId ? 'A atualizar movimento...' : 'A guardar movimento...');
   try {
     const resp = await fetch(url, {
       method,
@@ -1847,8 +1840,10 @@ async function guardarMovimento(e: SubmitEvent) {
     editingMovimentoId = null;
     await carregarMovimentos();
     atualizarDashboards(faturasCache, movimentosCache, receitasCache);
+    hidePdfLoading();
   } catch (err: any) {
     showNotification(err.message || 'Erro ao guardar movimento', 'error');
+    hidePdfLoading();
   }
 }
 
@@ -2012,10 +2007,9 @@ async function guardarReceita(e: SubmitEvent) {
   const url = editingReceitaId ? `${API_RECEITAS}/${editingReceitaId}` : API_RECEITAS;
   const method = editingReceitaId ? 'PUT' : 'POST';
   const btn = document.getElementById('btnSalvarReceita') as HTMLButtonElement | null;
-  const overlay = document.getElementById('receitaLoadingOverlay');
 
-  if (btn) { btn.classList.add('loading'); btn.disabled = true; }
-  if (overlay) { overlay.removeAttribute('hidden'); }
+  if (btn) { btn.disabled = true; }
+  showPdfLoading(editingReceitaId ? 'A atualizar receita...' : 'A guardar receita...');
 
   try {
     const resp = await fetch(url, {
@@ -2036,13 +2030,13 @@ async function guardarReceita(e: SubmitEvent) {
     toggleSection('formularioReceita', false);
     editingReceitaId = null;
     removeReceitaAnexo = false;
-    if (btn) { btn.textContent = 'Guardar'; btn.classList.remove('loading'); btn.disabled = false; }
-    if (overlay) { overlay.setAttribute('hidden', 'true'); }
+    if (btn) { btn.textContent = 'Guardar'; btn.disabled = false; }
     await Promise.all([carregarReceitas(), carregarMovimentos()]);
+    hidePdfLoading();
   } catch (err: any) {
     showNotification(`${err.message || 'Erro ao guardar receita'}`, 'error');
-    if (btn) { btn.classList.remove('loading'); btn.disabled = false; }
-    if (overlay) { overlay.setAttribute('hidden', 'true'); }
+    if (btn) { btn.disabled = false; }
+    hidePdfLoading();
   }
 }
 
@@ -2344,10 +2338,8 @@ async function guardarInventario(e: SubmitEvent) {
   const method = editingInventarioId ? 'PUT' : 'POST';
   const btn = document.getElementById('btnSalvarInventario') as HTMLButtonElement | null;
 
-  if (btn) {
-    btn.classList.add('loading');
-    btn.disabled = true;
-  }
+  if (btn) { btn.disabled = true; }
+  showPdfLoading(editingInventarioId ? 'A atualizar item...' : 'A guardar item...');
 
   try {
     const resp = await fetch(url, {
@@ -2360,17 +2352,13 @@ async function guardarInventario(e: SubmitEvent) {
     resetForm('inventarioForm');
     toggleSection('formularioInventario', false);
     editingInventarioId = null;
-    if (btn) {
-      btn.classList.remove('loading');
-      btn.disabled = false;
-    }
+    if (btn) { btn.disabled = false; }
     await carregarInventario();
+    hidePdfLoading();
   } catch {
     showNotification('❌ Erro ao guardar item', 'error');
-    if (btn) {
-      btn.classList.remove('loading');
-      btn.disabled = false;
-    }
+    if (btn) { btn.disabled = false; }
+    hidePdfLoading();
   }
 }
 
