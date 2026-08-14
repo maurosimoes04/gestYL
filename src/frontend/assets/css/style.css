@@ -1098,6 +1098,14 @@ section h2 {
   color: var(--primary);
 }
 
+/* Sem isto, o SVG colapsa a 0 de largura dentro do botão flex e o ícone
+   fica invisível (o botão .btn-acao tem a regra equivalente). */
+.record-anexo svg {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+}
+
 .record-actions {
   display: flex;
   gap: var(--space-1);
