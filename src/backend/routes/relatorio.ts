@@ -295,8 +295,14 @@ router.get('/pdf', async (req, res) => {
       renderBars(doc, 'Despesas por Categoria', toArray(catDespesas));
     }
     if (tipo !== 'despesas') {
+      const recPorEntidade: Record<string, number> = {};
+      (receitas as any[]).forEach((r) => {
+        const ent = (r.financiador && String(r.financiador).trim()) || 'Sem entidade';
+        recPorEntidade[ent] = (recPorEntidade[ent] || 0) + toNum(r.valor);
+      });
       renderBars(doc, 'Receitas por Departamento', toArray(depReceitas));
       renderBars(doc, 'Receitas por Categoria', toArray(catReceitas));
+      renderBars(doc, 'Receitas por Entidade', toArray(recPorEntidade));
     }
 
     // --- Detalhe: Receitas por Entidade (financiador) com cada receita ---
@@ -504,6 +510,19 @@ router.post('/anual/pdf', async (req, res) => {
     doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(15).text('Associação Young-Link', 40, 150, { width: 520, align: 'center' });
     doc.fontSize(30).text('Relatório e Contas', 40, 430, { width: 520, align: 'center' });
     doc.fontSize(22).fillColor('#475569').text(String(ano), 40, 470, { width: 520, align: 'center' });
+    doc.addPage();
+
+    // --- Índice ---
+    drawHeader(doc, `Relatório e Contas ${ano}`, `Ano ${ano}`, logo);
+    doc.moveDown(1).fillColor('#0f172a').font('Helvetica-Bold').fontSize(18).text('Índice', 40, doc.y, { width: 520 });
+    doc.moveDown(0.8);
+    const indice = ['Nota de Introdução', 'Administração', 'Atividades', 'Balanço Financeiro', 'Gráficos', 'Conclusão'];
+    indice.forEach((sec, i) => {
+      const y = doc.y;
+      doc.font('Helvetica-Bold').fontSize(12).fillColor('#3457d5').text(`${i + 1}.`, 40, y, { width: 24 });
+      doc.font('Helvetica').fontSize(12).fillColor('#1e293b').text(sec, 68, y, { width: 492 });
+      doc.moveDown(0.7);
+    });
     doc.addPage();
 
     // --- Secções narrativas ---
