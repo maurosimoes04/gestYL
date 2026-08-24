@@ -2188,6 +2188,11 @@ section h2 {
   padding: var(--space-5) var(--space-5) var(--space-4);
 }
 
+/* O display:flex acima venceria o atributo [hidden] — repor o esconder do passo inativo. */
+.modal-backdrop.drawer .rac-step[hidden] {
+  display: none;
+}
+
 .modal-backdrop.drawer .form-btns {
   position: sticky;
   bottom: 0;
