@@ -563,8 +563,36 @@ router.post('/anual/pdf', async (req, res) => {
     doc.moveDown(0.5);
     drawTable(doc, entRows);
 
+    // --- Gráficos ---
+    doc.addPage();
+    doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(15).text('Gráficos', 40, doc.y, { width: 520 });
+    doc.moveDown(0.6);
+    renderBars(doc, 'Despesas por Departamento', toArray(dados.depDespesas));
+    doc.moveDown(0.4);
+    renderBars(doc, 'Receitas por Entidade', toArray(dados.receitasPorEntidade));
+
     // --- Conclusão ---
     drawParagraphs(doc, 'Conclusão', narrativa.conclusao);
+
+    // --- Assinaturas da direção ---
+    if (doc.y > doc.page.height - 220) doc.addPage(); else doc.moveDown(2);
+    const mesesPt = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+    const hoje = new Date();
+    doc.font('Helvetica').fontSize(11).fillColor('#1e293b')
+      .text(`Castro Marim, ${hoje.getDate()} de ${mesesPt[hoje.getMonth()]} de ${hoje.getFullYear()}`, 40, doc.y, { width: 520, align: 'right' });
+    doc.moveDown(3);
+    doc.font('Helvetica-Bold').fontSize(12).fillColor('#0f172a').text('A Direção', 40, doc.y, { width: 520, align: 'center' });
+    doc.moveDown(3.5);
+
+    const cargos = ['Presidente', 'Tesoureiro(a)', 'Secretário(a)'];
+    const colW = 520 / cargos.length;
+    const yLinha = doc.y;
+    cargos.forEach((cargo, i) => {
+      const x = 40 + i * colW;
+      doc.moveTo(x + 12, yLinha).lineTo(x + colW - 12, yLinha).strokeColor('#94a3b8').lineWidth(0.8).stroke();
+      doc.font('Helvetica').fontSize(9).fillColor('#64748b').text(cargo, x, yLinha + 6, { width: colW, align: 'center' });
+    });
+    doc.fillColor('#0f172a').strokeColor('#0f172a');
 
     doc.end();
   } catch (err) {

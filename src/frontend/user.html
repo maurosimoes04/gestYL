@@ -32,6 +32,7 @@
         <a href="#eventos" class="nav-link" data-target="eventos"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>Eventos</span></a>
         <a href="#inventario" class="nav-link" data-target="inventario"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span>Inventário</span></a>
         <a href="#tesouraria" class="nav-link" data-target="tesouraria"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="6" x2="12" y2="18"/><path d="M15 9.5c0-1.5-1.5-2.5-3-2.5s-3 1-3 2.5 1.5 2 3 2.5 3 1 3 2.5-1.5 2.5-3 2.5-3-1-3-2.5"/></svg><span>Tesouraria</span></a>
+        <a href="#relatorios" class="nav-link" data-target="relatorios"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg><span>Relatórios</span></a>
         <a href="#ia" class="nav-link nav-link-ia" data-target="ia"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="4"/></svg><span>Verificação IA</span><span id="iaAlertBadge" class="nav-badge" hidden>0</span></a>
       </nav>
 
@@ -182,8 +183,6 @@
       <div class="section-header">
         <h2>Despesas</h2>
         <div class="section-header-actions">
-          <button type="button" id="qaRelatorioContas" class="ghost-action">Relatório e Contas (IA)</button>
-          <button type="button" id="qaExportRelatorio" class="ghost-action">Relatório PDF</button>
           <button type="button" id="qaNovoEvento" class="ghost-action">Novo Evento</button>
           <button type="button" id="btnEscolherFatura" class="main-action">Nova Despesa</button>
         </div>
@@ -225,7 +224,6 @@
       <div class="section-header">
         <h2>Receitas</h2>
         <div class="section-header-actions">
-          <button type="button" id="qaExportRelatorioReceitas" class="ghost-action">Relatório PDF</button>
           <button type="button" id="qaNovoEventoReceitas" class="ghost-action">Novo Evento</button>
           <button id="btnNovaReceita" class="main-action">Nova Receita</button>
         </div>
@@ -274,6 +272,31 @@
 
       <div id="eventosLista" class="dashboard-grid">
         <p class="text-muted">Nenhum evento registado.</p>
+      </div>
+    </section>
+
+    <!-- ================= RELATÓRIOS ================= -->
+    <section id="relatorios" class="section-animate" hidden>
+      <div class="section-header">
+        <h2>Relatórios</h2>
+      </div>
+      <div class="relatorios-grid">
+        <div class="relatorio-card">
+          <div class="relatorio-card-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7"/><rect x="12" y="6" width="3" height="11"/><rect x="17" y="13" width="3" height="4"/></svg>
+          </div>
+          <h3>Relatório Financeiro (PDF)</h3>
+          <p>Resumo de receitas e despesas por período — por departamento, categoria, evento, por entidade e por fornecedor, com o detalhe de cada movimento.</p>
+          <button type="button" id="qaExportRelatorio" class="main-action">Gerar relatório</button>
+        </div>
+        <div class="relatorio-card">
+          <div class="relatorio-card-icon relatorio-card-icon-ia">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="4"/></svg>
+          </div>
+          <h3>Relatório e Contas (IA)</h3>
+          <p>Documento anual completo, gerado por IA a partir do plano de atividades: análise escrita das atividades e balanço financeiro apurado dos dados reais. Rascunho editável antes do PDF final.</p>
+          <button type="button" id="qaRelatorioContas" class="main-action">Criar Relatório e Contas</button>
+        </div>
       </div>
     </section>
 
@@ -545,16 +568,36 @@
 
       <!-- Passo 2: rascunho editável -->
       <div id="racPasso2" class="rac-step" hidden>
-        <p class="text-muted" style="margin-bottom:6px;">Revê e edita o texto gerado. O balanço financeiro é calculado automaticamente e incluído no PDF final.</p>
+        <div class="rac-note">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          <span>Texto gerado por IA — revê e ajusta antes de exportar. O balanço financeiro é apurado automaticamente dos dados reais.</span>
+        </div>
         <div id="racResumoFin" class="rac-resumo"></div>
-        <div class="form-field"><label>Nota de Introdução</label><textarea id="racNotaIntroducao" rows="5"></textarea></div>
-        <div class="form-field"><label>Administração — Gestão Interna</label><textarea id="racGestaoInterna" rows="3"></textarea></div>
-        <div class="form-field"><label>Administração — Parcerias Estratégicas</label><textarea id="racParcerias" rows="3"></textarea></div>
-        <div class="form-field"><label>Administração — Transparência e Participação</label><textarea id="racTransparencia" rows="3"></textarea></div>
-        <div class="form-field"><label>Administração — Desafios e Visão</label><textarea id="racDesafios" rows="3"></textarea></div>
-        <div class="form-field"><label>Atividades Realizadas</label><textarea id="racAtividadesRealizadas" rows="5"></textarea></div>
-        <div class="form-field"><label>Atividades Não Realizadas</label><textarea id="racAtividadesNaoRealizadas" rows="4"></textarea></div>
-        <div class="form-field"><label>Conclusão</label><textarea id="racConclusao" rows="5"></textarea></div>
+
+        <div class="rac-group">
+          <div class="rac-group-title">Nota de Introdução</div>
+          <textarea id="racNotaIntroducao" rows="5"></textarea>
+        </div>
+
+        <div class="rac-group">
+          <div class="rac-group-title">Administração</div>
+          <div class="rac-subfield"><label>Gestão Interna</label><textarea id="racGestaoInterna" rows="3"></textarea></div>
+          <div class="rac-subfield"><label>Parcerias Estratégicas</label><textarea id="racParcerias" rows="3"></textarea></div>
+          <div class="rac-subfield"><label>Transparência e Participação</label><textarea id="racTransparencia" rows="3"></textarea></div>
+          <div class="rac-subfield"><label>Desafios e Visão</label><textarea id="racDesafios" rows="3"></textarea></div>
+        </div>
+
+        <div class="rac-group">
+          <div class="rac-group-title">Atividades</div>
+          <div class="rac-subfield"><label>Realizadas</label><textarea id="racAtividadesRealizadas" rows="5"></textarea></div>
+          <div class="rac-subfield"><label>Não Realizadas</label><textarea id="racAtividadesNaoRealizadas" rows="4"></textarea></div>
+        </div>
+
+        <div class="rac-group">
+          <div class="rac-group-title">Conclusão</div>
+          <textarea id="racConclusao" rows="5"></textarea>
+        </div>
+
         <div class="form-btns">
           <button type="button" class="ghost-action" id="racVoltarBtn">Gerar novamente</button>
           <button type="button" class="main-action" id="racExportarBtn">Exportar PDF final</button>

@@ -29,7 +29,8 @@ const SECTION_GROUPS: Record<string, string[]> = {
   eventos: ['eventos'],
   ia: ['ia'],
   inventario: ['inventario'],
-  tesouraria: ['tesouraria']
+  tesouraria: ['tesouraria'],
+  relatorios: ['relatorios']
 };
 
 let chartInstance: any = null;
@@ -863,7 +864,10 @@ function setupRelatorioContas() {
       setValue('racConclusao', n.conclusao || '');
       const fin = data.financeiro?.totais;
       const resumoEl = document.getElementById('racResumoFin');
-      if (resumoEl && fin) resumoEl.innerHTML = `<span>Receitas: <strong>${formatCurrency(fin.receitas)}</strong></span><span>Custos: <strong>${formatCurrency(fin.despesas)}</strong></span><span>Resultado: <strong>${formatCurrency(fin.resultadoDoExercicio)}</strong></span>`;
+      if (resumoEl && fin) resumoEl.innerHTML = `
+        <div class="rac-stat receitas"><span class="k">Receitas</span><span class="v">${formatCurrency(fin.receitas)}</span></div>
+        <div class="rac-stat custos"><span class="k">Custos</span><span class="v">${formatCurrency(fin.despesas)}</span></div>
+        <div class="rac-stat resultado"><span class="k">Resultado</span><span class="v">${formatCurrency(fin.resultadoDoExercicio)}</span></div>`;
       const aviso = document.getElementById('racAviso');
       if (aviso) { if (data.aviso) { aviso.textContent = data.aviso; aviso.removeAttribute('hidden'); } else aviso.setAttribute('hidden', 'true'); }
       showPasso(2);
@@ -925,7 +929,7 @@ function setActiveNav(target: string) {
 
 const loadedSections = new Set<string>();
 
-function setActiveSection(target: 'resumo' | 'faturas' | 'receitas' | 'eventos' | 'ia' | 'inventario' | 'tesouraria') {
+function setActiveSection(target: 'resumo' | 'faturas' | 'receitas' | 'eventos' | 'ia' | 'inventario' | 'tesouraria' | 'relatorios') {
   hideForms();
   const showSet = new Set(SECTION_GROUPS[target]);
   Object.values(SECTION_GROUPS).flat().forEach(id => {
