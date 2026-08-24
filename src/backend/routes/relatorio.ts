@@ -160,6 +160,40 @@ function toArray(obj: Record<string, number>) {
   return Object.entries(obj).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
 }
 
+// Receitas que representam financiamento externo (cofinanciamentos, subsídios,
+// patrocínios e doações) — para a secção "quem deu o quê e quanto".
+function isFinanciamento(categoria: string | null | undefined) {
+  const c = (categoria || '').toLowerCase();
+  return c.includes('cofinanc') || c.includes('subsíd') || c.includes('subsid') || c.includes('patrocín') || c.includes('patrocin') || c.includes('doaç') || c.includes('doac');
+}
+
+function cofinanciamentoRows(receitas: any[]): { rows: Row[]; total: number } {
+  const fund = receitas.filter((r) => isFinanciamento(r.categoria));
+  const total = fund.reduce((s, r) => s + toNum(r.valor), 0);
+  const rows: Row[] = [{ cells: ['Cofinanciamentos e Subsídios por Entidade', fmt(total)], fill: '#f1f5f9', bold: true }];
+  if (!fund.length) {
+    rows.push({ cells: ['Sem cofinanciamentos ou subsídios registados.', ''] });
+    return { rows, total };
+  }
+  const porEnt = new Map<string, any[]>();
+  fund.forEach((r) => {
+    const e = (r.financiador && String(r.financiador).trim()) || 'Sem entidade';
+    if (!porEnt.has(e)) porEnt.set(e, []);
+    porEnt.get(e)!.push(r);
+  });
+  Array.from(porEnt.entries())
+    .map(([ent, itens]) => ({ ent, itens, t: itens.reduce((s, r) => s + toNum(r.valor), 0) }))
+    .sort((a, b) => b.t - a.t)
+    .forEach(({ ent, itens, t }) => {
+      rows.push({ cells: [`${ent}  (${itens.length})`, fmt(t)], fill: '#dcfce7', color: '#15803d', bold: true });
+      itens.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()).forEach((r) => {
+        const det = [r.categoria, r.estado].filter(Boolean).join(' · ');
+        rows.push({ cells: [`${fmtDate(r.data)} — ${r.titulo}${det ? `\n${det}` : ''}`, fmt(toNum(r.valor))], indent: 1, small: true });
+      });
+    });
+  return { rows, total };
+}
+
 router.get('/pdf', async (req, res) => {
   try {
     const { default: PDFDocument } = await import('pdfkit');
@@ -329,6 +363,11 @@ router.get('/pdf', async (req, res) => {
         });
       doc.moveDown(1).fontSize(12).font('Helvetica-Bold').fillColor('#0f172a').text('Detalhe de Receitas por Entidade');
       drawTable(doc, entRows);
+
+      // Cofinanciamentos e subsídios (quem financiou e com quanto)
+      const cof = cofinanciamentoRows(receitas as any[]);
+      doc.moveDown(1).fontSize(12).font('Helvetica-Bold').fillColor('#0f172a').text('Cofinanciamentos e Subsídios');
+      drawTable(doc, cof.rows);
     }
 
     // --- Detalhe: Despesas por Fornecedor com cada despesa ---
@@ -600,6 +639,11 @@ router.post('/anual/pdf', async (req, res) => {
       });
     doc.moveDown(0.5);
     drawTable(doc, entRows);
+
+    // Cofinanciamentos e subsídios (quem financiou e com quanto)
+    const cof = cofinanciamentoRows(dados.receitas as any[]);
+    doc.moveDown(0.5);
+    drawTable(doc, cof.rows);
 
     // --- Gráficos ---
     doc.addPage();

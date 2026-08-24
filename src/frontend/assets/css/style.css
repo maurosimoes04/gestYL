@@ -2145,6 +2145,11 @@ section h2 {
   width: min(560px, 100%);
 }
 
+/* O drawer do Relatório e Contas é mais largo (tem muitos campos de texto). */
+#racDrawer .modal-card.modal-card-lg {
+  width: min(680px, 100%);
+}
+
 /* Layout do drawer: cabeçalho fixo · corpo com scroll · barra de ação fixa no fundo.
    Resolve os formulários curtos (o botão fica sempre ancorado no fundo, não a meio). */
 .modal-backdrop.drawer .modal-card {
@@ -2170,6 +2175,17 @@ section h2 {
   padding: var(--space-4) var(--space-5);
   gap: var(--space-4);
   max-width: none;
+}
+
+/* Conteúdo do drawer que não usa .form-modern (ex.: Relatório e Contas):
+   corpo com scroll e margens confortáveis, para não ficar colado às bordas. */
+.modal-backdrop.drawer .rac-step {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-5) var(--space-5) var(--space-4);
 }
 
 .modal-backdrop.drawer .form-btns {
