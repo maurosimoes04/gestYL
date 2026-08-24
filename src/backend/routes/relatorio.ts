@@ -33,18 +33,25 @@ function drawHeader(doc: InstanceType<PDFDocumentType>, titulo: string, periodoL
   doc.moveDown(2).fillColor('#0f172a');
 }
 
-type Row = { cells: [string, string]; fill?: string; color?: string; bold?: boolean; indent?: number };
+type Row = { cells: [string, string]; fill?: string; color?: string; bold?: boolean; indent?: number; small?: boolean };
 
+// Tabela de 2 colunas com altura de linha dinâmica (para linhas detalhadas
+// em várias linhas não serem cortadas) e paginação automática.
 function drawTable(doc: InstanceType<PDFDocumentType>, rows: Row[]) {
-  const startX = 40, tableWidth = 520, colWidths = [360, 160], rowHeight = 26;
+  const startX = 40, tableWidth = 520, colWidths = [360, 160], minRow = 26, padY = 6;
   let y = doc.y;
   rows.forEach((row) => {
+    const indentPx = (row.indent || 0) * 14;
+    const fontSize = row.small ? 9 : 11;
+    doc.font(row.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(fontSize);
+    const textH = doc.heightOfString(row.cells[0], { width: colWidths[0] - 16 - indentPx });
+    const rowHeight = Math.max(minRow, textH + padY * 2);
     if (y + rowHeight > doc.page.height - 50) { doc.addPage(); y = doc.y; }
     if (row.fill) doc.rect(startX, y, tableWidth, rowHeight).fill(row.fill);
-    doc.fillColor(row.color || '#0f172a').font(row.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(11);
-    const indentPx = (row.indent || 0) * 14;
-    doc.text(row.cells[0], startX + 10 + indentPx, y + 6, { width: colWidths[0] - 16 - indentPx, align: 'left' });
-    doc.text(row.cells[1], startX + colWidths[0] + 10, y + 6, { width: colWidths[1] - 20, align: 'right' });
+    doc.fillColor(row.color || '#0f172a').font(row.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(fontSize);
+    doc.text(row.cells[0], startX + 10 + indentPx, y + padY, { width: colWidths[0] - 16 - indentPx, align: 'left' });
+    doc.font('Helvetica-Bold').fontSize(row.small ? 9 : 11);
+    doc.text(row.cells[1], startX + colWidths[0] + 10, y + padY, { width: colWidths[1] - 20, align: 'right' });
     y += rowHeight;
     doc.moveTo(startX, y - 1).lineTo(startX + tableWidth, y - 1).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
   });
@@ -290,25 +297,56 @@ router.get('/pdf', async (req, res) => {
       renderBars(doc, 'Receitas por Categoria', toArray(catReceitas));
     }
 
-    // --- Listagens detalhadas ---
-    if (tipo !== 'receitas' && faturas.length > 0) {
-      const topDespRows: Row[] = [];
-      topDespRows.push({ cells: ['Top Despesas', 'Valor'], fill: '#f1f5f9', bold: true });
-      (faturas as any[]).slice(0, 20).forEach((f) => {
-        const label = `${fmtDate(f.data)} — ${f.titulo} (${f.departamento || '-'})`;
-        topDespRows.push({ cells: [label, fmt(toNum(f.valor))] });
+    // --- Detalhe: Receitas por Entidade (financiador) com cada receita ---
+    if (tipo !== 'despesas' && receitas.length > 0) {
+      const porEntidade = new Map<string, any[]>();
+      (receitas as any[]).forEach((r) => {
+        const ent = (r.financiador && String(r.financiador).trim()) || 'Sem entidade';
+        if (!porEntidade.has(ent)) porEntidade.set(ent, []);
+        porEntidade.get(ent)!.push(r);
       });
-      drawTable(doc, topDespRows);
+      const entRows: Row[] = [{ cells: ['Receitas por Entidade', 'Valor'], fill: '#f1f5f9', bold: true }];
+      Array.from(porEntidade.entries())
+        .map(([ent, itens]) => ({ ent, itens, total: itens.reduce((s, r) => s + toNum(r.valor), 0) }))
+        .sort((a, b) => b.total - a.total)
+        .forEach(({ ent, itens, total }) => {
+          entRows.push({ cells: [`${ent}  (${itens.length})`, fmt(total)], fill: '#dcfce7', color: '#15803d', bold: true });
+          itens
+            .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+            .forEach((r) => {
+              const ev = (receitaAllocMap.get(r.id) || []).map((a) => a.label).join(', ');
+              const det = [r.categoria, r.estado, ev].filter(Boolean).join(' · ');
+              entRows.push({ cells: [`${fmtDate(r.data)} — ${r.titulo}${det ? `\n${det}` : ''}`, fmt(toNum(r.valor))], indent: 1, small: true });
+            });
+        });
+      doc.moveDown(1).fontSize(12).font('Helvetica-Bold').fillColor('#0f172a').text('Detalhe de Receitas por Entidade');
+      drawTable(doc, entRows);
     }
 
-    if (tipo !== 'despesas' && receitas.length > 0) {
-      const topRecRows: Row[] = [];
-      topRecRows.push({ cells: ['Top Receitas', 'Valor'], fill: '#f1f5f9', bold: true });
-      (receitas as any[]).slice(0, 20).forEach((r) => {
-        const label = `${fmtDate(r.data)} — ${r.titulo} (${r.categoria || '-'})`;
-        topRecRows.push({ cells: [label, fmt(toNum(r.valor))] });
+    // --- Detalhe: Despesas por Fornecedor com cada despesa ---
+    if (tipo !== 'receitas' && faturas.length > 0) {
+      const porFornecedor = new Map<string, any[]>();
+      (faturas as any[]).forEach((f) => {
+        const forn = (f.fornecedor && String(f.fornecedor).trim()) || 'Sem fornecedor';
+        if (!porFornecedor.has(forn)) porFornecedor.set(forn, []);
+        porFornecedor.get(forn)!.push(f);
       });
-      drawTable(doc, topRecRows);
+      const fornRows: Row[] = [{ cells: ['Despesas por Fornecedor', 'Valor'], fill: '#f1f5f9', bold: true }];
+      Array.from(porFornecedor.entries())
+        .map(([forn, itens]) => ({ forn, itens, total: itens.reduce((s, f) => s + toNum(f.valor), 0) }))
+        .sort((a, b) => b.total - a.total)
+        .forEach(({ forn, itens, total }) => {
+          fornRows.push({ cells: [`${forn}  (${itens.length})`, fmt(total)], fill: '#ffe2e5', color: '#b91c1c', bold: true });
+          itens
+            .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+            .forEach((f) => {
+              const ev = (faturaAllocMap.get(f.id) || []).map((a) => a.label).join(', ');
+              const det = [f.numero ? `Nº ${f.numero}` : '', f.tipo, f.departamento, f.estado, ev].filter(Boolean).join(' · ');
+              fornRows.push({ cells: [`${fmtDate(f.data)} — ${f.titulo}${det ? `\n${det}` : ''}`, fmt(toNum(f.valor))], indent: 1, small: true });
+            });
+        });
+      doc.moveDown(1).fontSize(12).font('Helvetica-Bold').fillColor('#0f172a').text('Detalhe de Despesas por Fornecedor');
+      drawTable(doc, fornRows);
     }
 
     doc.end();
