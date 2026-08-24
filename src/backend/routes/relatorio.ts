@@ -167,14 +167,21 @@ function isFinanciamento(categoria: string | null | undefined) {
   return c.includes('cofinanc') || c.includes('subsíd') || c.includes('subsid') || c.includes('patrocín') || c.includes('patrocin') || c.includes('doaç') || c.includes('doac');
 }
 
+function isRecebido(estado: string | null | undefined) {
+  return (estado || '').toLowerCase() === 'recebido';
+}
+
 function cofinanciamentoRows(receitas: any[]): { rows: Row[]; total: number } {
   const fund = receitas.filter((r) => isFinanciamento(r.categoria));
   const total = fund.reduce((s, r) => s + toNum(r.valor), 0);
+  const recebidoTot = fund.filter((r) => isRecebido(r.estado)).reduce((s, r) => s + toNum(r.valor), 0);
+  const pendenteTot = total - recebidoTot;
   const rows: Row[] = [{ cells: ['Cofinanciamentos e Subsídios por Entidade', fmt(total)], fill: '#f1f5f9', bold: true }];
   if (!fund.length) {
     rows.push({ cells: ['Sem cofinanciamentos ou subsídios registados.', ''] });
     return { rows, total };
   }
+  rows.push({ cells: [`Recebido ${fmt(recebidoTot)}  ·  Pendente ${fmt(pendenteTot)}`, ''], color: '#64748b', small: true });
   const porEnt = new Map<string, any[]>();
   fund.forEach((r) => {
     const e = (r.financiador && String(r.financiador).trim()) || 'Sem entidade';
@@ -185,7 +192,10 @@ function cofinanciamentoRows(receitas: any[]): { rows: Row[]; total: number } {
     .map(([ent, itens]) => ({ ent, itens, t: itens.reduce((s, r) => s + toNum(r.valor), 0) }))
     .sort((a, b) => b.t - a.t)
     .forEach(({ ent, itens, t }) => {
+      const rec = itens.filter((r) => isRecebido(r.estado)).reduce((s, r) => s + toNum(r.valor), 0);
+      const pen = t - rec;
       rows.push({ cells: [`${ent}  (${itens.length})`, fmt(t)], fill: '#dcfce7', color: '#15803d', bold: true });
+      rows.push({ cells: [`Recebido ${fmt(rec)}  ·  Pendente ${fmt(pen)}`, ''], color: '#64748b', small: true, indent: 1 });
       itens.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()).forEach((r) => {
         const det = [r.categoria, r.estado].filter(Boolean).join(' · ');
         rows.push({ cells: [`${fmtDate(r.data)} — ${r.titulo}${det ? `\n${det}` : ''}`, fmt(toNum(r.valor))], indent: 1, small: true });
