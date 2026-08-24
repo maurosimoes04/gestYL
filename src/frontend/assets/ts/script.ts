@@ -810,6 +810,106 @@ function setupExportRelatorio() {
   }
 }
 
+// --- Relatório e Contas (IA) ---
+function setupRelatorioContas() {
+  const openBtn = document.getElementById('qaRelatorioContas');
+  const closeBtn = document.getElementById('racClose');
+  const gerarBtn = document.getElementById('racGerarBtn') as HTMLButtonElement | null;
+  const voltarBtn = document.getElementById('racVoltarBtn');
+  const exportarBtn = document.getElementById('racExportarBtn') as HTMLButtonElement | null;
+
+  const showPasso = (n: 1 | 2) => {
+    document.getElementById('racPasso1')?.toggleAttribute('hidden', n !== 1);
+    document.getElementById('racPasso2')?.toggleAttribute('hidden', n !== 2);
+  };
+
+  if (openBtn) openBtn.addEventListener('click', () => {
+    if (isReadOnly()) { showNotification('Sem permissões para gerar relatórios.', 'error'); return; }
+    setValue('racAno', String(new Date().getFullYear()));
+    ['racNotaIntroducao', 'racGestaoInterna', 'racParcerias', 'racTransparencia', 'racDesafios', 'racAtividadesRealizadas', 'racAtividadesNaoRealizadas', 'racConclusao'].forEach((id) => setValue(id, ''));
+    const aviso = document.getElementById('racAviso'); if (aviso) aviso.setAttribute('hidden', 'true');
+    const planoInput = document.getElementById('planoFile') as HTMLInputElement | null; if (planoInput) planoInput.value = '';
+    document.getElementById('dropPlano')?.classList.remove('has-file');
+    document.querySelector('#dropPlano .file-drop-preview')?.setAttribute('hidden', 'true');
+    showPasso(1);
+    toggleSection('racDrawer', true);
+  });
+
+  if (closeBtn) closeBtn.addEventListener('click', () => toggleSection('racDrawer', false));
+  if (voltarBtn) voltarBtn.addEventListener('click', () => showPasso(1));
+
+  if (gerarBtn) gerarBtn.addEventListener('click', async () => {
+    const ano = getValue('racAno') || String(new Date().getFullYear());
+    const planoInput = document.getElementById('planoFile') as HTMLInputElement | null;
+    const file = planoInput?.files?.[0];
+    const fd = new FormData();
+    fd.append('ano', ano);
+    if (file) fd.append('plano', file);
+    gerarBtn.disabled = true;
+    showPdfLoading('A gerar rascunho com IA...');
+    try {
+      const resp = await fetch('/relatorios/anual/analise', { method: 'POST', body: fd });
+      if (!resp.ok) throw new Error('Falha ao gerar análise');
+      const data = await resp.json();
+      const n = data.narrativa || {};
+      const adm = n.administracao || {};
+      setValue('racNotaIntroducao', n.notaIntroducao || '');
+      setValue('racGestaoInterna', adm.gestaoInterna || '');
+      setValue('racParcerias', adm.parcerias || '');
+      setValue('racTransparencia', adm.transparencia || '');
+      setValue('racDesafios', adm.desafios || '');
+      setValue('racAtividadesRealizadas', n.atividadesRealizadas || '');
+      setValue('racAtividadesNaoRealizadas', n.atividadesNaoRealizadas || '');
+      setValue('racConclusao', n.conclusao || '');
+      const fin = data.financeiro?.totais;
+      const resumoEl = document.getElementById('racResumoFin');
+      if (resumoEl && fin) resumoEl.innerHTML = `<span>Receitas: <strong>${formatCurrency(fin.receitas)}</strong></span><span>Custos: <strong>${formatCurrency(fin.despesas)}</strong></span><span>Resultado: <strong>${formatCurrency(fin.resultadoDoExercicio)}</strong></span>`;
+      const aviso = document.getElementById('racAviso');
+      if (aviso) { if (data.aviso) { aviso.textContent = data.aviso; aviso.removeAttribute('hidden'); } else aviso.setAttribute('hidden', 'true'); }
+      showPasso(2);
+    } catch {
+      showNotification('Erro ao gerar o rascunho.', 'error');
+    } finally {
+      gerarBtn.disabled = false;
+      hidePdfLoading();
+    }
+  });
+
+  if (exportarBtn) exportarBtn.addEventListener('click', async () => {
+    const ano = getValue('racAno') || String(new Date().getFullYear());
+    const narrativa = {
+      notaIntroducao: getValue('racNotaIntroducao'),
+      administracao: {
+        gestaoInterna: getValue('racGestaoInterna'),
+        parcerias: getValue('racParcerias'),
+        transparencia: getValue('racTransparencia'),
+        desafios: getValue('racDesafios'),
+      },
+      atividadesRealizadas: getValue('racAtividadesRealizadas'),
+      atividadesNaoRealizadas: getValue('racAtividadesNaoRealizadas'),
+      conclusao: getValue('racConclusao'),
+    };
+    exportarBtn.disabled = true;
+    showPdfLoading('A gerar o PDF final...');
+    try {
+      const resp = await fetch('/relatorios/anual/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ano, narrativa }) });
+      if (!resp.ok) throw new Error('Falha ao gerar PDF');
+      const blob = await resp.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objUrl; a.download = `relatorio-e-contas-${ano}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(objUrl);
+      hidePdfLoading();
+    } catch {
+      hidePdfLoading();
+      showNotification('Erro ao gerar o PDF final.', 'error');
+    } finally {
+      exportarBtn.disabled = false;
+    }
+  });
+}
+
 function hideForms() {
   toggleSection('formularioFatura', false);
   toggleSection('formularioEvento', false);
@@ -2412,6 +2512,7 @@ function setupEventListeners() {
 
   setupFileDrop('dropFatura', 'anexoFatura');
   setupFileDrop('dropReceita', 'anexoReceita');
+  setupFileDrop('dropPlano', 'planoFile');
   setupMultiEventoAdd('faturaEventoSelect', 'faturaEventosList');
   setupMultiEventoAdd('receitaEventoSelect', 'receitaEventosList');
 
@@ -2519,6 +2620,7 @@ function setupEventListeners() {
   document.getElementById('editarPartilhaForm')?.addEventListener('submit', guardarEditarPartilha as any);
 
   setupExportRelatorio();
+  setupRelatorioContas();
   setupMovimentos();
   const btnNovoEvento = document.getElementById('btnEscolherEvento');
   if (btnNovoEvento) {

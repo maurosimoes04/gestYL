@@ -3,6 +3,8 @@ import express from 'express';
 type PDFDocumentType = PDFKit.PDFDocument;
 import { prisma } from '../config/prisma';
 import { getLogoBuffer } from '../utils/logo';
+import { gerarNarrativaRelatorio } from '../services/documentAnalysis';
+const upload = require('../middleware/upload').default;
 
 const router = express.Router();
 type TipoRelatorio = 'despesas' | 'receitas' | 'ambos';
@@ -353,6 +355,221 @@ router.get('/pdf', async (req, res) => {
   } catch (err) {
     console.error('Erro ao gerar PDF:', (err as any).message || err);
     res.status(500).json({ error: 'Erro ao exportar PDF' });
+  }
+});
+
+// ==========================================================================
+//  RELATÓRIO E CONTAS ANUAL (gerado por IA + balanço automático)
+// ==========================================================================
+
+// Apura todos os dados financeiros de um ano e devolve estruturas reutilizáveis
+// (para a análise de IA e para o PDF final).
+async function apurarDadosAno(ano: number) {
+  const dateRange = { gte: new Date(`${ano}-01-01`), lte: new Date(`${ano}-12-31`) };
+  const [faturas, receitas, faturaEventos, receitaEventos] = await Promise.all([
+    prisma.fatura.findMany({ where: { data: dateRange }, orderBy: { data: 'desc' } }),
+    prisma.receita.findMany({ where: { data: dateRange }, orderBy: { data: 'desc' } }),
+    prisma.faturaEvento.findMany({ where: { fatura: { data: dateRange } }, include: { evento: { select: { id: true, nome: true, departamento: true, data_inicio: true, data_fim: true } } } }),
+    prisma.receitaEvento.findMany({ where: { receita: { data: dateRange } }, include: { evento: { select: { id: true, nome: true, departamento: true } } } }),
+  ]);
+
+  const totalDespesas = faturas.reduce((s, f) => s + toNum(f.valor), 0);
+  const totalReceitas = receitas.reduce((s, r) => s + toNum(r.valor), 0);
+  const saldo = totalReceitas - totalDespesas;
+
+  const depDespesas = groupBy(faturas as any[], 'departamento');
+  const catReceitas = groupBy(receitas as any[], 'categoria');
+
+  const faturaAllocMap = new Map<number, { label: string; valor: number }[]>();
+  faturaEventos.forEach((fe: any) => {
+    const nome = fe.evento?.nome || `Evento ${fe.eventoId}`;
+    const arr = faturaAllocMap.get(fe.faturaId) || [];
+    arr.push({ label: nome, valor: toNum(fe.valor) });
+    faturaAllocMap.set(fe.faturaId, arr);
+  });
+  const receitaAllocMap = new Map<number, { label: string; valor: number }[]>();
+  receitaEventos.forEach((re: any) => {
+    const nome = re.evento?.nome || `Evento ${re.eventoId}`;
+    const arr = receitaAllocMap.get(re.receitaId) || [];
+    arr.push({ label: nome, valor: toNum(re.valor) });
+    receitaAllocMap.set(re.receitaId, arr);
+  });
+
+  const despesaTree = buildHierarchy(
+    (faturas as any[]).map((f) => ({ id: f.id, titulo: f.titulo, valor: f.valor, groupKey: f.departamento })),
+    faturaAllocMap,
+    'Despesas diretas',
+  );
+  const receitaTree = buildHierarchy(
+    (receitas as any[]).map((r) => ({ id: r.id, titulo: r.titulo, valor: r.valor, groupKey: r.categoria })),
+    receitaAllocMap,
+    'Receitas diretas',
+  );
+
+  // Receitas por entidade (financiador)
+  const receitasPorEntidade: Record<string, number> = {};
+  (receitas as any[]).forEach((r) => {
+    const ent = (r.financiador && String(r.financiador).trim()) || 'Sem entidade';
+    receitasPorEntidade[ent] = (receitasPorEntidade[ent] || 0) + toNum(r.valor);
+  });
+
+  // Resumo por evento (gasto e receita alocados)
+  const porEvento = new Map<string, { nome: string; departamento: string | null; despesa: number; receita: number }>();
+  faturaEventos.forEach((fe: any) => {
+    const key = String(fe.eventoId);
+    if (!porEvento.has(key)) porEvento.set(key, { nome: fe.evento?.nome || `Evento ${fe.eventoId}`, departamento: fe.evento?.departamento || null, despesa: 0, receita: 0 });
+    porEvento.get(key)!.despesa += toNum(fe.valor);
+  });
+  receitaEventos.forEach((re: any) => {
+    const key = String(re.eventoId);
+    if (!porEvento.has(key)) porEvento.set(key, { nome: re.evento?.nome || `Evento ${re.eventoId}`, departamento: re.evento?.departamento || null, despesa: 0, receita: 0 });
+    porEvento.get(key)!.receita += toNum(re.valor);
+  });
+
+  return {
+    ano, faturas, receitas, faturaEventos, receitaEventos,
+    totalDespesas, totalReceitas, saldo,
+    depDespesas, catReceitas, receitasPorEntidade,
+    despesaTree, receitaTree, faturaAllocMap, receitaAllocMap,
+    eventos: Array.from(porEvento.values()).sort((a, b) => (b.despesa + b.receita) - (a.despesa + a.receita)),
+  };
+}
+
+// Resumo compacto para enviar ao modelo (evita mandar dados a mais).
+function resumoParaIA(dados: Awaited<ReturnType<typeof apurarDadosAno>>) {
+  return {
+    ano: dados.ano,
+    totais: { receitas: +dados.totalReceitas.toFixed(2), despesas: +dados.totalDespesas.toFixed(2), resultadoDoExercicio: +dados.saldo.toFixed(2) },
+    eventos: dados.eventos.map((e) => ({ nome: e.nome, departamento: e.departamento, despesa: +e.despesa.toFixed(2), receita: +e.receita.toFixed(2) })),
+    despesasPorDepartamento: Object.fromEntries(Object.entries(dados.depDespesas).map(([k, v]) => [k, +Number(v).toFixed(2)])),
+    receitasPorEntidade: Object.fromEntries(Object.entries(dados.receitasPorEntidade).map(([k, v]) => [k, +Number(v).toFixed(2)])),
+    receitasPorCategoria: Object.fromEntries(Object.entries(dados.catReceitas).map(([k, v]) => [k, +Number(v).toFixed(2)])),
+  };
+}
+
+// POST /relatorios/anual/analise  (multipart: campo 'plano' = PDF do plano anual)
+router.post('/anual/analise', upload.single('plano'), async (req, res) => {
+  try {
+    const ano = parseInt((req.body?.ano as string) || '', 10) || new Date().getFullYear();
+    const dados = await apurarDadosAno(ano);
+    const resumo = resumoParaIA(dados);
+
+    let narrativa = null;
+    let aviso: string | null = null;
+    const file = (req as any).file;
+    if (!file) {
+      aviso = 'Sem plano anexado — o texto terá de ser escrito manualmente.';
+    } else if (!process.env.GEMINI_API_KEY) {
+      aviso = 'Análise por IA indisponível (sem chave configurada) — escreva o texto manualmente.';
+    } else {
+      narrativa = await gerarNarrativaRelatorio(file.buffer, file.mimetype, resumo);
+      if (!narrativa) aviso = 'A IA não conseguiu gerar o texto (quota ou erro). Pode escrever manualmente ou tentar de novo.';
+    }
+
+    res.json({ ano, narrativa, aviso, financeiro: resumo });
+  } catch (err) {
+    console.error('Erro na análise do relatório anual:', (err as any).message || err);
+    res.status(500).json({ error: 'Erro ao gerar a análise do relatório' });
+  }
+});
+
+function drawParagraphs(doc: InstanceType<PDFDocumentType>, titulo: string, texto: string | undefined) {
+  if (doc.y > doc.page.height - 120) doc.addPage();
+  doc.moveDown(0.8);
+  doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(15).text(titulo, 40, doc.y, { width: 520 });
+  doc.moveDown(0.4);
+  const paras = String(texto || '').split(/\n+/).map((p) => p.trim()).filter(Boolean);
+  if (!paras.length) { doc.font('Helvetica-Oblique').fontSize(10).fillColor('#94a3b8').text('(sem texto)', { width: 520 }); doc.fillColor('#0f172a'); return; }
+  doc.font('Helvetica').fontSize(11).fillColor('#1e293b');
+  paras.forEach((p) => { doc.text(p, { width: 520, align: 'justify' }); doc.moveDown(0.5); });
+  doc.fillColor('#0f172a');
+}
+
+// POST /relatorios/anual/pdf  (corpo JSON: { ano, narrativa })
+router.post('/anual/pdf', async (req, res) => {
+  try {
+    const { default: PDFDocument } = await import('pdfkit');
+    const ano = parseInt((req.body?.ano as string) || '', 10) || new Date().getFullYear();
+    const narrativa = (req.body?.narrativa || {}) as any;
+    const dados = await apurarDadosAno(ano);
+    const logo = await getLogoBuffer();
+
+    const doc = new PDFDocument({ margin: 40 });
+    res.header('Content-Type', 'application/pdf');
+    res.attachment(`relatorio-e-contas-${ano}.pdf`);
+    doc.pipe(res);
+
+    // --- Capa ---
+    if (logo) { try { doc.image(logo, (doc.page.width - 260) / 2, 200, { width: 260 }); } catch {} }
+    doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(15).text('Associação Young-Link', 40, 150, { width: 520, align: 'center' });
+    doc.fontSize(30).text('Relatório e Contas', 40, 430, { width: 520, align: 'center' });
+    doc.fontSize(22).fillColor('#475569').text(String(ano), 40, 470, { width: 520, align: 'center' });
+    doc.addPage();
+
+    // --- Secções narrativas ---
+    drawHeader(doc, `Relatório e Contas ${ano}`, `Ano ${ano}`, logo);
+    drawParagraphs(doc, 'Nota de Introdução', narrativa.notaIntroducao);
+
+    const adm = narrativa.administracao || {};
+    if (adm.gestaoInterna || adm.parcerias || adm.transparencia || adm.desafios) {
+      drawParagraphs(doc, 'Administração', [adm.gestaoInterna, adm.parcerias, adm.transparencia, adm.desafios].filter(Boolean).join('\n\n'));
+    }
+
+    drawParagraphs(doc, 'Atividades Realizadas', narrativa.atividadesRealizadas);
+    drawParagraphs(doc, 'Atividades Não Realizadas', narrativa.atividadesNaoRealizadas);
+
+    // --- Balanço Financeiro (automático, dados reais) ---
+    doc.addPage();
+    doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(15).text('Balanço Financeiro', 40, doc.y, { width: 520 });
+    doc.moveDown(0.4);
+
+    const resumoRows: Row[] = [];
+    resumoRows.push({ cells: ['Resumo do Exercício', `Ano ${ano}`], fill: '#f8fafc', bold: true });
+    resumoRows.push({ cells: ['Total de Receitas', fmt(dados.totalReceitas)], fill: '#e2fee3', color: '#15803d', bold: true });
+    resumoRows.push({ cells: ['Total de Custos', fmt(dados.totalDespesas)], fill: '#ffe2e5', color: '#b91c1c', bold: true });
+    resumoRows.push({ cells: ['Resultado do Exercício', fmt(dados.saldo)], fill: dados.saldo >= 0 ? '#dcfce7' : '#fee2e2', color: dados.saldo >= 0 ? '#166534' : '#b91c1c', bold: true });
+    drawTable(doc, resumoRows);
+
+    // CUSTOS por Departamento > Atividade > Rubrica
+    const custosRows: Row[] = [{ cells: ['Custos por Departamento / Atividade / Rubrica', fmt(dados.totalDespesas)], fill: '#f1f5f9', bold: true }];
+    custosRows.push(...renderHierarchyRows(dados.despesaTree, { fillNivel1: '#ffe2e5', colorNivel1: '#b91c1c', fillNivel2: '#fff1f2' }));
+    doc.moveDown(0.5);
+    drawTable(doc, custosRows);
+
+    // RECEITAS por categoria
+    const recCatRows: Row[] = [{ cells: ['Receitas por Categoria', fmt(dados.totalReceitas)], fill: '#f1f5f9', bold: true }];
+    Object.entries(dados.catReceitas).sort((a, b) => (b[1] as number) - (a[1] as number)).forEach(([cat, val]) => recCatRows.push({ cells: [cat, fmt(val as number)] }));
+    doc.moveDown(0.5);
+    drawTable(doc, recCatRows);
+
+    // RECEITAS por entidade (cada receita)
+    const porEntidade = new Map<string, any[]>();
+    (dados.receitas as any[]).forEach((r) => {
+      const ent = (r.financiador && String(r.financiador).trim()) || 'Sem entidade';
+      if (!porEntidade.has(ent)) porEntidade.set(ent, []);
+      porEntidade.get(ent)!.push(r);
+    });
+    const entRows: Row[] = [{ cells: ['Receitas por Entidade', 'Valor'], fill: '#f1f5f9', bold: true }];
+    Array.from(porEntidade.entries())
+      .map(([ent, itens]) => ({ ent, itens, total: itens.reduce((s, r) => s + toNum(r.valor), 0) }))
+      .sort((a, b) => b.total - a.total)
+      .forEach(({ ent, itens, total }) => {
+        entRows.push({ cells: [`${ent}  (${itens.length})`, fmt(total)], fill: '#dcfce7', color: '#15803d', bold: true });
+        itens.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()).forEach((r) => {
+          const det = [r.categoria, r.estado].filter(Boolean).join(' · ');
+          entRows.push({ cells: [`${fmtDate(r.data)} — ${r.titulo}${det ? `\n${det}` : ''}`, fmt(toNum(r.valor))], indent: 1, small: true });
+        });
+      });
+    doc.moveDown(0.5);
+    drawTable(doc, entRows);
+
+    // --- Conclusão ---
+    drawParagraphs(doc, 'Conclusão', narrativa.conclusao);
+
+    doc.end();
+  } catch (err) {
+    console.error('Erro ao gerar PDF do relatório anual:', (err as any).message || err);
+    if (!res.headersSent) res.status(500).json({ error: 'Erro ao gerar o relatório' });
   }
 });
 

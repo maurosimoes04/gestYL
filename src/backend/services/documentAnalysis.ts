@@ -25,6 +25,98 @@ const RESPONSE_SCHEMA = {
   },
 };
 
+export interface NarrativaRelatorio {
+  notaIntroducao: string;
+  administracao: { gestaoInterna: string; parcerias: string; transparencia: string; desafios: string };
+  atividadesRealizadas: string;
+  atividadesNaoRealizadas: string;
+  conclusao: string;
+}
+
+const NARRATIVA_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    notaIntroducao: { type: 'STRING' },
+    administracao: {
+      type: 'OBJECT',
+      properties: {
+        gestaoInterna: { type: 'STRING' },
+        parcerias: { type: 'STRING' },
+        transparencia: { type: 'STRING' },
+        desafios: { type: 'STRING' },
+      },
+    },
+    atividadesRealizadas: { type: 'STRING' },
+    atividadesNaoRealizadas: { type: 'STRING' },
+    conclusao: { type: 'STRING' },
+  },
+};
+
+// Gera a narrativa do Relatório e Contas anual a partir do plano de atividades (PDF)
+// e de um resumo real dos dados do ano. Devolve texto estruturado por secção (pt-PT).
+export async function gerarNarrativaRelatorio(
+  planoBuffer: Buffer,
+  mimeType: string,
+  dadosAno: any,
+): Promise<NarrativaRelatorio | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.warn('Relatório IA: GEMINI_API_KEY não definida.');
+    return null;
+  }
+
+  const prompt = [
+    'És o secretário da direção da Associação Young-Link (associação juvenil sem fins lucrativos de Castro Marim, Portugal).',
+    `Vais redigir, em português de Portugal, as secções escritas do "Relatório e Contas ${dadosAno.ano}" da associação.`,
+    'Em anexo está o PLANO ANUAL DE ATIVIDADES (o que estava previsto). A seguir estão os DADOS REAIS do ano, apurados do sistema de gestão financeira:',
+    '',
+    JSON.stringify(dadosAno, null, 2),
+    '',
+    'Instruções:',
+    '- Compara o PLANO (anexo) com o REALIZADO (dados reais) para escrever "atividadesRealizadas" (o que se concretizou, com destaques e impacto) e "atividadesNaoRealizadas" (o que estava planeado mas não aconteceu, com uma explicação plausível e construtiva).',
+    '- Usa números reais (totais, saldo, valores por atividade) quando fizer sentido, sobretudo na conclusão.',
+    '- Tom profissional, caloroso e transparente, dirigido aos associados. Sem inventar factos que contradigam os dados. Não uses markdown nem títulos dentro dos textos — apenas parágrafos.',
+    '- "notaIntroducao": carta de abertura aos associados. "administracao": 4 parágrafos (gestão interna, parcerias estratégicas, transparência e participação, desafios e visão). "conclusao": balanço final do ano com referência ao resultado do exercício.',
+  ].join('\n');
+
+  try {
+    const resp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: prompt },
+              { inline_data: { mime_type: mimeType || 'application/pdf', data: planoBuffer.toString('base64') } },
+            ],
+          }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            responseSchema: NARRATIVA_SCHEMA,
+            temperature: 0.6,
+          },
+        }),
+      },
+    );
+    if (!resp.ok) {
+      console.error('Relatório IA: erro na resposta da API Gemini', resp.status, await resp.text().catch(() => ''));
+      return null;
+    }
+    const json: any = await resp.json();
+    const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) {
+      console.error('Relatório IA: resposta sem conteúdo utilizável', JSON.stringify(json).slice(0, 500));
+      return null;
+    }
+    return JSON.parse(text) as NarrativaRelatorio;
+  } catch (err: any) {
+    console.error('Relatório IA: falha ao gerar narrativa', err.message || err);
+    return null;
+  }
+}
+
 export async function extrairCamposDocumento(buffer: Buffer, mimeType: string): Promise<CamposExtraidos | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
