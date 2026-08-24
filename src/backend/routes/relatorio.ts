@@ -500,10 +500,20 @@ router.post('/anual/pdf', async (req, res) => {
     const dados = await apurarDadosAno(ano);
     const logo = await getLogoBuffer();
 
-    const doc = new PDFDocument({ margin: 40 });
+    const doc = new PDFDocument({ margin: 40, bufferPages: true });
     res.header('Content-Type', 'application/pdf');
     res.attachment(`relatorio-e-contas-${ano}.pdf`);
     doc.pipe(res);
+
+    // Contador de páginas (a 1.ª página já existe; conta as seguintes) + registo
+    // da página onde cada secção começa, para preencher o índice no fim.
+    let pageCount = 1;
+    doc.on('pageAdded', () => { pageCount += 1; });
+    const secaoPagina: Record<string, number> = {};
+    const marcar = (label: string) => {
+      if (doc.y > doc.page.height - 140) doc.addPage();
+      secaoPagina[label] = pageCount;
+    };
 
     // --- Capa ---
     if (logo) { try { doc.image(logo, (doc.page.width - 260) / 2, 200, { width: 260 }); } catch {} }
@@ -516,29 +526,38 @@ router.post('/anual/pdf', async (req, res) => {
     drawHeader(doc, `Relatório e Contas ${ano}`, `Ano ${ano}`, logo);
     doc.moveDown(1).fillColor('#0f172a').font('Helvetica-Bold').fontSize(18).text('Índice', 40, doc.y, { width: 520 });
     doc.moveDown(0.8);
+    const indicePageIndex = doc.bufferedPageRange().count - 1;
     const indice = ['Nota de Introdução', 'Administração', 'Atividades', 'Balanço Financeiro', 'Gráficos', 'Conclusão'];
+    const indiceEntradasY: number[] = [];
     indice.forEach((sec, i) => {
       const y = doc.y;
+      indiceEntradasY.push(y);
       doc.font('Helvetica-Bold').fontSize(12).fillColor('#3457d5').text(`${i + 1}.`, 40, y, { width: 24 });
-      doc.font('Helvetica').fontSize(12).fillColor('#1e293b').text(sec, 68, y, { width: 492 });
+      doc.font('Helvetica').fontSize(12).fillColor('#1e293b').text(sec, 68, y, { width: 420 });
+      // pontilhado até à margem direita (o número de página é escrito no fim)
+      doc.font('Helvetica').fontSize(10).fillColor('#cbd5e1').text('.'.repeat(60), 68, y + 1, { width: 480, align: 'right' });
       doc.moveDown(0.7);
     });
     doc.addPage();
 
     // --- Secções narrativas ---
     drawHeader(doc, `Relatório e Contas ${ano}`, `Ano ${ano}`, logo);
+    marcar('Nota de Introdução');
     drawParagraphs(doc, 'Nota de Introdução', narrativa.notaIntroducao);
 
+    marcar('Administração');
     const adm = narrativa.administracao || {};
     if (adm.gestaoInterna || adm.parcerias || adm.transparencia || adm.desafios) {
       drawParagraphs(doc, 'Administração', [adm.gestaoInterna, adm.parcerias, adm.transparencia, adm.desafios].filter(Boolean).join('\n\n'));
     }
 
+    marcar('Atividades');
     drawParagraphs(doc, 'Atividades Realizadas', narrativa.atividadesRealizadas);
     drawParagraphs(doc, 'Atividades Não Realizadas', narrativa.atividadesNaoRealizadas);
 
     // --- Balanço Financeiro (automático, dados reais) ---
     doc.addPage();
+    secaoPagina['Balanço Financeiro'] = pageCount;
     doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(15).text('Balanço Financeiro', 40, doc.y, { width: 520 });
     doc.moveDown(0.4);
 
@@ -584,6 +603,7 @@ router.post('/anual/pdf', async (req, res) => {
 
     // --- Gráficos ---
     doc.addPage();
+    secaoPagina['Gráficos'] = pageCount;
     doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(15).text('Gráficos', 40, doc.y, { width: 520 });
     doc.moveDown(0.6);
     renderBars(doc, 'Despesas por Departamento', toArray(dados.depDespesas));
@@ -591,6 +611,7 @@ router.post('/anual/pdf', async (req, res) => {
     renderBars(doc, 'Receitas por Entidade', toArray(dados.receitasPorEntidade));
 
     // --- Conclusão ---
+    marcar('Conclusão');
     drawParagraphs(doc, 'Conclusão', narrativa.conclusao);
 
     // --- Assinaturas da direção ---
@@ -612,6 +633,14 @@ router.post('/anual/pdf', async (req, res) => {
       doc.font('Helvetica').fontSize(9).fillColor('#64748b').text(cargo, x, yLinha + 6, { width: colW, align: 'center' });
     });
     doc.fillColor('#0f172a').strokeColor('#0f172a');
+
+    // Preencher os números de página no índice (2.ª passagem sobre a página do índice)
+    doc.switchToPage(indicePageIndex);
+    indice.forEach((sec, i) => {
+      const pag = secaoPagina[sec];
+      if (!pag) return;
+      doc.font('Helvetica-Bold').fontSize(12).fillColor('#0f172a').text(String(pag), 490, indiceEntradasY[i], { width: 70, align: 'right' });
+    });
 
     doc.end();
   } catch (err) {
