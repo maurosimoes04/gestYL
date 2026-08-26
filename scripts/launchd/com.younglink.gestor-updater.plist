@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Identificador do serviço de auto-update -->
+    <key>Label</key>
+    <string>com.younglink.gestor-updater</string>
+
+    <!-- Comando: correr o script de deploy -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/young-link/Documents/GESTOR_YL/scripts/deploy.sh</string>
+    </array>
+
+    <!-- Diretório de trabalho -->
+    <key>WorkingDirectory</key>
+    <string>/Users/young-link/Documents/GESTOR_YL</string>
+
+    <!-- Variáveis de ambiente -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/young-link/.nvm/versions/node/v24.18.0/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <!-- Correr como o utilizador young-link -->
+    <key>UserName</key>
+    <string>young-link</string>
+    <key>GroupName</key>
+    <string>staff</string>
+
+    <!-- Verificar a cada 5 minutos (300 segundos) -->
+    <key>StartInterval</key>
+    <integer>300</integer>
+
+    <!-- Arrancar ao boot para começar a verificar logo -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Logs -->
+    <key>StandardOutPath</key>
+    <string>/Users/young-link/Documents/GESTOR_YL/logs/updater-stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/young-link/Documents/GESTOR_YL/logs/updater-stderr.log</string>
+</dict>
+</plist>

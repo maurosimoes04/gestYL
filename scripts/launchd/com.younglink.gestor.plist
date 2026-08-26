@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Identificador do serviço -->
+    <key>Label</key>
+    <string>com.younglink.gestor</string>
+
+    <!-- Comando: node dist/backend/server.js -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/young-link/.nvm/versions/node/v24.18.0/bin/node</string>
+        <string>/Users/young-link/Documents/GESTOR_YL/dist/backend/server.js</string>
+    </array>
+
+    <!-- Diretório de trabalho -->
+    <key>WorkingDirectory</key>
+    <string>/Users/young-link/Documents/GESTOR_YL</string>
+
+    <!-- Variáveis de ambiente (carrega o .env via dotenv no código) -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>NODE_ENV</key>
+        <string>production</string>
+        <key>PATH</key>
+        <string>/Users/young-link/.nvm/versions/node/v24.18.0/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <!-- Correr como o utilizador young-link -->
+    <key>UserName</key>
+    <string>young-link</string>
+    <key>GroupName</key>
+    <string>staff</string>
+
+    <!-- Arrancar ao boot, antes de qualquer login -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Reiniciar automaticamente se o processo morrer -->
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <!-- Esperar 5 segundos antes de reiniciar após crash -->
+    <key>ThrottleInterval</key>
+    <integer>5</integer>
+
+    <!-- Logs -->
+    <key>StandardOutPath</key>
+    <string>/Users/young-link/Documents/GESTOR_YL/logs/gestor-stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/young-link/Documents/GESTOR_YL/logs/gestor-stderr.log</string>
+</dict>
+</plist>
