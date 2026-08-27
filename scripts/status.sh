@@ -23,7 +23,7 @@ check_service "com.younglink.gestor-updater" "Auto-updater"
 
 echo ""
 echo "Versão atual:"
-cd /Users/young-link/Documents/GESTOR_YL
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 echo "  Branch: $(git branch --show-current)"
 echo "  Commit: $(git log -1 --format='%h — %s (%cr)')"
 
@@ -50,13 +50,13 @@ echo "IP público: $(curl -s --max-time 5 ifconfig.me 2>/dev/null || echo 'indis
 
 echo ""
 echo "Últimas linhas do log do servidor:"
-tail -3 /Users/young-link/Documents/GESTOR_YL/logs/gestor-stdout.log 2>/dev/null || echo "  (sem logs)"
+tail -3 "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"/logs/gestor-stdout.log 2>/dev/null || echo "  (sem logs)"
 
 echo ""
 echo "Últimas linhas do log do Caddy:"
-tail -3 /Users/young-link/Documents/GESTOR_YL/logs/caddy-stderr.log 2>/dev/null || echo "  (sem logs)"
+tail -3 "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"/logs/caddy-stderr.log 2>/dev/null || echo "  (sem logs)"
 
 echo ""
 echo "Último deploy:"
-tail -3 /Users/young-link/Documents/GESTOR_YL/logs/deploy.log 2>/dev/null || echo "  (sem logs)"
+tail -3 "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"/logs/deploy.log 2>/dev/null || echo "  (sem logs)"
 echo ""
