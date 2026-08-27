@@ -849,7 +849,7 @@ function setupRelatorioContas() {
     gerarBtn.disabled = true;
     showPdfLoading('A gerar rascunho com IA...');
     try {
-      const resp = await fetch('/relatorios/anual/analise', { method: 'POST', body: fd });
+      const resp = await fetch('/relatorios/anual/analise', { method: 'POST', headers: { 'Authorization': `Bearer ${authToken}` }, body: fd });
       if (!resp.ok) throw new Error('Falha ao gerar análise');
       const data = await resp.json();
       const n = data.narrativa || {};
@@ -896,7 +896,7 @@ function setupRelatorioContas() {
     exportarBtn.disabled = true;
     showPdfLoading('A gerar o PDF final...');
     try {
-      const resp = await fetch('/relatorios/anual/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ano, narrativa }) });
+      const resp = await fetch('/relatorios/anual/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify({ ano, narrativa }) });
       if (!resp.ok) throw new Error('Falha ao gerar PDF');
       const blob = await resp.blob();
       const objUrl = URL.createObjectURL(blob);
