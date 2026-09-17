@@ -7,7 +7,6 @@ CREATE TABLE IF NOT EXISTS "evento_shares" (
   "createdByEmail" TEXT NULL,
   "destinatario" TEXT NULL,
   "justificacao" TEXT NOT NULL,
-  "passwordPlain" TEXT NOT NULL,
   "passwordHash" TEXT NOT NULL,
   "passwordSalt" TEXT NOT NULL,
   "accessTokenHash" TEXT NULL,

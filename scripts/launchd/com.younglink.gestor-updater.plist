@@ -9,7 +9,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/maurosimoes/Documents/GESTOR_YL/scripts/deploy.sh</string>
+        <string>/Users/USERNAME/Documents/GESTOR_YL/scripts/deploy.sh</string>
     </array>
 
     <!-- Verificar a main a cada 5 minutos -->
@@ -20,8 +20,8 @@
 
     <!-- Logs FORA de ~/Documents (protegido pelo TCC do macOS). -->
     <key>StandardOutPath</key>
-    <string>/Users/maurosimoes/Library/Logs/gestor/updater-stdout.log</string>
+    <string>/Users/USERNAME/Library/Logs/gestor/updater-stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/maurosimoes/Library/Logs/gestor/updater-stderr.log</string>
+    <string>/Users/USERNAME/Library/Logs/gestor/updater-stderr.log</string>
 </dict>
 </plist>

@@ -25,8 +25,8 @@
     <key>ThrottleInterval</key>
     <integer>5</integer>
     <key>StandardOutPath</key>
-    <string>/Users/young-link/Documents/GESTOR_YL/logs/caddy-stdout.log</string>
+    <string>/Users/USERNAME/Documents/GESTOR_YL/logs/caddy-stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/young-link/Documents/GESTOR_YL/logs/caddy-stderr.log</string>
+    <string>/Users/USERNAME/Documents/GESTOR_YL/logs/caddy-stderr.log</string>
 </dict>
 </plist>

@@ -3,7 +3,7 @@
 # Corre com: sudo bash scripts/setup-selfhost.sh
 set -euo pipefail
 
-PROJECT_DIR="/Users/young-link/Documents/GESTOR_YL"
+PROJECT_DIR="/Users/USERNAME/Documents/GESTOR_YL"
 LAUNCHD_DIR="$PROJECT_DIR/scripts/launchd"
 LOG_DIR="$PROJECT_DIR/logs"
 
@@ -21,12 +21,12 @@ fi
 # 1. Criar diretório de logs
 echo "[1/7] A criar diretório de logs..."
 mkdir -p "$LOG_DIR"
-chown young-link:staff "$LOG_DIR"
+chown USERNAME:staff "$LOG_DIR"
 
 # 2. Fazer build inicial
 echo "[2/7] A fazer build inicial..."
 cd "$PROJECT_DIR"
-su - young-link -c "cd $PROJECT_DIR && export PATH=/Users/young-link/.nvm/versions/node/v24.18.0/bin:\$PATH && npm install && npm run build"
+su - USERNAME -c "cd $PROJECT_DIR && export PATH=/Users/USERNAME/.nvm/versions/node/v24.18.0/bin:\$PATH && npm install && npm run build"
 echo "     Build concluído."
 
 # 3. Instalar Caddy
@@ -34,7 +34,7 @@ echo "[3/7] A verificar Caddy..."
 if ! command -v caddy &>/dev/null; then
   if command -v brew &>/dev/null; then
     echo "     A instalar Caddy via Homebrew..."
-    su - young-link -c "brew install caddy"
+    su - USERNAME -c "brew install caddy"
   else
     echo "     ERRO: Homebrew não encontrado. Instala o Caddy manualmente."
     exit 1
@@ -72,7 +72,7 @@ done
 echo "     Serviços instalados em /Library/LaunchDaemons/"
 
 # Configurar sudoers para o deploy
-SUDOERS_LINE="young-link ALL=(ALL) NOPASSWD: /bin/launchctl kickstart -k system/com.younglink.gestor"
+SUDOERS_LINE="USERNAME ALL=(ALL) NOPASSWD: /bin/launchctl kickstart -k system/com.younglink.gestor"
 SUDOERS_FILE="/etc/sudoers.d/gestor-deploy"
 if [ ! -f "$SUDOERS_FILE" ] || ! grep -qF "$SUDOERS_LINE" "$SUDOERS_FILE"; then
   echo "$SUDOERS_LINE" > "$SUDOERS_FILE"
