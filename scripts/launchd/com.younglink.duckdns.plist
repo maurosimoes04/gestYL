@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- DuckDNS: atualiza o IP público a cada 5 min (DNS dinâmico).
+         Só faz curl de saída, logo corre como LaunchDaemon (arranca no boot). -->
+    <key>Label</key>
+    <string>com.younglink.duckdns</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/usr/local/bin/duckdns-update.sh</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>DUCKDNS_DOMAIN</key>
+        <string>DUCKDNS_DOMAIN_PLACEHOLDER</string>
+        <key>DUCKDNS_TOKEN</key>
+        <string>DUCKDNS_TOKEN_PLACEHOLDER</string>
+        <key>DUCKDNS_LOG</key>
+        <string>/Users/USERNAME/Library/Logs/gestor/duckdns.log</string>
+    </dict>
+
+    <key>UserName</key>
+    <string>USERNAME</string>
+    <key>GroupName</key>
+    <string>staff</string>
+
+    <!-- A cada 5 minutos -->
+    <key>StartInterval</key>
+    <integer>300</integer>
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/USERNAME/Library/Logs/gestor/duckdns-stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/USERNAME/Library/Logs/gestor/duckdns-stderr.log</string>
+</dict>
+</plist>
