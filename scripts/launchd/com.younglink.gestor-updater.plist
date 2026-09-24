@@ -2,15 +2,24 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- Auto-updater: corre o deploy.sh periodicamente (LaunchAgent do utilizador) -->
+    <!-- Auto-updater: corre como LaunchAgent (sessão do utilizador)
+         para ter acesso a ~/Documents sem bloqueio TCC do macOS. -->
     <key>Label</key>
     <string>com.younglink.gestor-updater</string>
 
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/USERNAME/Documents/GESTOR_YL/scripts/deploy.sh</string>
+        <string>/usr/local/bin/gestor-deploy.sh</string>
     </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PROJECT_DIR</key>
+        <string>/Users/USERNAME/GESTOR_YL</string>
+        <key>PATH</key>
+        <string>/Users/USERNAME/.nvm/versions/node/v24.18.0/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
 
     <!-- Verificar a main a cada 5 minutos -->
     <key>StartInterval</key>
@@ -18,7 +27,7 @@
     <key>RunAtLoad</key>
     <true/>
 
-    <!-- Logs FORA de ~/Documents (protegido pelo TCC do macOS). -->
+    <!-- Logs -->
     <key>StandardOutPath</key>
     <string>/Users/USERNAME/Library/Logs/gestor/updater-stdout.log</string>
     <key>StandardErrorPath</key>

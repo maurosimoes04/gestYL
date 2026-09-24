@@ -10,7 +10,7 @@ processo** — senão as atualizações não aparecem.
 ## Deploy manual (recomendado hoje) — a partir do Terminal
 
 ```bash
-cd ~/Documents/GESTOR_YL
+cd ~/GESTOR_YL
 bash scripts/deploy.sh
 ```
 
@@ -56,7 +56,7 @@ tail -f logs/deploy.log                            # deploys
 ## Arranque manual do servidor (sem launchd)
 
 ```bash
-cd ~/Documents/GESTOR_YL
+cd ~/GESTOR_YL
 NODE_ENV=production nohup node dist/backend/server.js > ~/gestor-prod.log 2>&1 &
 ```
 

@@ -3,7 +3,7 @@
 # Corre com: sudo bash scripts/setup-selfhost.sh
 set -euo pipefail
 
-PROJECT_DIR="/Users/USERNAME/Documents/GESTOR_YL"
+PROJECT_DIR="/Users/USERNAME/GESTOR_YL"
 LAUNCHD_DIR="$PROJECT_DIR/scripts/launchd"
 LOG_DIR="$PROJECT_DIR/logs"
 
@@ -58,6 +58,14 @@ launchctl bootout system/com.younglink.caddy 2>/dev/null || true
 
 # 6. Instalar serviços
 echo "[6/7] A instalar serviços do sistema..."
+
+# Copiar deploy.sh para /usr/local/bin/ (fora de ~/Documents, evita bloqueio TCC)
+cp "$PROJECT_DIR/scripts/deploy.sh" /usr/local/bin/gestor-deploy.sh
+chmod 755 /usr/local/bin/gestor-deploy.sh
+
+# Criar diretório de logs do updater (fora de ~/Documents)
+mkdir -p "/Users/USERNAME/Library/Logs/gestor"
+chown USERNAME:staff "/Users/USERNAME/Library/Logs/gestor"
 
 cp "$LAUNCHD_DIR/com.younglink.gestor.plist" /Library/LaunchDaemons/
 cp "$LAUNCHD_DIR/com.younglink.gestor-updater.plist" /Library/LaunchDaemons/

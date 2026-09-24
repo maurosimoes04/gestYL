@@ -2,16 +2,27 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- Servidor Gestor YL (LaunchAgent do utilizador — sem sudo) -->
     <key>Label</key>
     <string>com.younglink.gestor</string>
 
-    <!-- Corre via /bin/bash (wrapper) para o launchd não ter de executar o node do nvm. -->
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/USERNAME/Documents/GESTOR_YL/scripts/run-server.sh</string>
+        <string>/Users/USERNAME/GESTOR_YL/scripts/run-server.sh</string>
     </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>NODE_ENV</key>
+        <string>production</string>
+        <key>PATH</key>
+        <string>/Users/USERNAME/.nvm/versions/node/v24.18.0/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>UserName</key>
+    <string>USERNAME</string>
+    <key>GroupName</key>
+    <string>staff</string>
 
     <key>RunAtLoad</key>
     <true/>
@@ -23,7 +34,6 @@
     <key>ThrottleInterval</key>
     <integer>5</integer>
 
-    <!-- Logs FORA de ~/Documents (protegido pelo TCC do macOS). -->
     <key>StandardOutPath</key>
     <string>/Users/USERNAME/Library/Logs/gestor/gestor-stdout.log</string>
     <key>StandardErrorPath</key>
