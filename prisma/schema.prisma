@@ -12,6 +12,97 @@ enum Role {
   fiscal
 }
 
+// ============================================================
+// Reestruturação SNC — Fase 1
+// ============================================================
+
+/// Plano de contas SNC. Catálogo fechado, gerido via seed.
+/// Toda Receita e Despesa tem obrigatoriamente uma ContaSNC.
+model ContaSNC {
+  id                   Int      @id @default(autoincrement())
+  codigo               String   @unique                      // "75", "622", "7883"
+  nome                 String
+  familia              String                                 // agrupador na UI
+  tipo                 String                                 // proveito | gasto | ativo | passivo | capital
+  pergunta             String?                                // texto de ajuda
+  naturezaInvestimento Boolean  @default(false)              // true para 59 e 7883
+  ativaPorOmissao      Boolean  @default(true)
+  notas                String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  receitas Receita[]
+  faturas  Fatura[]
+  processosReceita Evento[]     @relation("ProcessoContaReceita")
+  processosDespesa Evento[]     @relation("ProcessoContaDespesa")
+  inventarios      Inventario[]
+
+  @@index([tipo])
+  @@index([familia])
+  @@index([ativaPorOmissao])
+  @@map("contas_snc")
+}
+
+/// Contraparte única (fornecedor, financiador, sócio, pessoa interna).
+/// Substitui o texto livre `financiador` em Receita e `fornecedor`/`fornecedorNif` em Fatura.
+model Entidade {
+  id            Int      @id @default(autoincrement())
+  nome          String
+  nif           String?  @unique                              // único quando existe; alguns particulares não têm
+  tipos         String[] @default([])                         // ["fornecedor", "financiador", "pessoa-interna", "socio", "cliente"]
+  email         String?
+  telefone      String?
+  morada        String?
+  iban          String?
+  ativo         Boolean  @default(true)
+  notas         String?
+  // Campos opcionais específicos de pessoas internas (estagiários, voluntários, colaboradores)
+  niss          String?
+  tipoVinculo   String?                                       // "Estágio INICIAR", "CEI", "Voluntário", "Colaborador"
+  funcao        String?
+  bolsaBase     Decimal? @db.Decimal(10, 2)
+  dataNascimento DateTime? @db.Date
+  // Observações de qualidade (ajuda deduplicação futura)
+  verificado    Boolean  @default(false)                      // marcado após validação manual
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  receitas   Receita[]
+  faturas    Fatura[]
+  processos  Evento[]    @relation("ProcessoEntidade")
+  documentos Documento[]
+
+  @@index([nome])
+  @@index([ativo])
+  @@map("entidades")
+}
+
+/// Documentos de dossiê (contratos, apólices, declarações, certificados…)
+/// Pode estar ligado a um Processo (ex: dossiê IEFP) e/ou a uma Entidade (pessoa).
+model Documento {
+  id            Int       @id @default(autoincrement())
+  tipo          String    // "Contrato" | "Plano Individual" | "Apólice Seguro" | "Declaração SS" | "Declaração NEET" | "Certificado Habilitações" | "Certificado Final" | "Outro"
+  descricao     String?
+  processoId    Int?      // Evento (processo) a que pertence
+  entidadeId    Int?      // Pessoa / entidade a que respeita
+  estado        String    @default("Pendente")   // "Pendente" | "Anexado" | "Enviado"
+  dataLimite    DateTime? @db.Date
+  dataConclusao DateTime? @db.Date
+  anexo         Json?
+  notas         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  processo Evento?   @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  entidade Entidade? @relation(fields: [entidadeId], references: [id], onDelete: SetNull)
+
+  @@index([processoId])
+  @@index([entidadeId])
+  @@index([estado])
+  @@index([dataLimite])
+  @@map("documentos")
+}
+
 model Profile {
   id        String   @id @db.Uuid // matches Supabase auth.users.id
   email     String   @unique
@@ -24,21 +115,42 @@ model Profile {
   @@map("profiles")
 }
 
+/// "Processo" é um agrupador de receitas e despesas com um objetivo comum.
+/// Pode ser: um Evento pontual, um Projeto Anual (ex: Workshops), um Projeto de
+/// Investimento (ex: Obras na sede), ou um Subsídio multi-prestação.
+///
+/// A tabela mantém o nome `eventos` por compatibilidade com o schema existente.
 model Evento {
   id           Int       @id @default(autoincrement())
   nome         String
+  tipo         String    @default("Evento")   // "Evento" | "Projeto Anual" | "Investimento" | "Subsídio"
   descricao    String?
   data_inicio  DateTime?
   data_fim     DateTime?
   departamento String?
+  // Campos opcionais usados por processos tipo "Subsídio"
+  entidadeFinanciadoraId Int?
+  numeroProcesso         String?
+  valorAprovado          Decimal? @db.Decimal(12, 2)
+  // Contas SNC-alvo (padrão para novas receitas/despesas dentro do processo)
+  contaSncReceitaId      Int?
+  contaSncDespesaId      Int?
+  estado                 String    @default("Em curso")  // "Em curso" | "Concluído" | "Cancelado"
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  faturaEventos  FaturaEvento[]
-  receitaEventos ReceitaEvento[]
-  shares         EventoShare[]
+  faturaEventos          FaturaEvento[]
+  receitaEventos         ReceitaEvento[]
+  shares                 EventoShare[]
+  documentos             Documento[]
+  stockMovimentos        StockMovimento[]
+  entidadeFinanciadora   Entidade? @relation("ProcessoEntidade", fields: [entidadeFinanciadoraId], references: [id], onDelete: SetNull)
+  contaSncReceita        ContaSNC? @relation("ProcessoContaReceita", fields: [contaSncReceitaId], references: [id], onDelete: SetNull)
+  contaSncDespesa        ContaSNC? @relation("ProcessoContaDespesa", fields: [contaSncDespesaId], references: [id], onDelete: SetNull)
 
   @@index([departamento])
+  @@index([tipo])
+  @@index([entidadeFinanciadoraId])
   @@map("eventos")
 }
 
@@ -60,10 +172,17 @@ model Fatura {
   fornecedorNif   String?
   dataVencimento  DateTime? @db.Date
   inventarioId Int?
+  // SNC + Entidade (nullable até migração dos registos antigos ficar completa)
+  contaSncId  Int?
+  entidadeId  Int?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   inventario    Inventario?    @relation(fields: [inventarioId], references: [id], onDelete: SetNull)
+  contaSnc      ContaSNC?      @relation(fields: [contaSncId], references: [id], onDelete: Restrict)
+  entidade      Entidade?      @relation(fields: [entidadeId], references: [id], onDelete: SetNull)
+  inventariosOriginados Inventario[] @relation("InventarioDespesaOrigem")
+  stockMovimentos StockMovimento[]
   faturaEventos FaturaEvento[]
   movimento     Movimento?
 
@@ -71,6 +190,8 @@ model Fatura {
   @@index([estado])
   @@index([data])
   @@index([dataVencimento])
+  @@index([contaSncId])
+  @@index([entidadeId])
   @@map("Faturas")
 }
 
@@ -86,6 +207,33 @@ model FaturaEvento {
   @@unique([faturaId, eventoId])
   @@index([eventoId])
   @@map("fatura_eventos")
+}
+
+/// Movimento de stock de um item de inventário.
+/// Registo imutável: cada alteração à quantidade é um lançamento próprio.
+/// Permite reconstruir o historial e ligar o consumo a um processo (ex: Carnaval).
+model StockMovimento {
+  id             Int      @id @default(autoincrement())
+  inventarioId   Int
+  tipo           String   // "entrada" | "consumo" | "ajuste" | "perda"
+  quantidade     Float    // sempre positiva; o `tipo` indica o sinal
+  data           DateTime @db.Date
+  processoId     Int?     // Evento/Processo onde foi usado (consumo) ou de onde veio (entrada)
+  faturaId       Int?     // Fatura de compra que originou a entrada
+  qtdAntes       Float?   // qty do item ANTES do movimento (snapshot para auditoria)
+  qtdDepois      Float?   // qty do item DEPOIS do movimento
+  notas          String?
+  criadoPorEmail String?
+  createdAt      DateTime @default(now())
+
+  inventario Inventario @relation(fields: [inventarioId], references: [id], onDelete: Cascade)
+  processo   Evento?    @relation(fields: [processoId], references: [id], onDelete: SetNull)
+  fatura     Fatura?    @relation(fields: [faturaId], references: [id], onDelete: SetNull)
+
+  @@index([inventarioId])
+  @@index([data])
+  @@index([processoId])
+  @@map("stock_movimentos")
 }
 
 model Inventario {
@@ -104,12 +252,22 @@ model Inventario {
   quantidadeMinima Float?
   notas            String?
   faturaId         Int?
+  // Capitalização SNC — ativos fixos tangíveis (classe 43x)
+  contaSncId       Int?
+  anosDepreciacao  Int?        // Vida útil estimada (ex: 3 TI, 8 mobiliário, 50 edifícios)
+  despesaOrigemId  Int?        // Fatura que originou este ativo
+  valorResidual    Decimal?    @db.Decimal(10, 2)
+  dataAbateReal    DateTime?   @db.Date  // Preenchido quando abatido fora da vida útil
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  faturas Fatura[]
+  faturas       Fatura[]
+  contaSnc      ContaSNC? @relation(fields: [contaSncId], references: [id], onDelete: SetNull)
+  despesaOrigem Fatura?   @relation("InventarioDespesaOrigem", fields: [despesaOrigemId], references: [id], onDelete: SetNull)
+  movimentos    StockMovimento[]
 
   @@index([estado])
+  @@index([contaSncId])
   @@map("inventarios")
 }
 
@@ -145,14 +303,21 @@ model Receita {
   observacoes  String?
   analiseIA    Json?
   analiseTentativas Int @default(0)
+  // SNC + Entidade (nullable até migração dos registos antigos ficar completa)
+  contaSncId   Int?
+  entidadeId   Int?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   receitaEventos ReceitaEvento[]
   movimento      Movimento?
+  contaSnc       ContaSNC? @relation(fields: [contaSncId], references: [id], onDelete: Restrict)
+  entidade       Entidade? @relation(fields: [entidadeId], references: [id], onDelete: SetNull)
 
   @@index([data])
   @@index([estado])
+  @@index([contaSncId])
+  @@index([entidadeId])
   @@map("receitas")
 }
 

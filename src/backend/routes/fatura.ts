@@ -56,7 +56,7 @@ router.get('/', async (req, res) => {
     const faturas = await prisma.fatura.findMany({
       where,
       orderBy: { data: 'desc' },
-      include: { faturaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
+      include: { faturaEventos: { include: { evento: { select: { id: true, nome: true } } } }, contaSnc: { select: { id: true, codigo: true, nome: true } }, entidade: { select: { id: true, nome: true, nif: true } } },
       ...(limit && { take: parseInt(limit, 10) }),
       ...(offset && { skip: parseInt(offset, 10) }),
     });
@@ -154,7 +154,7 @@ router.get('/:id', async (req, res) => {
 // POST /faturas
 router.post('/', upload.single('anexo'), async (req, res) => {
   try {
-    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'departamento', 'tipo', 'numero', 'estado', 'descricao', 'detalhes', 'inventarioId', 'fornecedor', 'fornecedorNif', 'dataVencimento'];
+    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'departamento', 'tipo', 'numero', 'estado', 'descricao', 'detalhes', 'inventarioId', 'fornecedor', 'fornecedorNif', 'dataVencimento', 'contaSncId', 'entidadeId'];
     const payload: any = {};
     for (const k of ALLOWED_FIELDS) {
       const v = req.body[k];
@@ -165,6 +165,8 @@ router.post('/', upload.single('anexo'), async (req, res) => {
     if (payload.dataVencimento) payload.dataVencimento = new Date(payload.dataVencimento);
     if (payload.inventarioId) payload.inventarioId = Number(payload.inventarioId);
     else delete payload.inventarioId;
+    if (payload.contaSncId) payload.contaSncId = Number(payload.contaSncId);
+    if (payload.entidadeId) payload.entidadeId = Number(payload.entidadeId);
 
     let eventosInput: { eventoId: number; valor: number }[] = [];
     try {
@@ -210,7 +212,7 @@ router.post('/', upload.single('anexo'), async (req, res) => {
           },
         }),
       },
-      include: { faturaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
+      include: { faturaEventos: { include: { evento: { select: { id: true, nome: true } } } }, contaSnc: { select: { id: true, codigo: true, nome: true } }, entidade: { select: { id: true, nome: true, nif: true } } },
     });
     await syncMovimentoParaFatura(novaFatura, req.body.conta);
     if (req.file) {
@@ -236,7 +238,7 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     const fatura = await prisma.fatura.findUnique({ where: { id } });
     if (!fatura) return res.status(404).json({ error: 'Fatura não encontrada' });
 
-    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'departamento', 'tipo', 'numero', 'estado', 'descricao', 'detalhes', 'inventarioId', 'fornecedor', 'fornecedorNif', 'dataVencimento'];
+    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'departamento', 'tipo', 'numero', 'estado', 'descricao', 'detalhes', 'inventarioId', 'fornecedor', 'fornecedorNif', 'dataVencimento', 'contaSncId', 'entidadeId'];
     const payload: any = {};
     for (const k of ALLOWED_FIELDS) {
       const v = req.body[k];
@@ -247,6 +249,8 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     if (payload.dataVencimento) payload.dataVencimento = new Date(payload.dataVencimento);
     if (payload.inventarioId) payload.inventarioId = Number(payload.inventarioId);
     else delete payload.inventarioId;
+    if (payload.contaSncId) payload.contaSncId = Number(payload.contaSncId);
+    if (payload.entidadeId) payload.entidadeId = Number(payload.entidadeId);
 
     let eventosInput: { eventoId: number; valor: number }[] | null = null;
     try {
@@ -312,7 +316,7 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     const updated = await prisma.fatura.update({
       where: { id },
       data: payload,
-      include: { faturaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
+      include: { faturaEventos: { include: { evento: { select: { id: true, nome: true } } } }, contaSnc: { select: { id: true, codigo: true, nome: true } }, entidade: { select: { id: true, nome: true, nif: true } } },
     });
     await syncMovimentoParaFatura(updated, req.body.conta);
     if (req.file) {
@@ -373,7 +377,7 @@ router.post('/:id/analisar', async (req, res) => {
 
     const atualizada = await prisma.fatura.findUnique({
       where: { id },
-      include: { faturaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
+      include: { faturaEventos: { include: { evento: { select: { id: true, nome: true } } } }, contaSnc: { select: { id: true, codigo: true, nome: true } }, entidade: { select: { id: true, nome: true, nif: true } } },
     });
     res.json(atualizada);
   } catch (error: any) {

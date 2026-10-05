@@ -12,6 +12,94 @@ const API_AUTH = `${API_BASE}/auth`;
 const API_INVENTARIO = `${API_BASE}/inventario`; 
 const API_DEPARTAMENTOS = `${API_BASE}/departamentos`;
 const API_SHARES = `${API_BASE}/shares`;
+const API_CONTAS_SNC = `${API_BASE}/contas-snc`;
+const API_ENTIDADES = `${API_BASE}/entidades`;
+
+// Caches SNC/Entidade — Fase 1 da reestruturação SNC
+let contasSncCache: any[] = [];
+let entidadesCache: any[] = [];
+
+async function carregarContasSNC(force = false): Promise<any[]> {
+  if (!force && contasSncCache.length) return contasSncCache;
+  try {
+    const r = await fetch(API_CONTAS_SNC);
+    if (!r.ok) throw new Error('Falha ao carregar contas SNC');
+    contasSncCache = await r.json();
+    return contasSncCache;
+  } catch (e) { console.error(e); return []; }
+}
+
+async function carregarEntidades(force = false): Promise<any[]> {
+  if (!force && entidadesCache.length) return entidadesCache;
+  try {
+    const r = await fetch(`${API_ENTIDADES}?ativo=true&limit=1000`);
+    if (!r.ok) throw new Error('Falha ao carregar entidades');
+    entidadesCache = await r.json();
+    return entidadesCache;
+  } catch (e) { console.error(e); return []; }
+}
+
+/** Preenche <select> com <optgroup> por família. tipoFiltro = 'proveito' | 'gasto' | 'ativo'. */
+function popularSelectSNC(selectId: string, tipoFiltro: string, selectedId?: number | null) {
+  const sel = document.getElementById(selectId) as HTMLSelectElement | null;
+  if (!sel) return;
+  const contas = contasSncCache.filter(c => c.tipo === tipoFiltro);
+  const porFamilia: Record<string, any[]> = {};
+  for (const c of contas) (porFamilia[c.familia] ||= []).push(c);
+  const opts: string[] = ['<option value="">Selecionar…</option>'];
+  for (const [fam, lista] of Object.entries(porFamilia)) {
+    opts.push(`<optgroup label="${fam}">`);
+    for (const c of lista) {
+      const sel = selectedId === c.id ? ' selected' : '';
+      opts.push(`<option value="${c.id}" title="${c.pergunta || ''}"${sel}>${c.codigo} — ${c.nome}</option>`);
+    }
+    opts.push(`</optgroup>`);
+  }
+  sel.innerHTML = opts.join('');
+}
+
+/** Preenche o <datalist id="entidadesDatalist"> com todas as entidades. */
+function popularDatalistEntidades(tipoFiltro?: string) {
+  const dl = document.getElementById('entidadesDatalist') as HTMLDataListElement | null;
+  if (!dl) return;
+  const list = tipoFiltro
+    ? entidadesCache.filter(e => (e.tipos || []).includes(tipoFiltro))
+    : entidadesCache;
+  dl.innerHTML = list.map(e => {
+    const label = e.nif ? `${e.nome} [${e.nif}]` : e.nome;
+    return `<option value="${label.replace(/"/g, '&quot;')}" data-id="${e.id}"></option>`;
+  }).join('');
+}
+
+/** Dado o texto no input, encontra o id da entidade correspondente (nome ou nome [NIF]). */
+function resolverEntidadeId(inputId: string, hiddenId: string): number | null {
+  const input = document.getElementById(inputId) as HTMLInputElement | null;
+  const hidden = document.getElementById(hiddenId) as HTMLInputElement | null;
+  if (!input) return null;
+  const val = input.value.trim();
+  if (!val) { if (hidden) hidden.value = ''; return null; }
+  // Formato "Nome [NIF]" → extrair NIF
+  const matchNif = val.match(/\[([^\]]+)\]\s*$/);
+  const nif = matchNif ? matchNif[1].trim().toUpperCase() : null;
+  const base = matchNif ? val.replace(/\s*\[[^\]]+\]\s*$/, '').trim() : val;
+  const e = entidadesCache.find(x =>
+    (nif && x.nif === nif) ||
+    (!nif && x.nome.toLowerCase() === base.toLowerCase())
+  );
+  const id = e?.id || null;
+  if (hidden) hidden.value = id ? String(id) : '';
+  return id;
+}
+
+/** Mostra pergunta da conta SNC selecionada no hint. */
+function atualizarHintSNC(selectId: string, hintId: string) {
+  const sel = document.getElementById(selectId) as HTMLSelectElement | null;
+  const hint = document.getElementById(hintId) as HTMLElement | null;
+  if (!sel || !hint) return;
+  const id = Number(sel.value);
+  const c = contasSncCache.find(x => x.id === id);
+  hint.textContent = c?.pergunta || '';
+}
 const RECEITA_CATEGORIAS = [
   'Quotas',
   'Patrocínios/Doações',
@@ -30,7 +118,9 @@ const SECTION_GROUPS: Record<string, string[]> = {
   ia: ['ia'],
   inventario: ['inventario'],
   tesouraria: ['tesouraria'],
-  relatorios: ['relatorios']
+  relatorios: ['relatorios'],
+  entidades: ['entidades'],
+  rh: ['rh']
 };
 
 let chartInstance: any = null;
@@ -929,7 +1019,7 @@ function setActiveNav(target: string) {
 
 const loadedSections = new Set<string>();
 
-function setActiveSection(target: 'resumo' | 'faturas' | 'receitas' | 'eventos' | 'ia' | 'inventario' | 'tesouraria' | 'relatorios') {
+function setActiveSection(target: 'resumo' | 'faturas' | 'receitas' | 'eventos' | 'ia' | 'inventario' | 'tesouraria' | 'relatorios' | 'entidades' | 'rh') {
   hideForms();
   const showSet = new Set(SECTION_GROUPS[target]);
   Object.values(SECTION_GROUPS).flat().forEach(id => {
@@ -967,6 +1057,12 @@ async function lazyLoadSection(target: string) {
     case 'tesouraria':
       if (!movimentosCache.length) await carregarMovimentos();
       else renderMovimentosPage();
+      break;
+    case 'entidades':
+      await carregarEntidadesPagina();
+      break;
+    case 'rh':
+      await carregarRHDashboard();
       break;
   }
 }
@@ -1090,6 +1186,19 @@ async function editarEvento(id: number) {
     setValue('eventoDataFim', (evento.data_fim || evento.dataFim || '').slice(0, 10));
     setValue('eventoDescricao', evento.descricao || '');
     setValue('eventoDepartamento', evento.departamento || '');
+    setValue('eventoTipo', evento.tipo || 'Evento');
+    setValue('eventoEstado', evento.estado || 'Em curso');
+    atualizarFieldsetSubsidio();
+    if (evento.tipo === 'Subsídio') {
+      popularSelectSNC('eventoContaRec', 'proveito', evento.contaSncReceitaId || undefined);
+      setValue('eventoNumeroProc', evento.numeroProcesso || '');
+      setValue('eventoValorAprov', evento.valorAprovado ? String(evento.valorAprovado) : '');
+      if (evento.entidadeFinanciadoraId) {
+        const ent = entidadesCache.find(x => x.id === evento.entidadeFinanciadoraId);
+        if (ent) setValue('eventoEntidadeFin', ent.nif ? `${ent.nome} [${ent.nif}]` : ent.nome);
+        setValue('eventoEntidadeFinId', String(evento.entidadeFinanciadoraId));
+      }
+    }
     editingEventoId = id;
     const btn = document.getElementById('eventoSubmitButton') as HTMLButtonElement | null;
     if (btn) btn.textContent = 'Guardar Alterações';
@@ -1117,16 +1226,40 @@ async function removerEvento(id: number) {
   }
 }
 
+function atualizarFieldsetSubsidio() {
+  const tipo = getValue('eventoTipo');
+  const fs = document.getElementById('eventoSubsidioFieldset') as HTMLElement | null;
+  if (fs) fs.hidden = tipo !== 'Subsídio';
+  if (tipo === 'Subsídio') {
+    popularSelectSNC('eventoContaRec', 'proveito');
+    popularDatalistEntidades('financiador');
+  }
+}
+
 async function guardarEvento(e: SubmitEvent) {
   e.preventDefault();
-  if (isReadOnly()) { showNotification('Sem permissões para alterar eventos.', 'error'); return; }
+  if (isReadOnly()) { showNotification('Sem permissões para alterar processos.', 'error'); return; }
+  const tipo = getValue('eventoTipo') || 'Evento';
   const payload: any = {
     nome: getValue('eventoNome').trim(),
+    tipo,
+    estado: getValue('eventoEstado') || 'Em curso',
     descricao: getValue('eventoDescricao').trim() || undefined,
     data_inicio: getValue('eventoDataInicio') || undefined,
     data_fim: getValue('eventoDataFim') || undefined,
     departamento: getValue('eventoDepartamento') || undefined
   };
+  if (tipo === 'Subsídio') {
+    resolverEntidadeId('eventoEntidadeFin', 'eventoEntidadeFinId');
+    const entidadeFinanciadoraId = getValue('eventoEntidadeFinId');
+    const contaSncReceitaId = getValue('eventoContaRec');
+    const numeroProcesso = getValue('eventoNumeroProc').trim();
+    const valorAprovado = getValue('eventoValorAprov');
+    if (entidadeFinanciadoraId) payload.entidadeFinanciadoraId = Number(entidadeFinanciadoraId);
+    if (contaSncReceitaId) payload.contaSncReceitaId = Number(contaSncReceitaId);
+    if (numeroProcesso) payload.numeroProcesso = numeroProcesso;
+    if (valorAprovado) payload.valorAprovado = parseFloat(valorAprovado);
+  }
 
   if (!payload.nome) {
     showNotification('O nome do evento é obrigatório.', 'error');
@@ -1224,10 +1357,13 @@ async function carregarEventosResumo() {
       const total = receitaTotal + gasto;
       const receitaPct = total > 0 ? Math.round((receitaTotal / total) * 100) : 50;
       const saldoClass = saldo >= 0 ? 'saldo-positivo' : 'saldo-negativo';
+      const tipoBadge = ev.tipo && ev.tipo !== 'Evento'
+        ? `<span class="processo-tipo-badge ${(ev.tipo || '').toLowerCase().replace(/\s+/g,'-').replace('í','i')}">${escapeHtml(ev.tipo)}</span>`
+        : '';
       return `<div class="evento-card" data-evento-id="${ev.id}">
         <div class="evento-head">
           <div>
-            <div class="evento-title">${escapeHtml(ev.nome)}</div>
+            <div class="evento-title">${tipoBadge}${escapeHtml(ev.nome)}</div>
             <div class="evento-dates">${escapeHtml(intervalo)}</div>
           </div>
           ${ev.departamento ? `<div class="evento-dept">${escapeHtml(ev.departamento)}</div>` : ''}
@@ -1733,6 +1869,18 @@ async function guardarFatura(e: SubmitEvent) {
     showNotification('Preencha todos os campos obrigatórios da fatura.', 'error');
     return;
   }
+  // SNC + Entidade (novos campos obrigatórios da Fase 1 SNC)
+  const contaSncId = getValue('contaSncFatura');
+  if (!contaSncId) { showNotification('Escolhe uma conta SNC.', 'error'); return; }
+  resolverEntidadeId('entidadeFatura', 'entidadeFaturaId');
+  const entidadeId = getValue('entidadeFaturaId');
+  const entidadeTexto = getValue('entidadeFatura').trim();
+  if (entidadeTexto && !entidadeId) {
+    showNotification('Entidade não reconhecida — escolhe da lista ou cria em "Entidades".', 'error');
+    return;
+  }
+  if (!entidadeId) { showNotification('Escolhe a entidade (fornecedor).', 'error'); return; }
+
   const formData = new FormData();
   formData.append('titulo', titulo);
   formData.append('valor', String(valor));
@@ -1742,6 +1890,9 @@ async function guardarFatura(e: SubmitEvent) {
   formData.append('numero', getValue('numeroFatura').trim());
   formData.append('estado', getValue('estadoFatura') || 'Pendente');
   formData.append('descricao', getValue('observacoesFatura').trim());
+  formData.append('contaSncId', contaSncId);
+  formData.append('entidadeId', entidadeId);
+  // Campos legados mantidos vazios se não preenchidos (não quebram DB)
   formData.append('fornecedor', getValue('fornecedorFatura').trim());
   formData.append('fornecedorNif', getValue('fornecedorNifFatura').trim());
   const dataVencimento = getValue('dataVencimentoFatura');
@@ -2083,18 +2234,39 @@ async function guardarReceita(e: SubmitEvent) {
   if (isReadOnly()) { showNotification('Sem permissões para alterar receitas.', 'error'); return; }
   const valor = parseFloat(getValue('valorReceita'));
   const titulo = getValue('tituloReceita').trim();
-  const categoria = getValue('categoriaReceita');
   const data = getValue('dataReceita');
-  if (!titulo || !categoria || !data || Number.isNaN(valor)) {
+  if (!titulo || !data || Number.isNaN(valor)) {
     showNotification('Preencha os campos obrigatórios da receita.', 'error');
     return;
   }
+
+  // SNC + Entidade (novos campos obrigatórios)
+  const contaSncId = getValue('contaSncReceita');
+  if (!contaSncId) { showNotification('Escolhe uma conta SNC.', 'error'); return; }
+  resolverEntidadeId('entidadeReceita', 'entidadeReceitaId');
+  const entidadeId = getValue('entidadeReceitaId');
+  const entidadeTexto = getValue('entidadeReceita').trim();
+  if (entidadeTexto && !entidadeId) {
+    showNotification('Entidade não reconhecida — escolhe da lista ou cria em "Entidades".', 'error');
+    return;
+  }
+  if (!entidadeId) { showNotification('Escolhe a entidade (financiador).', 'error'); return; }
+
+  // Mapear SNC → categoria legada para compatibilidade (até migração UI completa)
+  const contaSnc = contasSncCache.find(c => c.id === Number(contaSncId));
+  const categoria = contaSnc ? (contaSnc.codigo === '72' ? 'Vendas/Serviços'
+                              : contaSnc.codigo === '75' ? 'Cofinanciamentos'
+                              : contaSnc.codigo === '76' ? 'Quotas'
+                              : 'Outros') : 'Outros';
 
   const formData = new FormData();
   formData.append('titulo', titulo);
   formData.append('categoria', categoria);
   formData.append('estado', getValue('estadoReceita') || 'Previsto');
-  formData.append('financiador', getValue('financiadorReceita').trim());
+  formData.append('contaSncId', contaSncId);
+  formData.append('entidadeId', entidadeId);
+  // Campo legado (preencher com nome da entidade para compatibilidade)
+  formData.append('financiador', contasSncCache.length ? (entidadesCache.find(x => x.id === Number(entidadeId))?.nome || '') : '');
   const contaReceita = getValue('contaReceita').trim();
   if (contaReceita) formData.append('conta', contaReceita);
   formData.append('valor', String(valor));
@@ -2690,6 +2862,11 @@ function setupEventListeners() {
       const btn = document.getElementById('btnSalvarFatura') as HTMLButtonElement | null;
       if (btn) btn.textContent = 'Guardar';
       carregarEventosSelect();
+      popularSelectSNC('contaSncFatura', 'gasto');
+      popularDatalistEntidades('fornecedor');
+      setValue('entidadeFatura', '');
+      setValue('entidadeFaturaId', '');
+      atualizarHintSNC('contaSncFatura', 'contaSncFaturaHint');
     });
   }
 
@@ -2711,6 +2888,11 @@ function setupEventListeners() {
       const btn = document.getElementById('btnSalvarFatura') as HTMLButtonElement | null;
       if (btn) btn.textContent = 'Guardar';
       carregarEventosSelect();
+      popularSelectSNC('contaSncFatura', 'gasto');
+      popularDatalistEntidades('fornecedor');
+      setValue('entidadeFatura', '');
+      setValue('entidadeFaturaId', '');
+      atualizarHintSNC('contaSncFatura', 'contaSncFaturaHint');
     });
   }
 
@@ -2764,6 +2946,11 @@ function setupEventListeners() {
       const btn = document.getElementById('btnSalvarReceita') as HTMLButtonElement | null;
       if (btn) btn.textContent = 'Guardar';
       carregarEventosSelect();
+      popularSelectSNC('contaSncReceita', 'proveito');
+      popularDatalistEntidades('financiador');
+      setValue('entidadeReceita', '');
+      setValue('entidadeReceitaId', '');
+      atualizarHintSNC('contaSncReceita', 'contaSncReceitaHint');
     });
   }
 
@@ -2809,6 +2996,11 @@ function setupEventListeners() {
       if (dr) dr.removeAttribute('hidden');
       const btn = document.getElementById('btnSalvarReceita') as HTMLButtonElement | null;
       if (btn) btn.textContent = 'Guardar';
+      popularSelectSNC('contaSncReceita', 'proveito');
+      popularDatalistEntidades('financiador');
+      setValue('entidadeReceita', '');
+      setValue('entidadeReceitaId', '');
+      atualizarHintSNC('contaSncReceita', 'contaSncReceitaHint');
       carregarEventosSelect();
     });
   }
@@ -3325,6 +3517,18 @@ async function editarReceita(id: number) {
     setValue('categoriaReceita', r.categoria || '');
     setValue('estadoReceita', r.estado || 'Previsto');
     setValue('financiadorReceita', r.financiador || '');
+    // SNC + Entidade (pré-popular)
+    popularSelectSNC('contaSncReceita', 'proveito', r.contaSncId || undefined);
+    popularDatalistEntidades('financiador');
+    atualizarHintSNC('contaSncReceita', 'contaSncReceitaHint');
+    if (r.entidadeId) {
+      const ent = entidadesCache.find(x => x.id === r.entidadeId);
+      if (ent) setValue('entidadeReceita', ent.nif ? `${ent.nome} [${ent.nif}]` : ent.nome);
+      setValue('entidadeReceitaId', String(r.entidadeId));
+    } else {
+      setValue('entidadeReceita', r.financiador || '');
+      setValue('entidadeReceitaId', '');
+    }
     setValue('valorReceita', r.valor?.toString() || '');
     setValue('dataReceita', (r.data || '').slice(0, 10));
     setValue('observacoesReceita', r.observacoes || '');
@@ -3391,6 +3595,19 @@ async function editarFatura(id: number) {
     setValue('tipoFatura', f.tipo || 'Fatura');
     setValue('fornecedorFatura', f.fornecedor || '');
     setValue('fornecedorNifFatura', f.fornecedorNif || '');
+    // SNC + Entidade (pré-popular)
+    popularSelectSNC('contaSncFatura', 'gasto', f.contaSncId || undefined);
+    popularDatalistEntidades('fornecedor');
+    atualizarHintSNC('contaSncFatura', 'contaSncFaturaHint');
+    if (f.entidadeId) {
+      const ent = entidadesCache.find(x => x.id === f.entidadeId);
+      if (ent) setValue('entidadeFatura', ent.nif ? `${ent.nome} [${ent.nif}]` : ent.nome);
+      setValue('entidadeFaturaId', String(f.entidadeId));
+    } else {
+      const label = f.fornecedor ? (f.fornecedorNif ? `${f.fornecedor} [${f.fornecedorNif}]` : f.fornecedor) : '';
+      setValue('entidadeFatura', label);
+      setValue('entidadeFaturaId', '');
+    }
     setValue('dataVencimentoFatura', (f.dataVencimento || '').slice(0, 10));
     setValue('contaFatura', f.movimento?.conta || '');
     toggleContaField(f.estado || 'Pendente', 'contaFaturaWrap', 'Paga');
@@ -3451,11 +3668,825 @@ async function startApp() {
   showLoading('Carregando aplicação...');
   setupEventListeners();
   setActiveSection('resumo');
-  await Promise.all([carregarDepartamentos(), carregarEventosSelect()]);
+  await Promise.all([
+    carregarDepartamentos(),
+    carregarEventosSelect(),
+    carregarContasSNC(),
+    carregarEntidades(),
+  ]);
   aplicarDepartamentosFiltro();
   aplicarCategoriasFiltroReceita();
   atualizarSelectFaturaInventario();
+  popularDatalistEntidades();
+  // Listeners para hints SNC
+  document.getElementById('contaSncFatura')?.addEventListener('change', () => atualizarHintSNC('contaSncFatura', 'contaSncFaturaHint'));
+  document.getElementById('contaSncReceita')?.addEventListener('change', () => atualizarHintSNC('contaSncReceita', 'contaSncReceitaHint'));
+  document.getElementById('entidadeFatura')?.addEventListener('change', () => resolverEntidadeId('entidadeFatura', 'entidadeFaturaId'));
+  document.getElementById('entidadeReceita')?.addEventListener('change', () => resolverEntidadeId('entidadeReceita', 'entidadeReceitaId'));
+  setupEntidadesListeners();
+  setupRHListeners();
+  setupBalanceteListeners();
+  setupAtivosListeners();
+  document.getElementById('eventoTipo')?.addEventListener('change', atualizarFieldsetSubsidio);
   hideLoading();
+}
+
+// ============================================================
+// ENTIDADES — gestão, pesquisa, detalhe, fusão
+// ============================================================
+let entidadesSelecionadas = new Set<number>();
+let entidadeAtiva: any = null;
+
+function escapeHtmlE(s: any): string {
+  if (s === null || s === undefined) return '';
+  return escapeHtml(String(s));
+}
+
+async function carregarEntidadesPagina() {
+  entidadesCache = await carregarEntidades(true);
+  renderEntidadesLista();
+}
+
+function entidadesFiltradas(): any[] {
+  const q = ((document.getElementById('entidadesSearch') as HTMLInputElement)?.value || '').trim().toLowerCase();
+  const tipo = ((document.getElementById('entidadesFiltroTipo') as HTMLSelectElement)?.value || '');
+  const soNaoVerif = (document.getElementById('entidadesFiltroNaoVerif') as HTMLInputElement)?.checked;
+
+  return entidadesCache.filter(e => {
+    if (tipo && !(e.tipos || []).includes(tipo)) return false;
+    if (soNaoVerif && e.verificado) return false;
+    if (q) {
+      const hay = `${e.nome || ''} ${e.nif || ''} ${e.email || ''}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function renderEntidadesLista() {
+  const container = document.getElementById('entidadesLista');
+  const stats = document.getElementById('entidadesStats');
+  if (!container) return;
+  const lista = entidadesFiltradas();
+  const total = entidadesCache.length;
+  const verif = entidadesCache.filter(e => e.verificado).length;
+  if (stats) {
+    stats.innerHTML = `
+      <span><strong>${lista.length}</strong> de ${total} entidades</span>
+      <span><strong>${verif}</strong> verificadas</span>
+      <span>${total - verif} por verificar</span>
+    `;
+  }
+  if (!lista.length) {
+    container.innerHTML = '<p class="text-muted">Nenhuma entidade encontrada.</p>';
+    return;
+  }
+  container.innerHTML = lista.map(e => {
+    const tiposHtml = (e.tipos || []).map((t: string) =>
+      `<span class="entidade-tipo-tag ${t}">${t.replace('-', ' ')}</span>`).join('');
+    const nifHtml = e.nif
+      ? `<div class="entidade-nif">NIF ${escapeHtmlE(e.nif)}${!e.verificado ? '  <span class="entidade-warn">⚠ por verificar</span>' : ''}</div>`
+      : `<div class="entidade-nif">sem NIF  <span class="entidade-warn">⚠ incompleto</span></div>`;
+    const selected = entidadesSelecionadas.has(e.id) ? 'selected' : '';
+    const checked = entidadesSelecionadas.has(e.id) ? 'on' : '';
+    return `
+      <div class="entidade-card ${selected}" data-ent-id="${e.id}">
+        <div class="entidade-card-check ${checked}" data-ent-check="${e.id}" title="Selecionar para fundir"></div>
+        <p class="entidade-nome">${escapeHtmlE(e.nome)}</p>
+        ${nifHtml}
+        <div class="entidade-tipos">${tiposHtml}</div>
+      </div>
+    `;
+  }).join('');
+
+  // Click no card abre detalhe; click no check seleciona
+  container.querySelectorAll<HTMLElement>('.entidade-card').forEach(c => {
+    c.addEventListener('click', (ev) => {
+      if ((ev.target as HTMLElement).classList.contains('entidade-card-check')) return;
+      const id = Number(c.dataset.entId);
+      if (id) void abrirDetalheEntidade(id);
+    });
+  });
+  container.querySelectorAll<HTMLElement>('[data-ent-check]').forEach(cb => {
+    cb.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const id = Number(cb.dataset.entCheck);
+      if (!id) return;
+      if (entidadesSelecionadas.has(id)) entidadesSelecionadas.delete(id);
+      else entidadesSelecionadas.add(id);
+      const btn = document.getElementById('btnFundirEntidades');
+      if (btn) btn.hidden = entidadesSelecionadas.size < 2;
+      renderEntidadesLista();
+    });
+  });
+}
+
+async function abrirDetalheEntidade(id: number) {
+  try {
+    const r = await fetch(`${API_ENTIDADES}/${id}`);
+    if (!r.ok) throw new Error('Erro ao obter entidade');
+    const data = await r.json();
+    entidadeAtiva = data.entidade;
+
+    (document.getElementById('entidadeDetailTitle') as HTMLElement).textContent = data.entidade.nome;
+    const body = document.getElementById('entidadeDetailBody');
+    if (!body) return;
+
+    const tiposHtml = (data.entidade.tipos || []).map((t: string) =>
+      `<span class="entidade-tipo-tag ${t}">${t.replace('-', ' ')}</span>`).join(' ');
+
+    const fatRows = data.faturas.slice(0, 50).map((f: any) => `
+      <tr>
+        <td>${new Date(f.data).toLocaleDateString('pt-PT')}</td>
+        <td>${escapeHtmlE(f.titulo)}</td>
+        <td>${f.contaSnc ? `<span style="font-family:monospace;font-size:.78rem;">${escapeHtmlE(f.contaSnc.codigo)}</span>` : '<span style="color:#dc2626;">—</span>'}</td>
+        <td><span class="prestacao-estado-badge ${(f.estado||'').toLowerCase()}">${escapeHtmlE(f.estado)}</span></td>
+        <td class="num">${Number(f.valor).toFixed(2)} €</td>
+      </tr>`).join('');
+
+    const recRows = data.receitas.slice(0, 50).map((r: any) => `
+      <tr>
+        <td>${new Date(r.data).toLocaleDateString('pt-PT')}</td>
+        <td>${escapeHtmlE(r.titulo)}</td>
+        <td>${r.contaSnc ? `<span style="font-family:monospace;font-size:.78rem;">${escapeHtmlE(r.contaSnc.codigo)}</span>` : '<span style="color:#dc2626;">—</span>'}</td>
+        <td><span class="prestacao-estado-badge ${(r.estado||'').toLowerCase()}">${escapeHtmlE(r.estado)}</span></td>
+        <td class="num">${Number(r.valor).toFixed(2)} €</td>
+      </tr>`).join('');
+
+    body.innerHTML = `
+      <div class="entidade-detail-header">
+        <div>
+          <div class="entidade-nif">${data.entidade.nif ? 'NIF ' + escapeHtmlE(data.entidade.nif) : 'sem NIF'}</div>
+          <div class="entidade-tipos">${tiposHtml}</div>
+          ${data.entidade.email ? `<div style="margin-top:6px;font-size:.85rem;">📧 ${escapeHtmlE(data.entidade.email)}</div>` : ''}
+          ${data.entidade.telefone ? `<div style="font-size:.85rem;">📞 ${escapeHtmlE(data.entidade.telefone)}</div>` : ''}
+          ${data.entidade.morada ? `<div style="font-size:.85rem;">📍 ${escapeHtmlE(data.entidade.morada)}</div>` : ''}
+          ${data.entidade.iban ? `<div style="font-family:monospace;font-size:.82rem;">${escapeHtmlE(data.entidade.iban)}</div>` : ''}
+        </div>
+      </div>
+
+      <div class="entidade-detail-summary">
+        <div><strong>${data.totais.despesas.toFixed(2)} €</strong><span>Total despesas (${data.faturas.length})</span></div>
+        <div><strong>${data.totais.receitas.toFixed(2)} €</strong><span>Total receitas (${data.receitas.length})</span></div>
+      </div>
+
+      ${data.receitas.length ? `
+      <div class="entidade-mov-section">
+        <h4>Receitas (últimas 50)</h4>
+        <table class="entidade-mov-table">
+          <thead><tr><th>Data</th><th>Título</th><th>SNC</th><th>Estado</th><th class="num">Valor</th></tr></thead>
+          <tbody>${recRows}</tbody>
+        </table>
+      </div>` : ''}
+
+      ${data.faturas.length ? `
+      <div class="entidade-mov-section">
+        <h4>Despesas (últimas 50)</h4>
+        <table class="entidade-mov-table">
+          <thead><tr><th>Data</th><th>Título</th><th>SNC</th><th>Estado</th><th class="num">Valor</th></tr></thead>
+          <tbody>${fatRows}</tbody>
+        </table>
+      </div>` : ''}
+
+      ${data.entidade.notas ? `<p style="margin-top:14px;padding:10px;background:#fef3c7;border-radius:8px;font-size:.88rem;">📝 ${escapeHtmlE(data.entidade.notas)}</p>` : ''}
+    `;
+    (document.getElementById('entidadeDetailModal') as HTMLElement).hidden = false;
+  } catch (e: any) {
+    showNotification(e.message || 'Erro', 'error');
+  }
+}
+
+function abrirEntidadeFormModal(entidade: any | null) {
+  const form = document.getElementById('entidadeForm') as HTMLFormElement;
+  form.reset();
+  (document.getElementById('entidadeFormId') as HTMLInputElement).value = entidade?.id ? String(entidade.id) : '';
+  (document.getElementById('entidadeFormTitle') as HTMLElement).textContent = entidade ? 'Editar Entidade' : 'Nova Entidade';
+  if (entidade) {
+    setValue('entNome', entidade.nome || '');
+    setValue('entNif', entidade.nif || '');
+    setValue('entEmail', entidade.email || '');
+    setValue('entTelefone', entidade.telefone || '');
+    setValue('entMorada', entidade.morada || '');
+    setValue('entIban', entidade.iban || '');
+    setValue('entNiss', entidade.niss || '');
+    setValue('entTipoVinculo', entidade.tipoVinculo || '');
+    setValue('entFuncao', entidade.funcao || '');
+    setValue('entBolsa', entidade.bolsaBase ? String(entidade.bolsaBase) : '');
+    setValue('entNascimento', entidade.dataNascimento ? String(entidade.dataNascimento).slice(0, 10) : '');
+    setValue('entNotas', entidade.notas || '');
+    (document.getElementById('entVerificado') as HTMLInputElement).checked = !!entidade.verificado;
+    document.querySelectorAll<HTMLInputElement>('.ent-tipo').forEach(cb => {
+      cb.checked = (entidade.tipos || []).includes(cb.value);
+    });
+  } else {
+    document.querySelectorAll<HTMLInputElement>('.ent-tipo').forEach(cb => cb.checked = false);
+  }
+  (document.getElementById('entidadeFormModal') as HTMLElement).hidden = false;
+}
+
+async function submeterEntidade(ev: Event) {
+  ev.preventDefault();
+  const id = (document.getElementById('entidadeFormId') as HTMLInputElement).value;
+  const tipos = Array.from(document.querySelectorAll<HTMLInputElement>('.ent-tipo:checked')).map(cb => cb.value);
+  if (!tipos.length) { showNotification('Escolhe pelo menos um tipo', 'error'); return; }
+
+  const payload: any = {
+    nome: getValue('entNome').trim(),
+    nif: getValue('entNif').trim() || null,
+    tipos,
+    email: getValue('entEmail').trim() || null,
+    telefone: getValue('entTelefone').trim() || null,
+    morada: getValue('entMorada').trim() || null,
+    iban: getValue('entIban').trim() || null,
+    niss: getValue('entNiss').trim() || null,
+    tipoVinculo: getValue('entTipoVinculo') || null,
+    funcao: getValue('entFuncao').trim() || null,
+    bolsaBase: getValue('entBolsa') || null,
+    dataNascimento: getValue('entNascimento') || null,
+    notas: getValue('entNotas').trim() || null,
+    verificado: (document.getElementById('entVerificado') as HTMLInputElement).checked,
+  };
+
+  try {
+    const url = id ? `${API_ENTIDADES}/${id}` : API_ENTIDADES;
+    const method = id ? 'PUT' : 'POST';
+    const r = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.error || 'Erro');
+    }
+    (document.getElementById('entidadeFormModal') as HTMLElement).hidden = true;
+    showNotification(id ? 'Entidade atualizada' : 'Entidade criada', 'success');
+    await carregarEntidadesPagina();
+    popularDatalistEntidades();
+  } catch (e: any) {
+    showNotification(e.message || 'Erro', 'error');
+  }
+}
+
+async function eliminarEntidadeAtiva() {
+  if (!entidadeAtiva) return;
+  if (!confirm(`Eliminar ${entidadeAtiva.nome}? (Só funciona se não tiver movimentos ligados.)`)) return;
+  try {
+    const r = await fetch(`${API_ENTIDADES}/${entidadeAtiva.id}`, { method: 'DELETE' });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.error || 'Erro');
+    }
+    (document.getElementById('entidadeDetailModal') as HTMLElement).hidden = true;
+    showNotification('Entidade eliminada', 'success');
+    await carregarEntidadesPagina();
+    popularDatalistEntidades();
+  } catch (e: any) {
+    showNotification(e.message || 'Erro', 'error');
+  }
+}
+
+function abrirFundirModal() {
+  if (entidadesSelecionadas.size < 2) {
+    showNotification('Seleciona pelo menos 2 entidades para fundir', 'error');
+    return;
+  }
+  const sel = document.getElementById('fundirDestino') as HTMLSelectElement;
+  const selecionadas = Array.from(entidadesSelecionadas)
+    .map(id => entidadesCache.find(e => e.id === id))
+    .filter(Boolean);
+  sel.innerHTML = selecionadas.map(e =>
+    `<option value="${e.id}">${escapeHtml(e.nome)}${e.nif ? ' [' + e.nif + ']' : ''}</option>`).join('');
+  const preview = document.getElementById('fundirPreview');
+  if (preview) {
+    preview.innerHTML = `
+      <strong>${selecionadas.length} entidades selecionadas:</strong>
+      <ul style="margin:6px 0 0;padding-left:18px;">
+        ${selecionadas.map(e => `<li>${escapeHtml(e.nome)}${e.nif ? ' [' + e.nif + ']' : ''}</li>`).join('')}
+      </ul>
+    `;
+  }
+  (document.getElementById('fundirEntidadesModal') as HTMLElement).hidden = false;
+}
+
+async function confirmarFusao() {
+  const destinoId = Number((document.getElementById('fundirDestino') as HTMLSelectElement).value);
+  if (!destinoId) return;
+  const duplicados = Array.from(entidadesSelecionadas).filter(id => id !== destinoId);
+  if (!duplicados.length) { showNotification('Nenhum duplicado selecionado', 'error'); return; }
+  if (!confirm(`Confirmar fusão: ${duplicados.length} entidade(s) serão eliminadas e os seus movimentos repontados.`)) return;
+  try {
+    const r = await fetch(`${API_ENTIDADES}/${destinoId}/fundir`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ duplicadoIds: duplicados }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.error || 'Erro');
+    }
+    const result = await r.json();
+    showNotification(`Fundidas: ${result.entidadesEliminadas} eliminadas, ${result.faturasReapontadas + result.receitasReapontadas} movimentos repontados`, 'success');
+    (document.getElementById('fundirEntidadesModal') as HTMLElement).hidden = true;
+    entidadesSelecionadas.clear();
+    await carregarEntidadesPagina();
+    popularDatalistEntidades();
+  } catch (e: any) {
+    showNotification(e.message || 'Erro', 'error');
+  }
+}
+
+function setupEntidadesListeners() {
+  document.getElementById('btnNovaEntidade')?.addEventListener('click', () => abrirEntidadeFormModal(null));
+  document.getElementById('entidadesSearch')?.addEventListener('input', () => renderEntidadesLista());
+  document.getElementById('entidadesFiltroTipo')?.addEventListener('change', () => renderEntidadesLista());
+  document.getElementById('entidadesFiltroNaoVerif')?.addEventListener('change', () => renderEntidadesLista());
+  document.getElementById('entidadeForm')?.addEventListener('submit', submeterEntidade);
+  document.getElementById('entidadeFormClose')?.addEventListener('click', () => { (document.getElementById('entidadeFormModal') as HTMLElement).hidden = true; });
+  document.querySelectorAll('#entidadeFormModal .js-cancel-form').forEach(el => el.addEventListener('click', () => { (document.getElementById('entidadeFormModal') as HTMLElement).hidden = true; }));
+  document.getElementById('entidadeDetailClose')?.addEventListener('click', () => { (document.getElementById('entidadeDetailModal') as HTMLElement).hidden = true; });
+  document.querySelectorAll('#entidadeDetailModal .modal-close').forEach(el => el.addEventListener('click', () => { (document.getElementById('entidadeDetailModal') as HTMLElement).hidden = true; }));
+  document.getElementById('btnEditarEntidade')?.addEventListener('click', () => {
+    if (!entidadeAtiva) return;
+    (document.getElementById('entidadeDetailModal') as HTMLElement).hidden = true;
+    abrirEntidadeFormModal(entidadeAtiva);
+  });
+  document.getElementById('btnEliminarEntidade')?.addEventListener('click', eliminarEntidadeAtiva);
+  document.getElementById('btnFundirEntidades')?.addEventListener('click', abrirFundirModal);
+  document.getElementById('fundirClose')?.addEventListener('click', () => { (document.getElementById('fundirEntidadesModal') as HTMLElement).hidden = true; });
+  document.querySelectorAll('#fundirEntidadesModal .js-cancel-form').forEach(el => el.addEventListener('click', () => { (document.getElementById('fundirEntidadesModal') as HTMLElement).hidden = true; }));
+  document.getElementById('btnConfirmarFusao')?.addEventListener('click', confirmarFusao);
+}
+
+// ============================================================
+// ATIVOS FIXOS — capitalização + depreciações
+// ============================================================
+
+async function abrirCapitalizarModal() {
+  const container = document.getElementById('capitalizarLista');
+  if (!container) return;
+  container.innerHTML = '<p class="text-muted">A carregar…</p>';
+  (document.getElementById('capitalizarAtivosModal') as HTMLElement).hidden = false;
+  try {
+    const r = await fetch(`${API_INVENTARIO}/candidatos-ativo`);
+    if (!r.ok) throw new Error('falha');
+    const faturas = await r.json();
+    if (!faturas.length) {
+      container.innerHTML = '<p class="text-muted">✅ Nenhuma despesa pendente de capitalização.</p>';
+      return;
+    }
+    container.innerHTML = `
+      <table class="entidade-mov-table">
+        <thead><tr><th>Data</th><th>Despesa</th><th>SNC</th><th>Valor</th><th>Anos</th><th></th></tr></thead>
+        <tbody>
+          ${faturas.map((f: any) => `
+            <tr data-fat-id="${f.id}">
+              <td>${new Date(f.data).toLocaleDateString('pt-PT')}</td>
+              <td><strong>${escapeHtml(f.titulo)}</strong>${f.entidade ? '<br><span style="font-size:.78rem;color:#64748b;">' + escapeHtml(f.entidade.nome) + '</span>' : ''}</td>
+              <td><span style="font-family:monospace;font-size:.78rem;">${escapeHtml(f.contaSnc?.codigo || '—')}</span></td>
+              <td class="num">${Number(f.valor).toFixed(2)} €</td>
+              <td><input type="number" min="1" max="60" value="${sugereAnos(f.contaSnc?.codigo || '435')}" style="width:70px;padding:4px 6px;border:1px solid #e2e8f0;border-radius:4px;" data-anos="${f.id}"></td>
+              <td><button type="button" class="main-action" style="padding:4px 10px;" data-cap-id="${f.id}">Capitalizar</button></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    `;
+    container.querySelectorAll<HTMLElement>('[data-cap-id]').forEach(b => {
+      b.addEventListener('click', async () => {
+        const faturaId = Number(b.dataset.capId);
+        const anosInput = container.querySelector<HTMLInputElement>(`[data-anos="${faturaId}"]`);
+        const anos = Number(anosInput?.value || 8);
+        try {
+          const r = await fetch(`${API_INVENTARIO}/criar-de-despesa`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ faturaId, anosDepreciacao: anos }),
+          });
+          if (!r.ok) throw new Error((await r.json()).error || 'erro');
+          showNotification('Despesa capitalizada como ativo fixo', 'success');
+          const row = container.querySelector(`tr[data-fat-id="${faturaId}"]`);
+          row?.remove();
+          atualizarBadgeCandidatos();
+        } catch (e: any) {
+          showNotification(e.message || 'Erro', 'error');
+        }
+      });
+    });
+  } catch (e: any) {
+    container.innerHTML = `<p class="text-muted">Erro: ${e.message}</p>`;
+  }
+}
+
+function sugereAnos(codigo: string): number {
+  if (codigo.startsWith('432')) return 50;
+  if (codigo.startsWith('433')) return 8;
+  if (codigo.startsWith('434')) return 5;
+  if (codigo.startsWith('435')) return 8;
+  return 8;
+}
+
+async function atualizarBadgeCandidatos() {
+  try {
+    const r = await fetch(`${API_INVENTARIO}/candidatos-ativo`);
+    if (!r.ok) return;
+    const faturas = await r.json();
+    const badge = document.getElementById('candidatosBadge');
+    if (badge) {
+      if (faturas.length > 0) { badge.textContent = String(faturas.length); badge.hidden = false; }
+      else badge.hidden = true;
+    }
+  } catch {}
+}
+
+async function abrirMapaDepreciacoes() {
+  const sel = document.getElementById('depreciacoesAno') as HTMLSelectElement;
+  if (!sel.options.length) {
+    const ano = new Date().getFullYear();
+    const anos: string[] = [];
+    for (let a = ano; a >= ano - 4; a--) anos.push(`<option value="${a}" ${a === ano ? 'selected' : ''}>${a}</option>`);
+    sel.innerHTML = anos.join('');
+    sel.onchange = () => void carregarMapaDepreciacoes();
+  }
+  (document.getElementById('mapaDepreciacoesModal') as HTMLElement).hidden = false;
+  await carregarMapaDepreciacoes();
+}
+
+async function carregarMapaDepreciacoes() {
+  const container = document.getElementById('depreciacoesConteudo');
+  if (!container) return;
+  const ano = (document.getElementById('depreciacoesAno') as HTMLSelectElement).value;
+  container.innerHTML = '<p class="text-muted">A calcular…</p>';
+  try {
+    const r = await fetch(`${API_INVENTARIO}/depreciacoes?ano=${ano}`);
+    if (!r.ok) throw new Error('falha');
+    const data = await r.json();
+    if (!data.itens.length) {
+      container.innerHTML = '<p class="text-muted">Sem ativos capitalizados ainda. Usa "Capitalizar despesas".</p>';
+      return;
+    }
+    const fmt = (v: number) => `${v.toFixed(2)} €`;
+    container.innerHTML = `
+      <div class="balancete-kpis">
+        <div class="balancete-kpi"><span class="label">Custo total</span><span class="value">${fmt(data.totais.custo)}</span></div>
+        <div class="balancete-kpi gasto"><span class="label">Deprec. acumulada</span><span class="value">${fmt(data.totais.acumulado)}</span></div>
+        <div class="balancete-kpi gasto"><span class="label">Deprec. do ano ${ano}</span><span class="value">${fmt(data.totais.ano)}</span></div>
+        <div class="balancete-kpi proveito"><span class="label">Valor líquido</span><span class="value">${fmt(data.totais.liquido)}</span></div>
+      </div>
+      <table class="entidade-mov-table">
+        <thead><tr><th>Ativo</th><th>SNC</th><th>Aquisição</th><th class="num">Custo</th><th>Anos</th><th class="num">Acumul.</th><th class="num">Ano</th><th class="num">Líquido</th></tr></thead>
+        <tbody>
+          ${data.itens.map((i: any) => `
+            <tr>
+              <td><strong>${escapeHtml(i.nome)}</strong>${i.codigo ? '<br><span style="font-size:.74rem;color:#64748b;font-family:monospace;">' + escapeHtml(i.codigo) + '</span>' : ''}</td>
+              <td><span style="font-family:monospace;font-size:.78rem;">${i.contaSnc ? escapeHtml(i.contaSnc.codigo) : '—'}</span></td>
+              <td>${i.dataAquisicao ? new Date(i.dataAquisicao).toLocaleDateString('pt-PT') : '—'}</td>
+              <td class="num">${fmt(i.custo)}</td>
+              <td>${i.anos}</td>
+              <td class="num">${fmt(i.depreciacaoAcumulada)}</td>
+              <td class="num" style="color:#b91c1c;">${fmt(i.depreciacaoAno)}</td>
+              <td class="num"><strong>${fmt(i.valorLiquido)}</strong></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+      <p style="margin-top:14px;font-size:.82rem;color:#64748b;">
+        Depreciação do ano = diferença entre acumulada em 31/12/${ano} e em 31/12/${Number(ano)-1}. Lançar como gasto na conta <strong>68</strong>.
+      </p>
+    `;
+  } catch (e: any) {
+    container.innerHTML = `<p class="text-muted">Erro: ${e.message}</p>`;
+  }
+}
+
+function setupAtivosListeners() {
+  document.getElementById('btnCapitalizarAtivos')?.addEventListener('click', abrirCapitalizarModal);
+  document.getElementById('btnMapaDepreciacoes')?.addEventListener('click', abrirMapaDepreciacoes);
+  document.getElementById('capitalizarClose')?.addEventListener('click', () => { (document.getElementById('capitalizarAtivosModal') as HTMLElement).hidden = true; });
+  document.getElementById('depreciacoesClose')?.addEventListener('click', () => { (document.getElementById('mapaDepreciacoesModal') as HTMLElement).hidden = true; });
+  void atualizarBadgeCandidatos();
+}
+
+// ============================================================
+// BALANCETE SNC — resumo inline + export PDF
+// ============================================================
+const API_RELATORIOS = `${API_BASE}/relatorios`;
+
+async function carregarBalanceteResumo() {
+  const container = document.getElementById('balanceteResumo');
+  if (!container) return;
+  const ano = (document.getElementById('balanceteAno') as HTMLSelectElement)?.value || String(new Date().getFullYear());
+  container.classList.add('visible');
+  container.innerHTML = '<p class="text-muted">A carregar balancete…</p>';
+  try {
+    const r = await fetch(`${API_RELATORIOS}/balancete-snc?periodo=anual&ano=${ano}`);
+    if (!r.ok) throw new Error('falha');
+    const data = await r.json();
+    renderBalancete(data);
+  } catch (e: any) {
+    container.innerHTML = `<p class="text-muted">Erro: ${e.message}</p>`;
+  }
+}
+
+function renderBalancete(data: any) {
+  const container = document.getElementById('balanceteResumo');
+  if (!container) return;
+  const t = data.totais;
+  const fmt = (v: number) => `${v.toFixed(2).replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1 ')} €`;
+  const resultadoCls = t.resultadoLiquido >= 0 ? 'resultado-pos' : 'resultado-neg';
+
+  const familias = (data.familias as any[]).sort((a, b) => {
+    const ordem: Record<string, number> = { proveito: 0, gasto: 1, ativo: 2, passivo: 3, capital: 4 };
+    return (ordem[a.tipo] - ordem[b.tipo]) || a.familia.localeCompare(b.familia);
+  });
+
+  container.innerHTML = `
+    <div class="balancete-kpis">
+      <div class="balancete-kpi proveito"><span class="label">Proveitos</span><span class="value">${fmt(t.proveitos)}</span></div>
+      <div class="balancete-kpi gasto"><span class="label">Gastos</span><span class="value">${fmt(t.gastos)}</span></div>
+      <div class="balancete-kpi ${resultadoCls}"><span class="label">Resultado líquido</span><span class="value">${fmt(t.resultadoLiquido)}</span></div>
+      ${t.ativos > 0 ? `<div class="balancete-kpi"><span class="label">Ativos</span><span class="value">${fmt(t.ativos)}</span></div>` : ''}
+    </div>
+    ${familias.map(fam => `
+      <div class="balancete-familia">
+        <div class="balancete-familia-header">
+          <span>${escapeHtml(fam.familia)} <span style="font-size:.72rem;color:#64748b;font-weight:400;margin-left:6px;">(${fam.tipo})</span></span>
+          <span class="fam-total">${fmt(fam.total)}</span>
+        </div>
+        ${fam.linhas.map((l: any) => `
+          <div class="balancete-linha">
+            <span><span class="cod">${escapeHtml(l.codigo)}</span>${escapeHtml(l.nome)} <span style="color:#94a3b8;font-size:.78rem;">(${l.count})</span></span>
+            <span class="val">${fmt(l.total)}</span>
+          </div>`).join('')}
+      </div>`).join('')}
+    ${data.semClassificacao ? `
+      <div class="balancete-sem-class">
+        ⚠ <strong>${data.semClassificacao.count}</strong> registo(s) sem classificação SNC (${fmt(data.semClassificacao.total)}).
+        Corrige em Receitas/Despesas para aparecerem no balancete.
+      </div>` : ''}
+  `;
+}
+
+function popularBalanceteAnos() {
+  const sel = document.getElementById('balanceteAno') as HTMLSelectElement | null;
+  if (!sel) return;
+  const ano = new Date().getFullYear();
+  const anos: string[] = [];
+  for (let a = ano; a >= ano - 4; a--) anos.push(`<option value="${a}" ${a === ano ? 'selected' : ''}>${a}</option>`);
+  sel.innerHTML = anos.join('');
+  sel.onchange = () => void carregarBalanceteResumo();
+}
+
+function setupBalanceteListeners() {
+  popularBalanceteAnos();
+  document.getElementById('qaBalanceteSnc')?.addEventListener('click', () => {
+    const ano = (document.getElementById('balanceteAno') as HTMLSelectElement)?.value || String(new Date().getFullYear());
+    window.open(`${API_RELATORIOS}/balancete-snc/pdf?periodo=anual&ano=${ano}`, '_blank');
+  });
+  // Carregar balancete sempre que o utilizador navega para "Relatórios"
+  document.querySelectorAll<HTMLElement>('.nav-link[data-target="relatorios"]').forEach(a => {
+    a.addEventListener('click', () => setTimeout(() => void carregarBalanceteResumo(), 100));
+  });
+}
+
+// ============================================================
+// RH / DOSSIÊS — alertas, pessoas, subsídios, documentos
+// ============================================================
+const API_DOCUMENTOS = `${API_BASE}/documentos`;
+let documentosCache: any[] = [];
+let editingDocumentoId: number | null = null;
+
+async function carregarRHDashboard() {
+  // Carregar dados em paralelo
+  await Promise.all([
+    carregarEntidades(true),
+    carregarDocumentos(),
+  ]);
+  if (eventosCache.length === 0) await carregarEventosResumo();
+  renderRhAlertas();
+  renderRhPessoas();
+  renderRhSubsidios();
+  renderRhDocumentos();
+  atualizarBadgeAlertasRH();
+}
+
+async function carregarDocumentos() {
+  try {
+    const r = await fetch(API_DOCUMENTOS);
+    if (!r.ok) throw new Error('falha');
+    documentosCache = await r.json();
+  } catch { documentosCache = []; }
+}
+
+function renderRhAlertas() {
+  const container = document.getElementById('rhAlertasLista');
+  if (!container) return;
+  const alertas = documentosCache
+    .filter((d: any) => d.estado !== 'Enviado')
+    .sort((a: any, b: any) => {
+      const sev: Record<string, number> = { vencido: 0, critico: 1, aviso: 2, ok: 3 };
+      return sev[a._severidade] - sev[b._severidade];
+    });
+  if (!alertas.length) {
+    container.innerHTML = '<p class="text-muted">✅ Sem alertas de prazos pendentes.</p>';
+    return;
+  }
+  container.innerHTML = alertas.map((d: any) => {
+    const prazo = d.dataLimite ? new Date(d.dataLimite).toLocaleDateString('pt-PT') : '—';
+    const diasTxt = d._dias === null ? '' : (d._dias < 0 ? ` (atrasado ${Math.abs(d._dias)}d)` : d._dias === 0 ? ' (hoje)' : ` (${d._dias}d)`);
+    const ligacao = d.processo ? `Processo: ${d.processo.nome}` : (d.entidade ? `Pessoa: ${d.entidade.nome}` : '');
+    return `
+      <div class="rh-alerta-row ${d._severidade}">
+        <span class="rh-badge-sev rh-badge-${d._severidade}">${d._severidade.toUpperCase()}</span>
+        <div>
+          <div style="font-weight:600;">${escapeHtml(d.tipo)}${d.descricao ? ' — ' + escapeHtml(d.descricao) : ''}</div>
+          <div style="font-size:.82rem;color:#64748b;">${escapeHtml(ligacao)}</div>
+        </div>
+        <span style="font-size:.85rem;">${prazo}${diasTxt}</span>
+        <span class="prestacao-estado-badge ${(d.estado || '').toLowerCase()}">${d.estado}</span>
+        <button type="button" class="ghost-action" data-doc-edit="${d.id}" style="padding:4px 10px;">✎</button>
+      </div>`;
+  }).join('');
+  container.querySelectorAll<HTMLElement>('[data-doc-edit]').forEach(b =>
+    b.addEventListener('click', () => abrirDocumentoFormModal(Number(b.dataset.docEdit))));
+}
+
+function renderRhPessoas() {
+  const container = document.getElementById('rhPessoasLista');
+  if (!container) return;
+  const pessoas = entidadesCache.filter(e => (e.tipos || []).includes('pessoa-interna'));
+  const tabBtn = document.querySelector('[data-rh-tab="pessoas"]') as HTMLElement | null;
+  if (tabBtn) tabBtn.textContent = `Pessoas (${pessoas.length})`;
+  if (!pessoas.length) {
+    container.innerHTML = '<p class="text-muted">Sem pessoas internas. Cria uma entidade com o tipo "Pessoa interna" em <a href="#entidades">Entidades</a>.</p>';
+    return;
+  }
+  container.innerHTML = pessoas.map(p => `
+    <div class="entidade-card" data-ent-id="${p.id}" style="cursor:pointer;">
+      <p class="entidade-nome">${escapeHtml(p.nome)}</p>
+      ${p.funcao ? `<div style="font-size:.82rem;color:#64748b;">${escapeHtml(p.funcao)}</div>` : ''}
+      ${p.tipoVinculo ? `<div class="entidade-tipos"><span class="entidade-tipo-tag pessoa-interna">${escapeHtml(p.tipoVinculo)}</span></div>` : ''}
+    </div>`).join('');
+  container.querySelectorAll<HTMLElement>('.entidade-card').forEach(c => {
+    c.addEventListener('click', () => abrirDetalheEntidade(Number(c.dataset.entId)));
+  });
+}
+
+function renderRhSubsidios() {
+  const container = document.getElementById('rhSubsidiosLista');
+  if (!container) return;
+  const subs = eventosCache.filter((e: any) => e.tipo === 'Subsídio');
+  if (!subs.length) {
+    container.innerHTML = '<p class="text-muted">Sem processos de subsídio. Em <a href="#eventos">Eventos</a>, cria um "Novo" com tipo <em>Subsídio</em>.</p>';
+    return;
+  }
+  container.innerHTML = subs.map((s: any) => `
+    <div class="entidade-card" style="margin-bottom:8px;">
+      <div class="entidade-tipos"><span class="processo-tipo-badge subsidio">Subsídio</span></div>
+      <p class="entidade-nome">${escapeHtml(s.nome)}</p>
+      ${s.numeroProcesso ? `<div style="font-size:.82rem;color:#64748b;">Processo nº ${escapeHtml(s.numeroProcesso)}</div>` : ''}
+      ${s.valorAprovado ? `<div style="font-size:.9rem;"><strong>${Number(s.valorAprovado).toFixed(2)} €</strong> aprovados</div>` : ''}
+    </div>`).join('');
+}
+
+function renderRhDocumentos() {
+  const container = document.getElementById('rhDocumentosLista');
+  if (!container) return;
+  if (!documentosCache.length) {
+    container.innerHTML = '<p class="text-muted">Sem documentos. Clica em "+ Novo Documento" para começar.</p>';
+    return;
+  }
+  container.innerHTML = `
+    <table class="entidade-mov-table">
+      <thead><tr><th>Tipo</th><th>Processo</th><th>Pessoa</th><th>Estado</th><th>Prazo</th><th>Anexo</th><th></th></tr></thead>
+      <tbody>
+        ${documentosCache.map(d => `
+          <tr>
+            <td><strong>${escapeHtml(d.tipo)}</strong>${d.descricao ? '<br><span style="font-size:.78rem;color:#64748b;">' + escapeHtml(d.descricao) + '</span>' : ''}</td>
+            <td>${d.processo ? escapeHtml(d.processo.nome) : '—'}</td>
+            <td>${d.entidade ? escapeHtml(d.entidade.nome) : '—'}</td>
+            <td><span class="prestacao-estado-badge ${(d.estado || '').toLowerCase()}">${d.estado}</span></td>
+            <td>${d.dataLimite ? new Date(d.dataLimite).toLocaleDateString('pt-PT') : '—'}</td>
+            <td>${d.anexo ? `<a href="${API_DOCUMENTOS}/${d.id}/anexo" target="_blank">📎</a>` : '—'}</td>
+            <td style="display:flex;gap:4px;">
+              <button type="button" class="ghost-action" data-doc-edit="${d.id}" style="padding:3px 8px;">✎</button>
+              <button type="button" class="danger-action" data-doc-del="${d.id}" style="padding:3px 8px;">🗑</button>
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+  container.querySelectorAll<HTMLElement>('[data-doc-edit]').forEach(b =>
+    b.addEventListener('click', () => abrirDocumentoFormModal(Number(b.dataset.docEdit))));
+  container.querySelectorAll<HTMLElement>('[data-doc-del]').forEach(b =>
+    b.addEventListener('click', () => eliminarDocumento(Number(b.dataset.docDel))));
+}
+
+function abrirDocumentoFormModal(id: number | null) {
+  editingDocumentoId = id;
+  const form = document.getElementById('documentoForm') as HTMLFormElement;
+  form.reset();
+  (document.getElementById('documentoFormId') as HTMLInputElement).value = id ? String(id) : '';
+  (document.getElementById('documentoFormTitle') as HTMLElement).textContent = id ? 'Editar Documento' : 'Novo Documento';
+  // Preencher dropdown de processos
+  const selP = document.getElementById('docProcesso') as HTMLSelectElement;
+  selP.innerHTML = '<option value="">—</option>' + eventosCache
+    .map((e: any) => `<option value="${e.id}">${escapeHtml(e.nome)}${e.tipo && e.tipo !== 'Evento' ? ' [' + e.tipo + ']' : ''}</option>`).join('');
+  popularDatalistEntidades();
+  if (id) {
+    const d = documentosCache.find(x => x.id === id);
+    if (d) {
+      setValue('docTipo', d.tipo || '');
+      setValue('docEstado', d.estado || 'Pendente');
+      setValue('docDataLimite', d.dataLimite ? String(d.dataLimite).slice(0, 10) : '');
+      setValue('docDescricao', d.descricao || '');
+      setValue('docNotas', d.notas || '');
+      if (d.processoId) selP.value = String(d.processoId);
+      if (d.entidade) {
+        setValue('docEntidade', d.entidade.nif ? `${d.entidade.nome} [${d.entidade.nif}]` : d.entidade.nome);
+        setValue('docEntidadeId', String(d.entidadeId));
+      }
+    }
+  }
+  (document.getElementById('documentoFormModal') as HTMLElement).hidden = false;
+}
+
+async function submeterDocumento(ev: Event) {
+  ev.preventDefault();
+  resolverEntidadeId('docEntidade', 'docEntidadeId');
+  const id = (document.getElementById('documentoFormId') as HTMLInputElement).value;
+  const processoId = getValue('docProcesso');
+  const entidadeId = getValue('docEntidadeId');
+  if (!processoId && !entidadeId) {
+    showNotification('Documento tem de estar ligado a um processo ou a uma pessoa.', 'error');
+    return;
+  }
+  const fd = new FormData();
+  fd.append('tipo', getValue('docTipo'));
+  fd.append('estado', getValue('docEstado') || 'Pendente');
+  if (processoId) fd.append('processoId', processoId);
+  if (entidadeId) fd.append('entidadeId', entidadeId);
+  const dl = getValue('docDataLimite');
+  if (dl) fd.append('dataLimite', dl);
+  const desc = getValue('docDescricao').trim();
+  if (desc) fd.append('descricao', desc);
+  const notas = getValue('docNotas').trim();
+  if (notas) fd.append('notas', notas);
+  const anexo = (document.getElementById('docAnexo') as HTMLInputElement).files?.[0];
+  if (anexo) fd.append('anexo', anexo);
+
+  try {
+    const url = id ? `${API_DOCUMENTOS}/${id}` : API_DOCUMENTOS;
+    const method = id ? 'PUT' : 'POST';
+    const r = await fetch(url, { method, body: fd });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.error || 'Erro');
+    }
+    (document.getElementById('documentoFormModal') as HTMLElement).hidden = true;
+    showNotification(id ? 'Documento atualizado' : 'Documento criado', 'success');
+    await carregarDocumentos();
+    renderRhAlertas();
+    renderRhDocumentos();
+    atualizarBadgeAlertasRH();
+  } catch (e: any) {
+    showNotification(e.message || 'Erro', 'error');
+  }
+}
+
+async function eliminarDocumento(id: number) {
+  if (!confirm('Eliminar este documento?')) return;
+  try {
+    const r = await fetch(`${API_DOCUMENTOS}/${id}`, { method: 'DELETE' });
+    if (!r.ok) throw new Error('Erro');
+    showNotification('Documento eliminado', 'success');
+    await carregarDocumentos();
+    renderRhAlertas();
+    renderRhDocumentos();
+    atualizarBadgeAlertasRH();
+  } catch (e: any) { showNotification(e.message || 'Erro', 'error'); }
+}
+
+function atualizarBadgeAlertasRH() {
+  const criticos = documentosCache.filter((d: any) => d._severidade === 'vencido' || d._severidade === 'critico').length;
+  const badge = document.getElementById('rhAlertBadge');
+  if (badge) {
+    if (criticos > 0) { badge.textContent = String(criticos); badge.hidden = false; }
+    else badge.hidden = true;
+  }
+}
+
+function setupRHListeners() {
+  document.getElementById('btnNovoDocumento')?.addEventListener('click', () => abrirDocumentoFormModal(null));
+  document.getElementById('documentoForm')?.addEventListener('submit', submeterDocumento);
+  document.getElementById('documentoFormClose')?.addEventListener('click', () => { (document.getElementById('documentoFormModal') as HTMLElement).hidden = true; });
+  document.querySelectorAll('#documentoFormModal .js-cancel-form').forEach(el => el.addEventListener('click', () => { (document.getElementById('documentoFormModal') as HTMLElement).hidden = true; }));
+  document.querySelectorAll<HTMLButtonElement>('.rh-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const target = tab.dataset.rhTab;
+      document.querySelectorAll('.rh-tab').forEach(t => t.classList.toggle('active', t === tab));
+      ['alertas', 'pessoas', 'subsidios', 'documentos'].forEach(name => {
+        const el = document.getElementById(`rhTab${name.charAt(0).toUpperCase() + name.slice(1)}`) as HTMLElement | null;
+        if (el) el.hidden = name !== target;
+      });
+    });
+  });
 }
 
 document.addEventListener('DOMContentLoaded', () => { void bootstrapAuth(); });

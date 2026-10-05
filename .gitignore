@@ -62,3 +62,8 @@ coverage/
 .npm
 .eslintcache
 .cache/
+
+# Novo app React (build output + env)
+src/frontend/app/
+app/.env*
+app/dist/

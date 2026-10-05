@@ -33,6 +33,8 @@
         <a href="#inventario" class="nav-link" data-target="inventario"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span>Inventário</span></a>
         <a href="#tesouraria" class="nav-link" data-target="tesouraria"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="6" x2="12" y2="18"/><path d="M15 9.5c0-1.5-1.5-2.5-3-2.5s-3 1-3 2.5 1.5 2 3 2.5 3 1 3 2.5-1.5 2.5-3 2.5-3-1-3-2.5"/></svg><span>Tesouraria</span></a>
         <a href="#relatorios" class="nav-link" data-target="relatorios"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg><span>Relatórios</span></a>
+        <a href="#entidades" class="nav-link" data-target="entidades"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Entidades</span></a>
+        <a href="#rh" class="nav-link" data-target="rh"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg><span>RH / Dossiês</span><span id="rhAlertBadge" class="nav-badge" hidden>0</span></a>
         <a href="#ia" class="nav-link nav-link-ia" data-target="ia"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="4"/></svg><span>Verificação IA</span><span id="iaAlertBadge" class="nav-badge" hidden>0</span></a>
       </nav>
 
@@ -96,7 +98,9 @@
       <div class="section-header">
         <h2>Inventário</h2>
         <div class="section-header-actions">
-          <button type="button" id="qaEtiquetasInventario" class="ghost-action">Imprimir etiquetas</button>
+          <button type="button" id="btnCapitalizarAtivos" class="ghost-action" title="Transformar despesas de ativo fixo (conta 43x) em items de inventário">Capitalizar despesas <span id="candidatosBadge" class="nav-badge" hidden>0</span></button>
+          <button type="button" id="btnMapaDepreciacoes" class="ghost-action">Mapa depreciações</button>
+          <button type="button" id="qaEtiquetasInventario" class="ghost-action">Etiquetas</button>
           <button type="button" id="qaExportInventario" class="ghost-action">Exportar PDF</button>
           <button type="button" id="qaNovoInventario" class="main-action">Novo item</button>
         </div>
@@ -297,6 +301,91 @@
           <p>Documento anual completo, gerado por IA a partir do plano de atividades: análise escrita das atividades e balanço financeiro apurado dos dados reais. Rascunho editável antes do PDF final.</p>
           <button type="button" id="qaRelatorioContas" class="main-action">Criar Relatório e Contas</button>
         </div>
+        <div class="relatorio-card">
+          <div class="relatorio-card-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h2"/><path d="M14 14h2"/><path d="M8 18h2"/><path d="M14 18h2"/></svg>
+          </div>
+          <h3>Balancete por Conta SNC</h3>
+          <p>Agregação legal pronta para contabilista: proveitos (72, 75…) vs gastos (62x, 63), resultado líquido do período. Alerta de registos ainda sem SNC.</p>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+            <select id="balanceteAno" style="padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;flex:1;"></select>
+            <button type="button" id="qaBalanceteSnc" class="main-action">PDF</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resumo balancete inline (quando a secção está aberta) -->
+      <div id="balanceteResumo" class="balancete-resumo" style="margin-top:20px;"></div>
+    </section>
+
+    <!-- ================= ENTIDADES ================= -->
+    <section id="entidades" class="section-animate" hidden>
+      <div class="section-header">
+        <h2>Entidades</h2>
+        <div class="section-header-actions">
+          <button type="button" id="btnFundirEntidades" class="ghost-action" hidden>Fundir selecionadas</button>
+          <button type="button" id="btnNovaEntidade" class="main-action">+ Nova Entidade</button>
+        </div>
+      </div>
+
+      <div class="entidades-toolbar">
+        <input type="search" id="entidadesSearch" placeholder="Pesquisar por nome ou NIF…" class="entidades-search">
+        <select id="entidadesFiltroTipo" class="entidades-filtro">
+          <option value="">Todos os tipos</option>
+          <option value="fornecedor">Fornecedores</option>
+          <option value="financiador">Financiadores</option>
+          <option value="pessoa-interna">Pessoas internas (RH)</option>
+          <option value="socio">Sócios</option>
+          <option value="cliente">Clientes</option>
+        </select>
+        <label class="entidades-filtro-check"><input type="checkbox" id="entidadesFiltroNaoVerif"> só não verificados</label>
+      </div>
+
+      <div class="entidades-stats" id="entidadesStats"></div>
+
+      <div id="entidadesLista" class="entidades-grid">
+        <p class="text-muted">A carregar entidades…</p>
+      </div>
+    </section>
+
+    <!-- ================= RH / DOSSIÊS ================= -->
+    <section id="rh" class="section-animate" hidden>
+      <div class="section-header">
+        <h2>Recursos Humanos e Dossiês</h2>
+        <div class="section-header-actions">
+          <button type="button" id="btnNovoDocumento" class="main-action">+ Novo Documento</button>
+        </div>
+      </div>
+
+      <div class="rh-tabs">
+        <button type="button" class="rh-tab active" data-rh-tab="alertas">Alertas de prazos</button>
+        <button type="button" class="rh-tab" data-rh-tab="pessoas">Pessoas (${0})</button>
+        <button type="button" class="rh-tab" data-rh-tab="subsidios">Processos de Subsídio</button>
+        <button type="button" class="rh-tab" data-rh-tab="documentos">Todos os documentos</button>
+      </div>
+
+      <div id="rhTabAlertas" class="rh-tab-panel">
+        <div class="rh-alertas-legenda">
+          <span class="rh-badge-sev rh-badge-vencido">Vencido</span>
+          <span class="rh-badge-sev rh-badge-critico">≤ 5 dias</span>
+          <span class="rh-badge-sev rh-badge-aviso">≤ 15 dias</span>
+          <span class="rh-badge-sev rh-badge-ok">OK</span>
+        </div>
+        <div id="rhAlertasLista"><p class="text-muted">A carregar…</p></div>
+      </div>
+
+      <div id="rhTabPessoas" class="rh-tab-panel" hidden>
+        <p class="text-muted" style="margin-bottom:14px;">Entidades do tipo "pessoa interna" (estagiários, voluntários, colaboradores). Para gerir, usa a secção <a href="#entidades" data-nav="entidades">Entidades</a>.</p>
+        <div id="rhPessoasLista" class="entidades-grid"></div>
+      </div>
+
+      <div id="rhTabSubsidios" class="rh-tab-panel" hidden>
+        <p class="text-muted" style="margin-bottom:14px;">Processos tipo "Subsídio" (IEFP, IPDJ, etc.). Para gerir, cria/edita em <a href="#eventos" data-nav="eventos">Eventos → Novo (tipo Subsídio)</a>.</p>
+        <div id="rhSubsidiosLista"></div>
+      </div>
+
+      <div id="rhTabDocumentos" class="rh-tab-panel" hidden>
+        <div id="rhDocumentosLista"></div>
       </div>
     </section>
 
@@ -621,8 +710,19 @@
             <div class="form-field"><label for="tipoFatura">Tipo <span class="form-required">*</span></label><select id="tipoFatura" required><option>Fatura</option><option>Recibo</option><option>Recibo Verde</option><option>Nota de Crédito</option><option>Outro</option></select></div>
             <div class="form-field"><label for="numeroFatura">Número <span class="form-required">*</span></label><input id="numeroFatura" required placeholder="ex: FT 2026/001"></div>
             <div class="form-field"><label for="departamento">Departamento <span class="form-required">*</span></label><select id="departamento" required><option value="">Selecionar...</option></select></div>
-            <div class="form-field"><label for="fornecedorFatura">Fornecedor <span class="form-optional">opcional</span></label><input id="fornecedorFatura" placeholder="Nome do fornecedor"></div>
-            <div class="form-field"><label for="fornecedorNifFatura">NIF do fornecedor <span class="form-optional">opcional</span></label><input id="fornecedorNifFatura" placeholder="ex: 500123456"></div>
+            <div class="form-field">
+              <label for="contaSncFatura">Conta SNC <span class="form-required">*</span></label>
+              <select id="contaSncFatura" required></select>
+              <small class="form-hint" id="contaSncFaturaHint"></small>
+            </div>
+            <div class="form-field">
+              <label for="entidadeFatura">Entidade (fornecedor) <span class="form-required">*</span></label>
+              <input id="entidadeFatura" list="entidadesDatalist" placeholder="Nome ou NIF — escolhe da lista" autocomplete="off">
+              <input type="hidden" id="entidadeFaturaId">
+              <small class="form-hint">Se não existe, cria em <a href="#entidades" data-nav="entidades">Entidades</a>.</small>
+            </div>
+            <div class="form-field" hidden><label for="fornecedorFatura">Fornecedor (legado)</label><input id="fornecedorFatura"></div>
+            <div class="form-field" hidden><label for="fornecedorNifFatura">NIF (legado)</label><input id="fornecedorNifFatura"></div>
           </div>
         </div>
         <div class="form-fieldset">
@@ -680,8 +780,19 @@
           <div class="form-fieldset-title">Informações principais</div>
           <div class="form-grid">
             <div class="form-field"><label for="tituloReceita">Título <span class="form-required">*</span></label><input id="tituloReceita" required placeholder="Descrição da receita"></div>
-            <div class="form-field"><label for="categoriaReceita">Categoria <span class="form-required">*</span></label><select id="categoriaReceita" required><option value="">Selecionar...</option><option>Quotas</option><option>Patrocínios/Doações</option><option>Cofinanciamentos</option><option>Vendas/Serviços</option><option>Reembolsos</option><option>Outros</option></select></div>
-            <div class="form-field form-field-full"><label for="financiadorReceita">Financiador <span class="form-optional">opcional</span></label><input id="financiadorReceita" placeholder="ex: Câmara Municipal"></div>
+            <div class="form-field">
+              <label for="contaSncReceita">Conta SNC <span class="form-required">*</span></label>
+              <select id="contaSncReceita" required></select>
+              <small class="form-hint" id="contaSncReceitaHint"></small>
+            </div>
+            <div class="form-field">
+              <label for="entidadeReceita">Entidade (financiador) <span class="form-required">*</span></label>
+              <input id="entidadeReceita" list="entidadesDatalist" placeholder="Nome ou NIF — escolhe da lista" autocomplete="off">
+              <input type="hidden" id="entidadeReceitaId">
+              <small class="form-hint">Se não existe, cria em <a href="#entidades" data-nav="entidades">Entidades</a>.</small>
+            </div>
+            <div class="form-field" hidden><label for="categoriaReceita">Categoria (legado)</label><select id="categoriaReceita"><option value="">—</option><option>Quotas</option><option>Patrocínios/Doações</option><option>Cofinanciamentos</option><option>Vendas/Serviços</option><option>Reembolsos</option><option>Outros</option></select></div>
+            <div class="form-field" hidden><label for="financiadorReceita">Financiador (legado)</label><input id="financiadorReceita"></div>
           </div>
         </div>
         <div class="form-fieldset">
@@ -735,14 +846,49 @@
       </div>
       <form id="eventoForm" class="form-modern">
         <div class="form-fieldset">
-          <div class="form-fieldset-title">Informações do evento</div>
+          <div class="form-fieldset-title">Tipo de processo</div>
           <div class="form-grid">
-            <div class="form-field form-field-full"><label for="eventoNome">Nome <span class="form-required">*</span></label><input id="eventoNome" required placeholder="Nome do evento"></div>
+            <div class="form-field">
+              <label for="eventoTipo">Tipo <span class="form-required">*</span></label>
+              <select id="eventoTipo" required>
+                <option value="Evento">Evento (atividade pontual)</option>
+                <option value="Projeto Anual">Projeto Anual (ex: Workshops, PodCast)</option>
+                <option value="Investimento">Investimento (obras, equipamento duradouro)</option>
+                <option value="Subsídio">Subsídio (processo multi-prestação IEFP/IPDJ)</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="eventoEstado">Estado</label>
+              <select id="eventoEstado"><option>Em curso</option><option>Concluído</option><option>Cancelado</option></select>
+            </div>
+          </div>
+        </div>
+        <div class="form-fieldset">
+          <div class="form-fieldset-title">Informações gerais</div>
+          <div class="form-grid">
+            <div class="form-field form-field-full"><label for="eventoNome">Nome <span class="form-required">*</span></label><input id="eventoNome" required placeholder="Nome do processo"></div>
             <div class="form-field"><label for="eventoDataInicio">Data de Início</label><input type="date" id="eventoDataInicio"></div>
             <div class="form-field"><label for="eventoDataFim">Data de Fim</label><input type="date" id="eventoDataFim"></div>
             <div class="form-field"><label for="eventoDepartamento">Departamento</label><select id="eventoDepartamento"><option value="">Selecionar...</option></select></div>
           </div>
-          <div class="form-field"><label for="eventoDescricao">Descrição <span class="form-optional">opcional</span></label><textarea id="eventoDescricao" placeholder="Detalhes sobre o evento..."></textarea></div>
+          <div class="form-field"><label for="eventoDescricao">Descrição <span class="form-optional">opcional</span></label><textarea id="eventoDescricao" placeholder="Detalhes do processo..."></textarea></div>
+        </div>
+        <!-- Campos específicos para "Subsídio" -->
+        <div class="form-fieldset" id="eventoSubsidioFieldset" hidden style="background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:14px;">
+          <div class="form-fieldset-title" style="color:#92400e;">Dados do Subsídio</div>
+          <div class="form-grid">
+            <div class="form-field">
+              <label for="eventoEntidadeFin">Entidade financiadora</label>
+              <input id="eventoEntidadeFin" list="entidadesDatalist" placeholder="Ex: IEFP, IPDJ, Câmara…" autocomplete="off">
+              <input type="hidden" id="eventoEntidadeFinId">
+            </div>
+            <div class="form-field"><label for="eventoNumeroProc">Nº processo / candidatura</label><input id="eventoNumeroProc"></div>
+            <div class="form-field"><label for="eventoValorAprov">Valor total aprovado (€)</label><input type="number" step="0.01" id="eventoValorAprov"></div>
+            <div class="form-field">
+              <label for="eventoContaRec">Conta SNC das prestações recebidas</label>
+              <select id="eventoContaRec"></select>
+            </div>
+          </div>
         </div>
         <div class="form-btns"><button type="button" class="ghost-action js-cancel-form">Cancelar</button><button type="submit" id="eventoSubmitButton" class="main-action">Guardar</button></div>
       </form>
@@ -794,9 +940,193 @@
     </div>
   </div>
 
+  <!-- Datalist global de entidades (preenchido dinamicamente) -->
+  <datalist id="entidadesDatalist"></datalist>
+
+  <!-- Modal: Capitalizar despesas → ativos de inventário -->
+  <div id="capitalizarAtivosModal" class="modal-backdrop" hidden>
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <h3>Capitalizar Despesas como Ativos Fixos</h3>
+        <button type="button" class="modal-close" id="capitalizarClose" aria-label="Fechar">×</button>
+      </div>
+      <p class="text-muted">Despesas classificadas em conta SNC 43x (ativos fixos) que ainda não foram transformadas em item de inventário. Capitalizar permite calcular depreciação anual.</p>
+      <div id="capitalizarLista"><p class="text-muted">A carregar…</p></div>
+    </div>
+  </div>
+
+  <!-- Modal: Mapa de depreciações -->
+  <div id="mapaDepreciacoesModal" class="modal-backdrop" hidden>
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <h3>Mapa de Depreciações</h3>
+        <button type="button" class="modal-close" id="depreciacoesClose" aria-label="Fechar">×</button>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;">
+        <label>Ano:</label>
+        <select id="depreciacoesAno" style="padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;"></select>
+      </div>
+      <div id="depreciacoesConteudo"><p class="text-muted">A carregar…</p></div>
+    </div>
+  </div>
+
+  <!-- Modal: Documento -->
+  <div id="documentoFormModal" class="modal-backdrop" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="documentoFormTitle">Novo Documento</h3>
+        <button type="button" class="modal-close" id="documentoFormClose" aria-label="Fechar">×</button>
+      </div>
+      <form id="documentoForm" class="form-modern" enctype="multipart/form-data">
+        <input type="hidden" id="documentoFormId">
+        <div class="form-field">
+          <label for="docTipo">Tipo <span class="form-required">*</span></label>
+          <select id="docTipo" required>
+            <option value="">Selecionar…</option>
+            <option>Contrato</option>
+            <option>Plano Individual</option>
+            <option>Apólice Seguro</option>
+            <option>Declaração SS</option>
+            <option>Declaração NEET</option>
+            <option>Certificado Habilitações</option>
+            <option>Certificado Final</option>
+            <option>Documento Identificação</option>
+            <option>Protocolo</option>
+            <option>Outro</option>
+          </select>
+        </div>
+        <div class="form-grid">
+          <div class="form-field"><label for="docEstado">Estado</label><select id="docEstado"><option>Pendente</option><option>Anexado</option><option>Enviado</option></select></div>
+          <div class="form-field"><label for="docDataLimite">Data-limite</label><input type="date" id="docDataLimite"></div>
+        </div>
+        <div class="form-field">
+          <label for="docProcesso">Processo (opcional)</label>
+          <select id="docProcesso"><option value="">—</option></select>
+        </div>
+        <div class="form-field">
+          <label for="docEntidade">Pessoa (opcional)</label>
+          <input id="docEntidade" list="entidadesDatalist" placeholder="Entidade/pessoa associada" autocomplete="off">
+          <input type="hidden" id="docEntidadeId">
+          <small class="form-hint">Tem de ter pelo menos um dos dois (processo ou pessoa).</small>
+        </div>
+        <div class="form-field"><label for="docDescricao">Descrição</label><input id="docDescricao" placeholder="ex: Contrato IEFP INICIAR 2026"></div>
+        <div class="form-field"><label for="docAnexo">Anexo (PDF/JPG)</label><input type="file" id="docAnexo" accept="application/pdf,image/*"></div>
+        <div class="form-field"><label for="docNotas">Notas</label><textarea id="docNotas" rows="2"></textarea></div>
+        <div class="form-btns">
+          <button type="button" class="ghost-action js-cancel-form">Cancelar</button>
+          <button type="submit" class="main-action">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Entidade (criar/editar) -->
+  <div id="entidadeFormModal" class="modal-backdrop" hidden>
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <h3 id="entidadeFormTitle">Nova Entidade</h3>
+        <button type="button" class="modal-close" id="entidadeFormClose" aria-label="Fechar">×</button>
+      </div>
+      <form id="entidadeForm" class="form-modern">
+        <input type="hidden" id="entidadeFormId">
+
+        <div class="form-fieldset">
+          <div class="form-fieldset-title">Identificação</div>
+          <div class="form-grid">
+            <div class="form-field form-field-full"><label for="entNome">Nome <span class="form-required">*</span></label><input id="entNome" required></div>
+            <div class="form-field"><label for="entNif">NIF / VAT</label><input id="entNif" placeholder="ex: 500123456 ou LU12345678"></div>
+            <div class="form-field form-field-full">
+              <label>Tipos <span class="form-required">*</span></label>
+              <div class="entidade-tipos-check">
+                <label><input type="checkbox" value="fornecedor" class="ent-tipo"> Fornecedor</label>
+                <label><input type="checkbox" value="financiador" class="ent-tipo"> Financiador</label>
+                <label><input type="checkbox" value="pessoa-interna" class="ent-tipo"> Pessoa interna (RH)</label>
+                <label><input type="checkbox" value="socio" class="ent-tipo"> Sócio</label>
+                <label><input type="checkbox" value="cliente" class="ent-tipo"> Cliente</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-fieldset">
+          <div class="form-fieldset-title">Contactos</div>
+          <div class="form-grid">
+            <div class="form-field"><label for="entEmail">Email</label><input type="email" id="entEmail"></div>
+            <div class="form-field"><label for="entTelefone">Telefone</label><input id="entTelefone"></div>
+            <div class="form-field form-field-full"><label for="entMorada">Morada</label><input id="entMorada"></div>
+            <div class="form-field"><label for="entIban">IBAN</label><input id="entIban" placeholder="PT50 ..."></div>
+          </div>
+        </div>
+
+        <div class="form-fieldset" id="entRhFieldset">
+          <div class="form-fieldset-title">Dados RH (preencher se é pessoa interna)</div>
+          <div class="form-grid">
+            <div class="form-field"><label for="entNiss">NISS</label><input id="entNiss"></div>
+            <div class="form-field"><label for="entTipoVinculo">Tipo de vínculo</label><select id="entTipoVinculo">
+              <option value="">—</option>
+              <option>Estágio INICIAR</option>
+              <option>Estágio +Talento</option>
+              <option>CEI</option>
+              <option>+Emprego</option>
+              <option>Voluntariado</option>
+              <option>Colaborador</option>
+            </select></div>
+            <div class="form-field"><label for="entFuncao">Função</label><input id="entFuncao"></div>
+            <div class="form-field"><label for="entBolsa">Bolsa base (€)</label><input type="number" step="0.01" id="entBolsa"></div>
+            <div class="form-field"><label for="entNascimento">Data de nascimento</label><input type="date" id="entNascimento"></div>
+          </div>
+        </div>
+
+        <div class="form-field"><label for="entNotas">Notas</label><textarea id="entNotas" rows="2"></textarea></div>
+        <label class="form-checkbox"><input type="checkbox" id="entVerificado"> Dados verificados</label>
+
+        <div class="form-btns">
+          <button type="button" class="ghost-action js-cancel-form">Cancelar</button>
+          <button type="submit" class="main-action">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Detalhes de Entidade -->
+  <div id="entidadeDetailModal" class="modal-backdrop" hidden>
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <h3 id="entidadeDetailTitle">Entidade</h3>
+        <button type="button" class="modal-close" id="entidadeDetailClose" aria-label="Fechar">×</button>
+      </div>
+      <div id="entidadeDetailBody"></div>
+      <div class="modal-actions">
+        <button type="button" id="btnEditarEntidade" class="ghost-action">Editar</button>
+        <button type="button" id="btnEliminarEntidade" class="danger-action">Eliminar</button>
+        <button type="button" class="ghost-action modal-close">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Fundir entidades -->
+  <div id="fundirEntidadesModal" class="modal-backdrop" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Fundir Entidades</h3>
+        <button type="button" class="modal-close" id="fundirClose" aria-label="Fechar">×</button>
+      </div>
+      <p>Escolhe a <strong>entidade a manter</strong>. Todas as receitas/despesas das outras serão repontadas para esta e as outras serão <strong>eliminadas</strong>.</p>
+      <div class="form-field">
+        <label for="fundirDestino">Manter esta entidade:</label>
+        <select id="fundirDestino"></select>
+      </div>
+      <div id="fundirPreview" class="fundir-preview"></div>
+      <div class="form-btns">
+        <button type="button" class="ghost-action js-cancel-form">Cancelar</button>
+        <button type="button" id="btnConfirmarFusao" class="danger-action">Fundir e eliminar duplicados</button>
+      </div>
+    </div>
+  </div>
+
   <!-- JS -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="assets/js/script.js?v=20260812b"></script>
+  <script src="assets/js/script.js?v=20261004a"></script>
 
 </body>
 </html>

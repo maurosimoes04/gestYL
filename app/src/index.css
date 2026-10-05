@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root { color-scheme: light; }
+  :root.dark { color-scheme: dark; }
+  body {
+    @apply bg-surface-page text-ink font-sans;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  :root.dark body {
+    @apply bg-[#0b0d12] text-ink-invert;
+  }
+  * { scrollbar-width: thin; scrollbar-color: #d1d5db transparent; }
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 999px; }
+  *::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+}
+
+@layer components {
+  .tabular { font-variant-numeric: tabular-nums; }
+}

@@ -43,8 +43,16 @@ app.use(cors({
 app.use(express.json());
 
 const frontendPath = path.join(process.cwd(), 'src', 'frontend');
+const appPath = path.join(frontendPath, 'app');
 app.get('/favicon.ico', (_req, res) => res.status(204).end());
 app.use(express.static(frontendPath));
+
+// Novo frontend React em /app — servir estaticamente e fazer fallback SPA para index.html
+app.use('/app', express.static(appPath));
+app.get(/^\/app(\/.*)?$/, (_req, res, next) => {
+  const indexHtml = path.join(appPath, 'index.html');
+  res.sendFile(indexHtml, (err) => { if (err) next(); });
+});
 
 app.get('/api/config', (_req, res) => {
   res.json({
@@ -125,6 +133,18 @@ bootLog('App: inventario routes carregadas');
 bootLog('App: carregar departamento routes');
 const departamentoRoutes = require('./routes/departamento').default;
 bootLog('App: departamento routes carregadas');
+bootLog('App: carregar contaSnc routes');
+const contaSncRoutes = require('./routes/contaSnc').default;
+bootLog('App: contaSnc routes carregadas');
+bootLog('App: carregar entidade routes');
+const entidadeRoutes = require('./routes/entidade').default;
+bootLog('App: entidade routes carregadas');
+bootLog('App: carregar documento routes');
+const documentoRoutes = require('./routes/documento').default;
+bootLog('App: documento routes carregadas');
+bootLog('App: carregar sncIa routes');
+const sncIaRoutes = require('./routes/sncIa').default;
+bootLog('App: sncIa routes carregadas');
 
 app.use(requireAuth);
 app.use(guardWrite);
@@ -136,5 +156,9 @@ app.use('/movimentos', auditRoutes('movimento'), movimentoRoutes);
 app.use('/relatorios', relatorioRoutes);
 app.use('/inventario', auditRoutes('inventario'), inventarioRoutes);
 app.use('/departamentos', auditRoutes('departamento'), departamentoRoutes);
+app.use('/contas-snc', auditRoutes('contaSnc'), contaSncRoutes);
+app.use('/entidades', auditRoutes('entidade'), entidadeRoutes);
+app.use('/documentos', auditRoutes('documento'), documentoRoutes);
+app.use('/ia-snc', auditRoutes('sncIa'), sncIaRoutes);
 
 export default app;

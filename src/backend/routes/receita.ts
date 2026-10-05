@@ -35,7 +35,7 @@ router.get('/', async (req, res) => {
     const receitas = await prisma.receita.findMany({
       where,
       orderBy: { data: 'desc' },
-      include: { receitaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
+      include: { receitaEventos: { include: { evento: { select: { id: true, nome: true } } } }, contaSnc: { select: { id: true, codigo: true, nome: true } }, entidade: { select: { id: true, nome: true, nif: true } } },
     });
     res.json(receitas);
   } catch (err) {
@@ -46,7 +46,7 @@ router.get('/', async (req, res) => {
 
 router.post('/', upload.single('anexo'), async (req, res) => {
   try {
-    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'categoria', 'estado', 'financiador', 'observacoes'];
+    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'categoria', 'estado', 'financiador', 'observacoes', 'contaSncId', 'entidadeId'];
     const payload: any = {};
     for (const k of ALLOWED_FIELDS) {
       const v = req.body[k];
@@ -54,6 +54,8 @@ router.post('/', upload.single('anexo'), async (req, res) => {
     }
     if (payload.valor) payload.valor = parseFloat(payload.valor);
     if (payload.data) payload.data = new Date(payload.data);
+    if (payload.contaSncId) payload.contaSncId = Number(payload.contaSncId);
+    if (payload.entidadeId) payload.entidadeId = Number(payload.entidadeId);
 
     let eventosInput: { eventoId: number; valor: number }[] = [];
     try {
@@ -98,7 +100,7 @@ router.post('/', upload.single('anexo'), async (req, res) => {
           },
         }),
       },
-      include: { receitaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
+      include: { receitaEventos: { include: { evento: { select: { id: true, nome: true } } } }, contaSnc: { select: { id: true, codigo: true, nome: true } }, entidade: { select: { id: true, nome: true, nif: true } } },
     });
     await syncMovimentoParaReceita(receita, req.body.conta);
     if (req.file) {
@@ -148,7 +150,7 @@ router.post('/:id/analisar', async (req, res) => {
 
     const atualizada = await prisma.receita.findUnique({
       where: { id },
-      include: { receitaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
+      include: { receitaEventos: { include: { evento: { select: { id: true, nome: true } } } }, contaSnc: { select: { id: true, codigo: true, nome: true } }, entidade: { select: { id: true, nome: true, nif: true } } },
     });
     res.json(atualizada);
   } catch (error: any) {
@@ -196,7 +198,7 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     const receita = await prisma.receita.findUnique({ where: { id } });
     if (!receita) return res.status(404).json({ error: 'Receita não encontrada' });
 
-    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'categoria', 'estado', 'financiador', 'observacoes'];
+    const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'categoria', 'estado', 'financiador', 'observacoes', 'contaSncId', 'entidadeId'];
     const payload: any = {};
     for (const k of ALLOWED_FIELDS) {
       const v = req.body[k];
@@ -204,6 +206,8 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     }
     if (payload.valor) payload.valor = parseFloat(payload.valor);
     if (payload.data) payload.data = new Date(payload.data);
+    if (payload.contaSncId) payload.contaSncId = Number(payload.contaSncId);
+    if (payload.entidadeId) payload.entidadeId = Number(payload.entidadeId);
 
     let eventosInput: { eventoId: number; valor: number }[] | null = null;
     try {
@@ -268,7 +272,7 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
     const updated = await prisma.receita.update({
       where: { id },
       data: payload,
-      include: { receitaEventos: { include: { evento: { select: { id: true, nome: true } } } } },
+      include: { receitaEventos: { include: { evento: { select: { id: true, nome: true } } } }, contaSnc: { select: { id: true, codigo: true, nome: true } }, entidade: { select: { id: true, nome: true, nif: true } } },
     });
     await syncMovimentoParaReceita(updated, req.body.conta);
     if (req.file) {
