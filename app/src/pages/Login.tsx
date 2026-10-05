@@ -31,9 +31,8 @@ export function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-soft via-surface-page to-purple-50 p-4">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center gap-3 mb-8">
-          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-brand to-purple-600 text-white font-bold grid place-items-center text-xl shadow-card">YL</div>
+          <img src="/app/logo-original.png" alt="Young-Link" className="w-72 h-36 object-contain" />
           <div className="text-center">
-            <h1 className="text-xl font-bold text-ink">Gestor Young-Link</h1>
             <p className="text-sm text-ink-soft mt-1">Entra com a tua conta YL</p>
           </div>
         </div>

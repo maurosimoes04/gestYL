@@ -60,7 +60,7 @@ export function RelatoriosPage() {
           description="Documento anual completo, gerado por IA a partir do plano de atividades. Rascunho editável antes do PDF final."
           purple
         >
-          <Button variant="ghost" onClick={() => alert('A integração do Relatório IA será migrada em breve. Usa /user por agora.')}>
+          <Button variant="ghost" onClick={() => alert('A integração do Relatório IA será disponibilizada numa próxima atualização.')}>
             Em breve
           </Button>
         </ReportCard>

@@ -44,14 +44,17 @@ app.use(express.json());
 
 const frontendPath = path.join(process.cwd(), 'src', 'frontend');
 const appPath = path.join(frontendPath, 'app');
+const sendReactApp = (_req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const indexHtml = path.join(appPath, 'index.html');
+  res.sendFile(indexHtml, (err) => { if (err) next(); });
+};
 app.get('/favicon.ico', (_req, res) => res.status(204).end());
-app.use(express.static(frontendPath));
+app.use('/assets', express.static(path.join(frontendPath, 'assets')));
 
 // Novo frontend React em /app — servir estaticamente e fazer fallback SPA para index.html
 app.use('/app', express.static(appPath));
 app.get(/^\/app(\/.*)?$/, (_req, res, next) => {
-  const indexHtml = path.join(appPath, 'index.html');
-  res.sendFile(indexHtml, (err) => { if (err) next(); });
+  sendReactApp(_req, res, next);
 });
 
 app.get('/api/config', (_req, res) => {
@@ -63,7 +66,7 @@ app.get('/api/config', (_req, res) => {
 
 // Páginas públicas
 app.get('/login', (_req, res) => {
-  res.sendFile(path.join(frontendPath, 'login.html'));
+  sendReactApp(_req, res, () => res.status(404).end());
 });
 app.get('/set-password', (_req, res) => {
   res.sendFile(path.join(frontendPath, 'set-password.html'));
@@ -72,18 +75,9 @@ app.get('/reset-password', (_req, res) => {
   res.sendFile(path.join(frontendPath, 'reset-password.html'));
 });
 
-// Páginas protegidas (verificação feita no JS do cliente)
-app.get('/user', (_req, res) => {
-  res.sendFile(path.join(frontendPath, 'user.html'));
-});
-app.get('/admin', (_req, res) => {
-  res.sendFile(path.join(frontendPath, 'admin.html'));
-});
-
-// Redirect raiz para login
-app.get('/', (_req, res) => {
-  res.redirect('/login');
-});
+// O novo frontend React é a entrada principal; /app continua como alias.
+app.get('/', sendReactApp);
+app.get(/^\/(login|admin|despesas|receitas|processos|tesouraria|inventario|entidades|rh|relatorios|partilhas|ia)(\/.*)?$/, sendReactApp);
 
 // Partilha publica de eventos
 app.get('/share/evento/:token', (_req, res) => {

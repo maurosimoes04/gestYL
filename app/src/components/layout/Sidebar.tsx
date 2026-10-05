@@ -43,11 +43,11 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     )}>
       <div className="px-4 py-4 border-b border-line-soft flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="w-9 h-9 rounded-md bg-gradient-to-br from-brand to-purple-600 text-white font-bold grid place-items-center shrink-0 text-sm">YL</div>
-          {!collapsed && <div className="min-w-0">
-            <div className="font-bold text-ink text-sm truncate">Young-Link</div>
-            <div className="text-[0.68rem] uppercase tracking-wider text-ink-muted">Gestor · 2026</div>
-          </div>}
+          <img src="/app/logo-original.png" alt="Young-Link" className={cn(
+            'object-contain shrink-0',
+            collapsed ? 'w-12 h-12' : 'w-32 h-14',
+          )} />
+          {!collapsed && <div className="text-[0.68rem] uppercase tracking-wider text-ink-muted">2026</div>}
         </div>
         <button onClick={() => setCollapsed(!collapsed)}
                 className="p-1 rounded hover:bg-surface-alt text-ink-soft hidden md:block"
