@@ -2,6 +2,7 @@ import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { AppLayout } from './components/layout/AppLayout';
 import { LoginPage } from './pages/Login';
+import { SharePublicPage } from './pages/SharePublic';
 import { ResumoPage } from './pages/Resumo';
 import { DespesasPage } from './pages/Despesas';
 import { ReceitasPage } from './pages/Receitas';
@@ -28,6 +29,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/share/evento/:token" element={<SharePublicPage />} />
       <Route element={<Protected />}>
         <Route element={<AppLayout />}>
           <Route index element={<ResumoPage />} />

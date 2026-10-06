@@ -39,7 +39,7 @@ export function ResumoPage() {
       />
 
       {loading && <LoadingBlock />}
-      {!loading && bal && (
+      {!loading && bal && bal.totais && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
             <KPI label="Proveitos" value={fmtEuro(bal.totais.proveitos)} accent="good" delta={<><TrendingUp className="inline w-3 h-3 mr-1" />Entradas</>} deltaColor="good" />

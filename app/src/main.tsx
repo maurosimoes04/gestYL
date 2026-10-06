@@ -6,9 +6,9 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import './index.css';
 
-const basename = window.location.pathname === '/app' || window.location.pathname.startsWith('/app/')
-  ? '/app'
-  : '/';
+const pathname = window.location.pathname;
+const basename =
+  pathname === '/app' || pathname.startsWith('/app/') ? '/app' : '/';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

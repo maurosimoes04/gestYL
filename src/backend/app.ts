@@ -44,7 +44,12 @@ app.use(express.json());
 
 const frontendPath = path.join(process.cwd(), 'src', 'frontend');
 const appPath = path.join(frontendPath, 'app');
-const sendReactApp = (_req: express.Request, res: express.Response, next: express.NextFunction) => {
+const sendReactApp = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  // Só servir a SPA quando é uma navegação do browser (Accept: text/html).
+  // Pedidos fetch() da própria SPA para a API trazem Accept: */* ou application/json
+  // e devem cair nos routers de API registados mais à frente.
+  const accept = String(req.headers.accept || '');
+  if (!accept.includes('text/html')) return next();
   const indexHtml = path.join(appPath, 'index.html');
   res.sendFile(indexHtml, (err) => { if (err) next(); });
 };
@@ -79,9 +84,13 @@ app.get('/reset-password', (_req, res) => {
 app.get('/', sendReactApp);
 app.get(/^\/(login|admin|despesas|receitas|processos|tesouraria|inventario|entidades|rh|relatorios|partilhas|ia)(\/.*)?$/, sendReactApp);
 
-// Partilha publica de eventos
-app.get('/share/evento/:token', (_req, res) => {
-  res.sendFile(path.join(frontendPath, 'share-evento.html'));
+// Partilha publica de processos — a página é servida pelo React, os endpoints de dados
+// ficam em /share/evento/:token/{access,session,anexo/...,download,relatorio}
+app.get('/share/evento/:token', (req, res, next) => {
+  // O router público lida com /:token/access (POST), /:token/session (GET), etc.
+  // Para o GET simples da página, servimos a SPA.
+  if (req.method !== 'GET') return next();
+  sendReactApp(req, res, next);
 });
 app.use('/share', sharePublicRouter);
 
