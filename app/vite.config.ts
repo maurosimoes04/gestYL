@@ -43,5 +43,14 @@ export default defineConfig({
     outDir: path.resolve(__dirname, '../src/frontend/app'),
     emptyOutDir: true,
     sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          supabase: ['@supabase/supabase-js'],
+          icons: ['lucide-react'],
+        },
+      },
+    },
   },
 });
