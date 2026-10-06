@@ -36,33 +36,27 @@ function drawHeader(doc: InstanceType<PDFDocumentType>, titulo: string, periodoL
   doc.fillColor('#0a0a0a').strokeColor('#0a0a0a');
 }
 
-// Capa: identidade YL — fundo índigo com acentos violeta, logo em cartão branco,
-// título bem contrastado. Nota: `fillOpacity(0)` não deve escorrer para outros
-// fills, por isso o pedaço do stroke corre dentro de save()/restore() próprios.
+// Capa: fundo sólido com a cor da associação (índigo YL). Sem gradientes, sem
+// acentos — só o logo no centro e o título a destacar.
 function drawCover(doc: InstanceType<PDFDocumentType>, titulo: string, subtitulo: string, logo: Buffer | null) {
   const w = doc.page.width, h = doc.page.height;
 
-  // 1. Fundo índigo com faixa violeta diagonal subtil
+  // 1. Fundo liso cor da associação
   doc.rect(0, 0, w, h).fill('#4f46e5');
-  doc.rect(0, h * 0.62, w, h * 0.38).fill('#6d28d9');
-  // Faixas finas superior/inferior
-  doc.rect(0, 0, w, 6).fill('#a78bfa');
-  doc.rect(0, h - 6, w, 6).fill('#a78bfa');
 
-  // 2. Moldura branca (isolada para o fillOpacity não contaminar o resto)
+  // 2. Moldura branca ténue (opacidade isolada para não contaminar o resto)
   doc.save();
   doc.lineWidth(1).strokeColor('#ffffff').fillOpacity(0.0)
      .rect(28, 28, w - 56, h - 56).stroke();
   doc.restore();
 
-  // 3. Cartão branco com o logo (dá contraste e identidade)
-  const cardW = 220, cardH = 110;
-  const cardX = (w - cardW) / 2, cardY = 170;
+  // 3. Cartão branco com o logo
+  const cardW = 240, cardH = 120;
+  const cardX = (w - cardW) / 2, cardY = h / 2 - cardH - 40;
   doc.roundedRect(cardX, cardY, cardW, cardH, 10).fill('#ffffff');
   if (logo) {
     try {
-      // Centrado no cartão
-      doc.image(logo, cardX + 10, cardY + 10, { fit: [cardW - 20, cardH - 20], align: 'center', valign: 'center' });
+      doc.image(logo, cardX + 12, cardY + 12, { fit: [cardW - 24, cardH - 24], align: 'center', valign: 'center' });
     } catch { /* ignora logo partido */ }
   }
 
@@ -71,13 +65,12 @@ function drawCover(doc: InstanceType<PDFDocumentType>, titulo: string, subtitulo
      .text('ASSOCIAÇÃO JUVENIL · CASTRO MARIM', 40, 110, { width: w - 80, align: 'center', characterSpacing: 4 });
 
   // 5. Bloco central: título + subtítulo
-  const titleY = cardY + cardH + 70;
+  const titleY = h / 2 + 10;
   doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(30)
      .text(titulo, 40, titleY, { width: w - 80, align: 'center', lineGap: 2 });
 
-  // Separador curto
-  const sepY = titleY + 70;
-  doc.rect((w - 60) / 2, sepY, 60, 2).fill('#c4b5fd');
+  const sepY = titleY + 60;
+  doc.rect((w - 60) / 2, sepY, 60, 2).fill('#ffffff');
 
   doc.fillColor('#e9d5ff').font('Helvetica').fontSize(15)
      .text(subtitulo, 40, sepY + 14, { width: w - 80, align: 'center' });
@@ -89,7 +82,7 @@ function drawCover(doc: InstanceType<PDFDocumentType>, titulo: string, subtitulo
   doc.fillColor('#ddd6fe').font('Helvetica-Bold').fontSize(8)
      .text('GESTOR YL', 40, h - 54, { width: w - 80, align: 'center', characterSpacing: 3 });
 
-  // Restaurar defaults de cor/opacidade antes do próximo page content
+  // Repor defaults
   doc.fillColor('#0a0a0a').strokeColor('#0a0a0a').fillOpacity(1);
 }
 
