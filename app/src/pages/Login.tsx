@@ -47,9 +47,8 @@ export function LoginPage() {
           <Button type="submit" loading={loading} className="w-full justify-center mt-2">
             Entrar
           </Button>
-          <div className="flex justify-between text-xs text-ink-soft pt-2">
-            <a href="/reset-password" className="hover:text-brand">Esqueci-me da password</a>
-            <a href="/set-password" className="hover:text-brand">Primeira sessão</a>
+          <div className="flex justify-center text-xs text-ink-soft pt-2">
+            <a href="/forgot-password" className="hover:text-brand">Esqueci-me da password</a>
           </div>
         </form>
       </div>

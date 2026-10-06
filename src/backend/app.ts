@@ -79,6 +79,9 @@ app.get('/set-password', (_req, res) => {
 app.get('/reset-password', (_req, res) => {
   res.sendFile(path.join(frontendPath, 'reset-password.html'));
 });
+app.get('/forgot-password', (_req, res) => {
+  res.sendFile(path.join(frontendPath, 'forgot-password.html'));
+});
 
 // O novo frontend React é a entrada principal; /app continua como alias.
 app.get('/', sendReactApp);
