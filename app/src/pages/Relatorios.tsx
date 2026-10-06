@@ -6,12 +6,14 @@ import { BarChart3, Sparkles, FileSpreadsheet, Download } from 'lucide-react';
 import { useState } from 'react';
 import { openProtected } from '@/lib/download';
 import { useToast } from '@/contexts/ToastContext';
+import { RelatorioIAModal } from '@/components/forms/RelatorioIAModal';
 
 export function RelatoriosPage() {
   const ano = new Date().getFullYear();
   const [anoFin, setAnoFin] = useState(ano);
   const [anoSnc, setAnoSnc] = useState(ano);
   const [loading, setLoading] = useState<string | null>(null);
+  const [showIA, setShowIA] = useState(false);
   const { toast } = useToast();
 
   async function abrirPdf(url: string, key: string) {
@@ -60,11 +62,13 @@ export function RelatoriosPage() {
           description="Documento anual completo, gerado por IA a partir do plano de atividades. Rascunho editável antes do PDF final."
           purple
         >
-          <Button variant="ghost" onClick={() => alert('A integração do Relatório IA será disponibilizada numa próxima atualização.')}>
-            Em breve
+          <Button icon={<Sparkles className="w-4 h-4" />} onClick={() => setShowIA(true)}>
+            Começar
           </Button>
         </ReportCard>
       </div>
+
+      <RelatorioIAModal open={showIA} onClose={() => setShowIA(false)} />
     </>
   );
 }

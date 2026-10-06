@@ -6,8 +6,21 @@
 import { api } from './api';
 
 export async function openProtected(url: string): Promise<void> {
+  return openProtectedRequest(url, { method: 'GET' });
+}
+
+/** Variante para endpoints que exigem POST com corpo JSON (ex: /relatorios/anual/pdf). */
+export async function openProtectedPost(url: string, body?: any): Promise<void> {
+  return openProtectedRequest(url, {
+    method: 'POST',
+    headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+}
+
+async function openProtectedRequest(url: string, init: RequestInit): Promise<void> {
   try {
-    const res: Response = await api(url, { raw: true });
+    const res: Response = await api(url, { raw: true, ...init });
     if (!res.ok) {
       const t = await res.text().catch(() => '');
       throw new Error(t || `HTTP ${res.status}`);
