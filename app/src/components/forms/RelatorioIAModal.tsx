@@ -1,13 +1,14 @@
 import { useState, FormEvent } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
-import { Input, Select, Textarea } from '@/components/ui/Input';
+import { Select, Textarea } from '@/components/ui/Input';
 import { FormField, FormSection } from '@/components/ui/FormField';
+import { FileDropzone } from '@/components/ui/FileDropzone';
 import { Spinner } from '@/components/ui/Spinner';
 import { apiPost } from '@/lib/api';
 import { openProtectedPost } from '@/lib/download';
 import { useToast } from '@/contexts/ToastContext';
-import { Sparkles, FileText, ArrowLeft, Download, AlertTriangle } from 'lucide-react';
+import { Sparkles, ArrowLeft, Download, AlertTriangle } from 'lucide-react';
 
 interface Props {
   open: boolean;
@@ -39,7 +40,7 @@ const narrativaVazia = (): Narrativa => ({
 });
 
 export function RelatorioIAModal({ open, onClose }: Props) {
-  const { toast } = useToast();
+  const { promise } = useToast();
   const anoAtual = new Date().getFullYear();
   const [fase, setFase] = useState<Fase>('inputs');
   const [ano, setAno] = useState(anoAtual - 1);
@@ -69,30 +70,31 @@ export function RelatorioIAModal({ open, onClose }: Props) {
       const fd = new FormData();
       fd.append('ano', String(ano));
       if (plano) fd.append('plano', plano);
-      const resp = await apiPost<{ ano: number; narrativa: Narrativa | null; aviso: string | null }>(
-        '/relatorios/anual/analise',
-        fd,
+      const resp = await promise(
+        apiPost<{ ano: number; narrativa: Narrativa | null; aviso: string | null }>('/relatorios/anual/analise', fd),
+        {
+          loading: plano ? 'A analisar o plano com IA e os dados do ano…' : 'A apurar dados do ano…',
+          success: plano ? 'Rascunho gerado — revê e corrige antes do PDF' : 'Dados apurados — preenche as secções manualmente',
+          error: (e) => e?.message || 'Erro ao gerar análise',
+        },
       );
       if (resp.aviso) setAviso(resp.aviso);
       setNarrativa(resp.narrativa ?? narrativaVazia());
       setFase('rascunho');
-    } catch (err: any) {
-      toast(err.message || 'Erro ao gerar análise.', 'error');
-    } finally {
-      setLoadingAnalise(false);
-    }
+    } catch { /* promise já notificou */ }
+    finally { setLoadingAnalise(false); }
   }
 
   async function gerarPdf() {
     setLoadingPdf(true);
     try {
-      await openProtectedPost('/relatorios/anual/pdf', { ano, narrativa });
-      toast('Relatório gerado.', 'success');
-    } catch (err: any) {
-      toast(err.message || 'Erro ao gerar PDF.', 'error');
-    } finally {
-      setLoadingPdf(false);
-    }
+      await promise(openProtectedPost('/relatorios/anual/pdf', { ano, narrativa }), {
+        loading: `A gerar Relatório e Contas ${ano}…`,
+        success: 'PDF aberto numa nova aba',
+        error: (e) => e?.message || 'Erro ao gerar PDF',
+      });
+    } catch { /* promise já notificou */ }
+    finally { setLoadingPdf(false); }
   }
 
   function updateAdm<K extends keyof Administracao>(key: K, value: string) {
@@ -134,17 +136,13 @@ export function RelatorioIAModal({ open, onClose }: Props) {
                 label="PDF do plano (opcional)"
                 hint="Sem plano, a IA não analisa o previsto vs realizado — vais ter de escrever as secções manualmente."
               >
-                <Input
-                  type="file"
+                <FileDropzone
+                  value={plano}
+                  onChange={setPlano}
                   accept="application/pdf"
-                  onChange={(e) => setPlano(e.target.files?.[0] || null)}
+                  hint="PDF · até 15 MB"
                 />
               </FormField>
-              {plano && (
-                <p className="text-xs text-ink-soft mt-2 inline-flex items-center gap-1">
-                  <FileText className="w-3.5 h-3.5" /> {plano.name}
-                </p>
-              )}
             </FormSection>
 
             <div className="flex justify-end gap-2 pt-2 border-t border-line">

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea } from '@/components/ui/Input';
 import { FormField, FormGrid, FormSection } from '@/components/ui/FormField';
 import { EntidadeSelect } from '@/components/ui/EntidadeSelect';
+import { FileDropzone } from '@/components/ui/FileDropzone';
 import { apiPost, apiPut } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
 import { useCatalogos } from '@/hooks/useCatalogos';
@@ -87,7 +88,9 @@ export function DocumentoFormModal({ documento, onClose, onSaved }: Props) {
 
         <FormSection title="Detalhes">
           <FormField label="Descrição" className="mb-3"><Input value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="ex: Contrato IEFP 2026" /></FormField>
-          <FormField label="Anexo (PDF/JPG/PNG)" className="mb-3"><Input type="file" accept="application/pdf,image/*" onChange={e => setAnexo(e.target.files?.[0] || null)} /></FormField>
+          <FormField label="Anexo (PDF/JPG/PNG)" className="mb-3">
+            <FileDropzone value={anexo} onChange={setAnexo} />
+          </FormField>
           <FormField label="Notas"><Textarea value={notas} onChange={e => setNotas(e.target.value)} rows={2} /></FormField>
         </FormSection>
       </form>

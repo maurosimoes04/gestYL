@@ -54,7 +54,7 @@ interface AuditResult {
 }
 
 export function IAPage() {
-  const { toast } = useToast();
+  const { toast, promise } = useToast();
   const { role } = useAuth();
   const [faturas, setFaturas] = useState<ItemIA[]>([]);
   const [receitas, setReceitas] = useState<ItemIA[]>([]);
@@ -282,7 +282,11 @@ export function IAPage() {
                 <div className="flex gap-2 mt-3 pt-3 border-t border-line-soft">
                   {item.anexo && (
                     <button type="button"
-                       onClick={() => openProtected(`/${item.tipo === 'fatura' ? 'faturas' : 'receitas'}/${item.id}/anexo`).catch(e => toast(e.message || 'Erro ao abrir anexo', 'error'))}
+                       onClick={() => promise(openProtected(`/${item.tipo === 'fatura' ? 'faturas' : 'receitas'}/${item.id}/anexo`), {
+                         loading: 'A abrir anexo…',
+                         success: 'Anexo aberto numa nova aba',
+                         error: (e) => e?.message || 'Não foi possível abrir o anexo',
+                       })}
                        className="inline-flex items-center gap-1 text-xs text-brand hover:underline">
                       <Paperclip className="w-3 h-3" />Ver anexo
                     </button>

@@ -45,7 +45,7 @@ interface DepreciacoesData {
 }
 
 export function InventarioPage() {
-  const { toast } = useToast();
+  const { toast, promise } = useToast();
   const [tab, setTab] = useState<'consumivel' | 'fixo'>('fixo');
   const [items, setItems] = useState<InventarioItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,15 +69,25 @@ export function InventarioPage() {
       : [];
     if (!ids.length) { toast('Seleciona pelo menos um ativo fixo com código de património', 'error'); return; }
     setAcaoPdf('etiquetas');
-    try { await openProtected(`/inventario/etiquetas/pdf?ids=${ids.join(',')}`); }
-    catch (e: any) { toast(e.message || 'Erro', 'error'); }
+    try {
+      await promise(openProtected(`/inventario/etiquetas/pdf?ids=${ids.join(',')}`), {
+        loading: `A gerar ${ids.length} ${ids.length === 1 ? 'etiqueta' : 'etiquetas'}…`,
+        success: 'Etiquetas abertas numa nova aba',
+        error: (e) => e?.message || 'Erro ao gerar etiquetas',
+      });
+    } catch { /* promise já notificou */ }
     finally { setAcaoPdf(null); }
   }
 
   async function abrirExportPdf() {
     setAcaoPdf('export');
-    try { await openProtected('/inventario/export/pdf'); }
-    catch (e: any) { toast(e.message || 'Erro', 'error'); }
+    try {
+      await promise(openProtected('/inventario/export/pdf'), {
+        loading: 'A gerar inventário completo em PDF…',
+        success: 'Inventário aberto numa nova aba',
+        error: (e) => e?.message || 'Erro ao exportar',
+      });
+    } catch { /* promise já notificou */ }
     finally { setAcaoPdf(null); }
   }
 

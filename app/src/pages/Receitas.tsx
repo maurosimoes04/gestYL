@@ -17,7 +17,7 @@ import type { Receita } from '@/lib/types';
 import { ReceitaFormModal } from '@/components/forms/ReceitaFormModal';
 
 export function ReceitasPage() {
-  const { toast } = useToast();
+  const { toast, promise } = useToast();
   const { role } = useAuth();
   const { contas } = useCatalogos();
   const [items, setItems] = useState<Receita[]>([]);
@@ -131,7 +131,11 @@ export function ReceitasPage() {
                   <div className="flex gap-1 justify-end">
                     {r.anexo && (
                       <button type="button"
-                         onClick={() => openProtected(`/receitas/${r.id}/anexo`).catch(e => toast(e.message || 'Erro ao abrir anexo', 'error'))}
+                         onClick={() => promise(openProtected(`/receitas/${r.id}/anexo`), {
+                           loading: `A abrir anexo de "${r.titulo}"…`,
+                           success: 'Anexo aberto numa nova aba',
+                           error: (e) => e?.message || 'Não foi possível abrir o anexo',
+                         })}
                          className="p-1.5 text-ink-soft hover:text-brand hover:bg-brand-soft rounded" title="Ver anexo">
                         <Paperclip className="w-4 h-4" />
                       </button>

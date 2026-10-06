@@ -19,7 +19,7 @@ import { cn } from '@/lib/cn';
 type Tab = 'alertas' | 'pessoas' | 'subsidios' | 'documentos';
 
 export function RHPage() {
-  const { toast } = useToast();
+  const { toast, promise } = useToast();
   const { role } = useAuth();
   const { entidades, processos } = useCatalogos();
   const [tab, setTab] = useState<Tab>('alertas');
@@ -179,7 +179,7 @@ export function RHPage() {
                   <TD>{d.entidade?.nome || '—'}</TD>
                   <TD><Badge variant={estadoVariant(d.estado)}>{d.estado}</Badge></TD>
                   <TD mono>{fmtData(d.dataLimite)}</TD>
-                  <TD>{d.anexo ? (<button type="button" onClick={() => openProtected(`/documentos/${d.id}/anexo`).catch(e => toast(e.message || 'Erro ao abrir anexo', 'error'))} className="text-brand hover:underline"><Paperclip className="w-4 h-4 inline" /></button>) : '—'}</TD>
+                  <TD>{d.anexo ? (<button type="button" onClick={() => promise(openProtected(`/documentos/${d.id}/anexo`), { loading: 'A abrir documento…', success: 'Documento aberto numa nova aba', error: (e) => e?.message || 'Não foi possível abrir' })} className="text-brand hover:underline"><Paperclip className="w-4 h-4 inline" /></button>) : '—'}</TD>
                   <TD>
                     {!readonly && (
                       <div className="flex gap-1 justify-end">

@@ -14,12 +14,17 @@ export function RelatoriosPage() {
   const [anoSnc, setAnoSnc] = useState(ano);
   const [loading, setLoading] = useState<string | null>(null);
   const [showIA, setShowIA] = useState(false);
-  const { toast } = useToast();
+  const { promise } = useToast();
 
-  async function abrirPdf(url: string, key: string) {
+  async function abrirPdf(url: string, key: string, label: string) {
     setLoading(key);
-    try { await openProtected(url); }
-    catch (e: any) { toast(e.message || 'Erro ao gerar PDF', 'error'); }
+    try {
+      await promise(openProtected(url), {
+        loading: `A gerar ${label}…`,
+        success: `${label} aberto numa nova aba`,
+        error: (e) => e?.message || 'Erro ao gerar PDF',
+      });
+    } catch { /* promise já notificou */ }
     finally { setLoading(null); }
   }
 
@@ -38,7 +43,7 @@ export function RelatoriosPage() {
               {[0, 1, 2, 3, 4].map(d => <option key={d} value={ano - d}>{ano - d}</option>)}
             </Select>
             <Button icon={<Download className="w-4 h-4" />} loading={loading === 'snc'}
-                    onClick={() => abrirPdf(`/relatorios/balancete-snc/pdf?periodo=anual&ano=${anoSnc}`, 'snc')}>PDF</Button>
+                    onClick={() => abrirPdf(`/relatorios/balancete-snc/pdf?periodo=anual&ano=${anoSnc}`, 'snc', `Balancete SNC ${anoSnc}`)}>PDF</Button>
           </div>
         </ReportCard>
 
@@ -52,7 +57,7 @@ export function RelatoriosPage() {
               {[0, 1, 2, 3, 4].map(d => <option key={d} value={ano - d}>{ano - d}</option>)}
             </Select>
             <Button icon={<Download className="w-4 h-4" />} loading={loading === 'fin'}
-                    onClick={() => abrirPdf(`/relatorios/pdf?periodo=anual&ano=${anoFin}&tipo=ambos`, 'fin')}>PDF</Button>
+                    onClick={() => abrirPdf(`/relatorios/pdf?periodo=anual&ano=${anoFin}&tipo=ambos`, 'fin', `Relatório Financeiro ${anoFin}`)}>PDF</Button>
           </div>
         </ReportCard>
 

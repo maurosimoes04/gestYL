@@ -6,6 +6,7 @@ import { FormField, FormGrid, FormSection } from '@/components/ui/FormField';
 import { SncRichSelect } from '@/components/ui/SncRichSelect';
 import { SugestaoSncButton } from '@/components/ui/SugestaoSncButton';
 import { EntidadeSelect } from '@/components/ui/EntidadeSelect';
+import { FileDropzone } from '@/components/ui/FileDropzone';
 import { apiPost, apiPut } from '@/lib/api';
 import { openProtected } from '@/lib/download';
 import { useToast } from '@/contexts/ToastContext';
@@ -19,7 +20,7 @@ interface Props {
 }
 
 export function FaturaFormModal({ fatura, onClose, onSaved }: Props) {
-  const { toast } = useToast();
+  const { toast, promise } = useToast();
   const { departamentos, entidades } = useCatalogos();
   const [saving, setSaving] = useState(false);
 
@@ -141,19 +142,31 @@ export function FaturaFormModal({ fatura, onClose, onSaved }: Props) {
           <FormField label="Observações" className="mb-3">
             <Textarea value={descricao} onChange={e => setDescricao(e.target.value)} rows={2} />
           </FormField>
-          {fatura?.anexo?.originalName && !anexo && !removerAnexo && (
-            <div className="flex items-center justify-between bg-brand-soft text-brand rounded p-2 mb-2 text-sm">
-              <button type="button"
-                onClick={() => openProtected(`/faturas/${fatura.id}/anexo`).catch(e => toast(e.message || 'Erro ao abrir anexo', 'error'))}
-                className="font-medium hover:underline text-left">
-                📎 {fatura.anexo.originalName}
-              </button>
-              <button type="button" onClick={() => setRemoverAnexo(true)} className="text-bad-ink hover:underline text-xs">remover</button>
-            </div>
-          )}
-          <FormField label={fatura?.anexo ? 'Substituir anexo' : 'Anexo (PDF/JPG/PNG)'}>
-            <Input type="file" accept="application/pdf,image/*" onChange={e => setAnexo(e.target.files?.[0] || null)} />
+          <FormField label={fatura?.anexo && !removerAnexo ? 'Substituir anexo' : 'Anexo (PDF/JPG/PNG)'}>
+            <FileDropzone
+              value={anexo}
+              onChange={setAnexo}
+              current={fatura?.anexo?.originalName && !removerAnexo ? {
+                name: fatura.anexo.originalName,
+                onOpen: () => promise(openProtected(`/faturas/${fatura.id}/anexo`), {
+                  loading: 'A abrir anexo…',
+                  success: 'Anexo aberto numa nova aba',
+                  error: (e) => e?.message || 'Não foi possível abrir',
+                }),
+              } : null}
+            />
           </FormField>
+          {fatura?.anexo && !removerAnexo && (
+            <button type="button" onClick={() => setRemoverAnexo(true)}
+                    className="text-xs text-bad-ink hover:underline mt-1 self-start">
+              Remover anexo atual
+            </button>
+          )}
+          {removerAnexo && (
+            <p className="text-xs text-warn-ink mt-1">
+              Anexo será removido ao guardar. <button type="button" onClick={() => setRemoverAnexo(false)} className="underline hover:text-ink">cancelar</button>
+            </p>
+          )}
         </FormSection>
       </form>
     </Modal>

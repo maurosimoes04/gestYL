@@ -17,7 +17,7 @@ import type { Fatura } from '@/lib/types';
 import { FaturaFormModal } from '@/components/forms/FaturaFormModal';
 
 export function DespesasPage() {
-  const { toast } = useToast();
+  const { toast, promise } = useToast();
   const { role } = useAuth();
   const { departamentos, contas } = useCatalogos();
   const [items, setItems] = useState<Fatura[]>([]);
@@ -141,7 +141,11 @@ export function DespesasPage() {
                   <div className="flex gap-1 justify-end">
                     {f.anexo && (
                       <button type="button"
-                         onClick={() => openProtected(`/faturas/${f.id}/anexo`).catch(e => toast(e.message || 'Erro ao abrir anexo', 'error'))}
+                         onClick={() => promise(openProtected(`/faturas/${f.id}/anexo`), {
+                           loading: `A abrir anexo de "${f.titulo}"…`,
+                           success: 'Anexo aberto numa nova aba',
+                           error: (e) => e?.message || 'Não foi possível abrir o anexo',
+                         })}
                          className="p-1.5 text-ink-soft hover:text-brand hover:bg-brand-soft rounded" title="Ver anexo">
                         <Paperclip className="w-4 h-4" />
                       </button>

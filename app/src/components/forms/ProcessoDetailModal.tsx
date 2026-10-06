@@ -30,7 +30,7 @@ interface Details {
 
 export function ProcessoDetailModal({ processoId, onClose, onEditar, onEliminar }: Props) {
   const { role } = useAuth();
-  const { toast } = useToast();
+  const { toast, promise } = useToast();
   const [data, setData] = useState<Details | null>(null);
   const [loading, setLoading] = useState(true);
   const [showPartilhar, setShowPartilhar] = useState(false);
@@ -39,8 +39,13 @@ export function ProcessoDetailModal({ processoId, onClose, onEditar, onEliminar 
 
   async function baixarPdf() {
     setPdfLoading(true);
-    try { await openProtected(`/eventos/${processoId}/pdf`); }
-    catch (e: any) { toast(e.message || 'Erro ao gerar PDF', 'error'); }
+    try {
+      await promise(openProtected(`/eventos/${processoId}/pdf`), {
+        loading: 'A gerar PDF do processo…',
+        success: 'PDF aberto numa nova aba',
+        error: (e) => e?.message || 'Erro ao gerar PDF',
+      });
+    } catch { /* promise já notificou */ }
     finally { setPdfLoading(false); }
   }
 
