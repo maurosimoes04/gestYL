@@ -8,6 +8,7 @@ import { Table, THead, TBody, TH, TR, TD, Empty } from '@/components/ui/Table';
 import { Badge, SncBadge, estadoVariant } from '@/components/ui/Badge';
 import { LoadingBlock } from '@/components/ui/Spinner';
 import { apiDel, apiGet } from '@/lib/api';
+import { openProtected } from '@/lib/download';
 import { fmtData, fmtEuro } from '@/lib/format';
 import { useToast } from '@/contexts/ToastContext';
 import { useCatalogos } from '@/hooks/useCatalogos';
@@ -139,10 +140,11 @@ export function DespesasPage() {
                 <TD>
                   <div className="flex gap-1 justify-end">
                     {f.anexo && (
-                      <a href={`/faturas/${f.id}/anexo`} target="_blank" rel="noopener"
+                      <button type="button"
+                         onClick={() => openProtected(`/faturas/${f.id}/anexo`).catch(e => toast(e.message || 'Erro ao abrir anexo', 'error'))}
                          className="p-1.5 text-ink-soft hover:text-brand hover:bg-brand-soft rounded" title="Ver anexo">
                         <Paperclip className="w-4 h-4" />
-                      </a>
+                      </button>
                     )}
                     {!readonly && (
                       <>

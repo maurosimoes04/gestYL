@@ -9,6 +9,7 @@ import { LoadingBlock } from '@/components/ui/Spinner';
 import { apiDel, apiGet } from '@/lib/api';
 import { fmtData, fmtDias, fmtEuro } from '@/lib/format';
 import { useToast } from '@/contexts/ToastContext';
+import { openProtected } from '@/lib/download';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCatalogos } from '@/hooks/useCatalogos';
 import type { Documento } from '@/lib/types';
@@ -178,7 +179,7 @@ export function RHPage() {
                   <TD>{d.entidade?.nome || '—'}</TD>
                   <TD><Badge variant={estadoVariant(d.estado)}>{d.estado}</Badge></TD>
                   <TD mono>{fmtData(d.dataLimite)}</TD>
-                  <TD>{d.anexo ? (<a href={`/documentos/${d.id}/anexo`} target="_blank" rel="noopener" className="text-brand hover:underline"><Paperclip className="w-4 h-4 inline" /></a>) : '—'}</TD>
+                  <TD>{d.anexo ? (<button type="button" onClick={() => openProtected(`/documentos/${d.id}/anexo`).catch(e => toast(e.message || 'Erro ao abrir anexo', 'error'))} className="text-brand hover:underline"><Paperclip className="w-4 h-4 inline" /></button>) : '—'}</TD>
                   <TD>
                     {!readonly && (
                       <div className="flex gap-1 justify-end">

@@ -7,6 +7,7 @@ import { SncRichSelect } from '@/components/ui/SncRichSelect';
 import { SugestaoSncButton } from '@/components/ui/SugestaoSncButton';
 import { EntidadeSelect } from '@/components/ui/EntidadeSelect';
 import { apiPost, apiPut } from '@/lib/api';
+import { openProtected } from '@/lib/download';
 import { useToast } from '@/contexts/ToastContext';
 import { useCatalogos } from '@/hooks/useCatalogos';
 import type { Fatura } from '@/lib/types';
@@ -142,9 +143,11 @@ export function FaturaFormModal({ fatura, onClose, onSaved }: Props) {
           </FormField>
           {fatura?.anexo?.originalName && !anexo && !removerAnexo && (
             <div className="flex items-center justify-between bg-brand-soft text-brand rounded p-2 mb-2 text-sm">
-              <a href={`/faturas/${fatura.id}/anexo`} target="_blank" rel="noopener" className="font-medium hover:underline">
+              <button type="button"
+                onClick={() => openProtected(`/faturas/${fatura.id}/anexo`).catch(e => toast(e.message || 'Erro ao abrir anexo', 'error'))}
+                className="font-medium hover:underline text-left">
                 📎 {fatura.anexo.originalName}
-              </a>
+              </button>
               <button type="button" onClick={() => setRemoverAnexo(true)} className="text-bad-ink hover:underline text-xs">remover</button>
             </div>
           )}

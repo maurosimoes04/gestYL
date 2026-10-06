@@ -7,6 +7,7 @@ import { SncRichSelect } from '@/components/ui/SncRichSelect';
 import { SugestaoSncButton } from '@/components/ui/SugestaoSncButton';
 import { EntidadeSelect } from '@/components/ui/EntidadeSelect';
 import { apiPost, apiPut } from '@/lib/api';
+import { openProtected } from '@/lib/download';
 import { useToast } from '@/contexts/ToastContext';
 import { useCatalogos } from '@/hooks/useCatalogos';
 import type { Receita } from '@/lib/types';
@@ -127,9 +128,11 @@ export function ReceitaFormModal({ receita, onClose, onSaved }: Props) {
           </FormField>
           {receita?.anexo?.originalName && !anexo && !removerAnexo && (
             <div className="flex items-center justify-between bg-brand-soft text-brand rounded p-2 mb-2 text-sm">
-              <a href={`/receitas/${receita.id}/anexo`} target="_blank" rel="noopener" className="font-medium hover:underline">
+              <button type="button"
+                onClick={() => openProtected(`/receitas/${receita.id}/anexo`).catch(e => toast(e.message || 'Erro ao abrir anexo', 'error'))}
+                className="font-medium hover:underline text-left">
                 📎 {receita.anexo.originalName}
-              </a>
+              </button>
               <button type="button" onClick={() => setRemoverAnexo(true)} className="text-bad-ink hover:underline text-xs">remover</button>
             </div>
           )}

@@ -9,6 +9,7 @@ import { Empty } from '@/components/ui/Table';
 import { apiGet, apiPost } from '@/lib/api';
 import { fmtData, fmtEuro } from '@/lib/format';
 import { useToast } from '@/contexts/ToastContext';
+import { openProtected } from '@/lib/download';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/cn';
 import { Select } from '@/components/ui/Input';
@@ -280,11 +281,11 @@ export function IAPage() {
 
                 <div className="flex gap-2 mt-3 pt-3 border-t border-line-soft">
                   {item.anexo && (
-                    <a href={`/${item.tipo === 'fatura' ? 'faturas' : 'receitas'}/${item.id}/anexo`}
-                       target="_blank" rel="noopener"
+                    <button type="button"
+                       onClick={() => openProtected(`/${item.tipo === 'fatura' ? 'faturas' : 'receitas'}/${item.id}/anexo`).catch(e => toast(e.message || 'Erro ao abrir anexo', 'error'))}
                        className="inline-flex items-center gap-1 text-xs text-brand hover:underline">
                       <Paperclip className="w-3 h-3" />Ver anexo
-                    </a>
+                    </button>
                   )}
                   <div className="ml-auto flex gap-2">
                     {!readonly && (
