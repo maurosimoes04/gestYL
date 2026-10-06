@@ -20,8 +20,10 @@ export function ProcessosPage() {
   const { role } = useAuth();
   const { processos, loaded, reload } = useCatalogos();
   const { toast } = useToast();
+  const anoAtual = new Date().getFullYear();
   const [tipo, setTipo] = useState('');
   const [estado, setEstado] = useState('');
+  const [ano, setAno] = useState<string>(String(anoAtual));
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Processo | null>(null);
   const [detalheId, setDetalheId] = useState<number | null>(null);
@@ -37,9 +39,32 @@ export function ProcessosPage() {
     } catch (e: any) { toast(e.message || 'Erro', 'error'); }
   }
 
-  const filtrados = useMemo(() => processos.filter(p =>
-    (!tipo || p.tipo === tipo) && (!estado || p.estado === estado)
-  ), [processos, tipo, estado]);
+  const anosDisponiveis = useMemo(() => {
+    const anos = new Set<number>();
+    processos.forEach(p => {
+      if (p.data_inicio) anos.add(new Date(p.data_inicio).getFullYear());
+      if (p.data_fim) anos.add(new Date(p.data_fim).getFullYear());
+    });
+    anos.add(anoAtual);
+    return Array.from(anos).sort((a, b) => b - a);
+  }, [processos, anoAtual]);
+
+  const filtrados = useMemo(() => processos.filter(p => {
+    if (tipo && p.tipo !== tipo) return false;
+    if (estado && p.estado !== estado) return false;
+    if (ano) {
+      const alvo = Number(ano);
+      // "Em curso" aparece sempre — é trabalho que continua vivo em qualquer ano.
+      if (p.estado === 'Em curso') return true;
+      const yi = p.data_inicio ? new Date(p.data_inicio).getFullYear() : null;
+      const yf = p.data_fim ? new Date(p.data_fim).getFullYear() : null;
+      if (yi === alvo || yf === alvo) return true;
+      // Sem data e não "em curso" — mostra apenas se "Todos" (ano = '')
+      if (yi === null && yf === null) return false;
+      return false;
+    }
+    return true;
+  }), [processos, tipo, estado, ano]);
 
   const badgeVariant = (t: string) => t === 'Subsídio' ? 'subsidio' : t === 'Investimento' ? 'investimento' : t === 'Projeto Anual' ? 'projeto' : 'neutral';
 
@@ -52,6 +77,12 @@ export function ProcessosPage() {
       />
 
       <Card className="mb-5 p-4 flex flex-wrap gap-3 items-center">
+        <Select value={ano} onChange={e => setAno(e.target.value)} className="w-44" title="Ano do processo">
+          <option value="">Todos os anos</option>
+          {anosDisponiveis.map(a => (
+            <option key={a} value={String(a)}>{a === anoAtual ? `${a} (atual)` : a}</option>
+          ))}
+        </Select>
         <Select value={tipo} onChange={e => setTipo(e.target.value)} className="w-56">
           <option value="">Todos os tipos</option>
           <option>Evento</option>
@@ -67,6 +98,12 @@ export function ProcessosPage() {
         </Select>
         <span className="ml-auto text-sm text-ink-soft">{filtrados.length} de {processos.length}</span>
       </Card>
+      {ano && (
+        <p className="text-xs text-ink-soft -mt-3 mb-4 px-1">
+          A mostrar processos de {ano} + tudo o que está "Em curso" (continua vivo entre anos).
+          <button onClick={() => setAno('')} className="ml-2 text-brand hover:underline">Ver todos os anos</button>
+        </p>
+      )}
 
       {!loaded ? <LoadingBlock /> : filtrados.length === 0 ? (
         <Card><Empty icon={<Filter className="w-10 h-10" />}>Sem processos.</Empty></Card>
