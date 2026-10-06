@@ -6,6 +6,7 @@ import { FormField, FormGrid, FormSection } from '@/components/ui/FormField';
 import { SncRichSelect } from '@/components/ui/SncRichSelect';
 import { SugestaoSncButton } from '@/components/ui/SugestaoSncButton';
 import { EntidadeSelect } from '@/components/ui/EntidadeSelect';
+import { ProcessoSelect } from '@/components/ui/ProcessoSelect';
 import { FileDropzone } from '@/components/ui/FileDropzone';
 import { apiPost, apiPut } from '@/lib/api';
 import { openProtected } from '@/lib/download';
@@ -50,8 +51,11 @@ export function FaturaFormModal({ fatura, onClose, onSaved }: Props) {
   const [dataVencimento, setDataVencimento] = useState(fatura?.dataVencimento ? String(fatura.dataVencimento).slice(0, 10) : '');
   const [estado, setEstado] = useState(fatura?.estado || 'Pendente');
   const [descricao, setDescricao] = useState(fatura?.descricao || '');
+  const [eventoId, setEventoId] = useState<number | null>(fatura?.faturaEventos?.[0]?.eventoId ?? null);
   const [anexo, setAnexo] = useState<File | null>(null);
   const [removerAnexo, setRemoverAnexo] = useState(false);
+  const [comprovativo, setComprovativo] = useState<File | null>(null);
+  const [removerComprovativo, setRemoverComprovativo] = useState(false);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -73,6 +77,10 @@ export function FaturaFormModal({ fatura, onClose, onSaved }: Props) {
     if (dataVencimento) fd.append('dataVencimento', dataVencimento);
     if (anexo) fd.append('anexo', anexo);
     if (removerAnexo && !anexo) fd.append('removeAnexo', 'true');
+    if (comprovativo) fd.append('comprovativo', comprovativo);
+    if (removerComprovativo && !comprovativo) fd.append('removeComprovativo', 'true');
+    // eventoId: envia o id (ou string vazia para desassociar); o backend trata ambos
+    fd.append('eventoId', eventoId ? String(eventoId) : '');
 
     setSaving(true);
     try {
@@ -124,6 +132,9 @@ export function FaturaFormModal({ fatura, onClose, onSaved }: Props) {
                 {departamentos.map(d => <option key={d} value={d}>{d}</option>)}
               </Select>
             </FormField>
+            <FormField label="Processo" hint="Evento, projeto, investimento ou subsídio a que esta despesa pertence (opcional).">
+              <ProcessoSelect value={eventoId} onChange={setEventoId} incluirFechados={!!eventoId} />
+            </FormField>
           </FormGrid>
         </FormSection>
 
@@ -138,35 +149,70 @@ export function FaturaFormModal({ fatura, onClose, onSaved }: Props) {
           </FormGrid>
         </FormSection>
 
-        <FormSection title="Observações e anexo">
-          <FormField label="Observações" className="mb-3">
+        <FormSection title="Observações">
+          <FormField label="Observações">
             <Textarea value={descricao} onChange={e => setDescricao(e.target.value)} rows={2} />
           </FormField>
-          <FormField label={fatura?.anexo && !removerAnexo ? 'Substituir anexo' : 'Anexo (PDF/JPG/PNG)'}>
-            <FileDropzone
-              value={anexo}
-              onChange={setAnexo}
-              current={fatura?.anexo?.originalName && !removerAnexo ? {
-                name: fatura.anexo.originalName,
-                onOpen: () => promise(openProtected(`/faturas/${fatura.id}/anexo`), {
-                  loading: 'A abrir anexo…',
-                  success: 'Anexo aberto numa nova aba',
-                  error: (e) => e?.message || 'Não foi possível abrir',
-                }),
-              } : null}
-            />
-          </FormField>
-          {fatura?.anexo && !removerAnexo && (
-            <button type="button" onClick={() => setRemoverAnexo(true)}
-                    className="text-xs text-bad-ink hover:underline mt-1 self-start">
-              Remover anexo atual
-            </button>
-          )}
-          {removerAnexo && (
-            <p className="text-xs text-warn-ink mt-1">
-              Anexo será removido ao guardar. <button type="button" onClick={() => setRemoverAnexo(false)} className="underline hover:text-ink">cancelar</button>
-            </p>
-          )}
+        </FormSection>
+
+        <FormSection title="Documentos" accent>
+          <p className="text-xs text-ink-soft mb-3">
+            Guarda a <strong>fatura/recibo</strong> e, em separado, o <strong>comprovativo de pagamento</strong>
+            (transferência, Multibanco, recibo da entidade). Ambos são opcionais e podem ser substituídos a qualquer momento.
+          </p>
+          <FormGrid cols={2}>
+            <FormField label="Fatura / recibo (documento da despesa)">
+              <FileDropzone
+                value={anexo}
+                onChange={setAnexo}
+                current={fatura?.anexo?.originalName && !removerAnexo ? {
+                  name: fatura.anexo.originalName,
+                  onOpen: () => promise(openProtected(`/faturas/${fatura.id}/anexo`), {
+                    loading: 'A abrir documento…',
+                    success: 'Documento aberto numa nova aba',
+                    error: (e) => e?.message || 'Não foi possível abrir',
+                  }),
+                } : null}
+              />
+              {fatura?.anexo && !removerAnexo && !anexo && (
+                <button type="button" onClick={() => setRemoverAnexo(true)}
+                        className="text-xs text-bad-ink hover:underline mt-1">
+                  Remover documento atual
+                </button>
+              )}
+              {removerAnexo && (
+                <p className="text-xs text-warn-ink mt-1">
+                  Documento será removido ao guardar. <button type="button" onClick={() => setRemoverAnexo(false)} className="underline hover:text-ink">cancelar</button>
+                </p>
+              )}
+            </FormField>
+
+            <FormField label="Comprovativo de pagamento">
+              <FileDropzone
+                value={comprovativo}
+                onChange={setComprovativo}
+                current={fatura?.comprovativo?.originalName && !removerComprovativo ? {
+                  name: fatura.comprovativo.originalName,
+                  onOpen: () => promise(openProtected(`/faturas/${fatura.id}/comprovativo`), {
+                    loading: 'A abrir comprovativo…',
+                    success: 'Comprovativo aberto numa nova aba',
+                    error: (e) => e?.message || 'Não foi possível abrir',
+                  }),
+                } : null}
+              />
+              {fatura?.comprovativo && !removerComprovativo && !comprovativo && (
+                <button type="button" onClick={() => setRemoverComprovativo(true)}
+                        className="text-xs text-bad-ink hover:underline mt-1">
+                  Remover comprovativo atual
+                </button>
+              )}
+              {removerComprovativo && (
+                <p className="text-xs text-warn-ink mt-1">
+                  Comprovativo será removido ao guardar. <button type="button" onClick={() => setRemoverComprovativo(false)} className="underline hover:text-ink">cancelar</button>
+                </p>
+              )}
+            </FormField>
+          </FormGrid>
         </FormSection>
       </form>
     </Modal>

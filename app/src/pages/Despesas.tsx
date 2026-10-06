@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Paperclip, Pencil, Trash2, Search, Filter } from 'lucide-react';
+import { Plus, Paperclip, Pencil, Trash2, Search, Filter, Receipt } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -142,12 +142,23 @@ export function DespesasPage() {
                     {f.anexo && (
                       <button type="button"
                          onClick={() => promise(openProtected(`/faturas/${f.id}/anexo`), {
-                           loading: `A abrir anexo de "${f.titulo}"…`,
-                           success: 'Anexo aberto numa nova aba',
-                           error: (e) => e?.message || 'Não foi possível abrir o anexo',
+                           loading: `A abrir fatura de "${f.titulo}"…`,
+                           success: 'Fatura aberta numa nova aba',
+                           error: (e) => e?.message || 'Não foi possível abrir',
                          })}
-                         className="p-1.5 text-ink-soft hover:text-brand hover:bg-brand-soft rounded" title="Ver anexo">
+                         className="p-1.5 text-ink-soft hover:text-brand hover:bg-brand-soft rounded" title="Ver fatura">
                         <Paperclip className="w-4 h-4" />
+                      </button>
+                    )}
+                    {f.comprovativo && (
+                      <button type="button"
+                         onClick={() => promise(openProtected(`/faturas/${f.id}/comprovativo`), {
+                           loading: `A abrir comprovativo de "${f.titulo}"…`,
+                           success: 'Comprovativo aberto numa nova aba',
+                           error: (e) => e?.message || 'Não foi possível abrir',
+                         })}
+                         className="p-1.5 text-ink-soft hover:text-good hover:bg-good-soft rounded" title="Ver comprovativo de pagamento">
+                        <Receipt className="w-4 h-4" />
                       </button>
                     )}
                     {!readonly && (

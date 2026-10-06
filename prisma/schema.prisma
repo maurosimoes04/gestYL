@@ -163,6 +163,10 @@ model Fatura {
   tipo         String    @default("Fatura")
   numero       String?
   anexo        Json?
+  // Segundo slot de anexo: comprovativo de pagamento (transferência,
+  // Multibanco, recibo). Separado do próprio documento da despesa para
+  // o utilizador poder guardar ambos lado a lado.
+  comprovativo Json?
   detalhes     Json?
   analiseIA    Json?
   analiseTentativas Int @default(0)

@@ -6,6 +6,7 @@ import { FormField, FormGrid, FormSection } from '@/components/ui/FormField';
 import { SncRichSelect } from '@/components/ui/SncRichSelect';
 import { SugestaoSncButton } from '@/components/ui/SugestaoSncButton';
 import { EntidadeSelect } from '@/components/ui/EntidadeSelect';
+import { ProcessoSelect } from '@/components/ui/ProcessoSelect';
 import { FileDropzone } from '@/components/ui/FileDropzone';
 import { apiPost, apiPut } from '@/lib/api';
 import { openProtected } from '@/lib/download';
@@ -42,6 +43,7 @@ export function ReceitaFormModal({ receita, onClose, onSaved }: Props) {
   const [data, setData] = useState(receita?.data ? String(receita.data).slice(0, 10) : new Date().toISOString().slice(0, 10));
   const [estado, setEstado] = useState(receita?.estado || 'Previsto');
   const [observacoes, setObservacoes] = useState(receita?.observacoes || '');
+  const [eventoId, setEventoId] = useState<number | null>(receita?.receitaEventos?.[0]?.eventoId ?? null);
   const [anexo, setAnexo] = useState<File | null>(null);
   const [removerAnexo, setRemoverAnexo] = useState(false);
 
@@ -71,6 +73,7 @@ export function ReceitaFormModal({ receita, onClose, onSaved }: Props) {
     if (observacoes) fd.append('observacoes', observacoes);
     if (anexo) fd.append('anexo', anexo);
     if (removerAnexo && !anexo) fd.append('removeAnexo', 'true');
+    fd.append('eventoId', eventoId ? String(eventoId) : '');
 
     setSaving(true);
     try {
@@ -109,6 +112,9 @@ export function ReceitaFormModal({ receita, onClose, onSaved }: Props) {
             </FormField>
             <FormField label="Entidade (financiador)" required>
               <EntidadeSelect value={entidadeId} onChange={setEntidadeId} tipo="financiador" placeholder="IPDJ, Câmara, Junta…" />
+            </FormField>
+            <FormField label="Processo" hint="Evento, projeto, investimento ou subsídio a que esta receita pertence (opcional).">
+              <ProcessoSelect value={eventoId} onChange={setEventoId} incluirFechados={!!eventoId} />
             </FormField>
           </FormGrid>
         </FormSection>

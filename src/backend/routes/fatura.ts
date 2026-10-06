@@ -17,6 +17,57 @@ bootLog('Fatura: carregar upload');
 const upload = require('../middleware/upload').default;
 bootLog('Fatura: upload carregado');
 
+// Multer configurado para aceitar dois campos distintos: `anexo` (documento da
+// despesa — fatura/recibo) e `comprovativo` (comprovativo de pagamento).
+const uploadDespesa = upload.fields([
+  { name: 'anexo', maxCount: 1 },
+  { name: 'comprovativo', maxCount: 1 },
+]);
+
+// Helpers: extrai o File do multipart .fields() (array por campo) e faz o
+// upload para o Drive, devolvendo o shape JSON uniforme para guardar em DB.
+async function uploadAnexoParaDrive(
+  file: Express.Multer.File | undefined,
+  folderId: string,
+): Promise<{ anexo: any; erro: string }> {
+  if (!file) return { anexo: null, erro: '' };
+  if (!folderId) return { anexo: null, erro: 'Pasta do Google Drive não configurada (GDRIVE_DESPESAS_FOLDER_ID)' };
+  try {
+    const { uploadBufferToDrive } = await import('../services/googleDrive');
+    const driveFile = await uploadBufferToDrive({
+      buffer: file.buffer,
+      filename: file.originalname,
+      mimeType: file.mimetype,
+      folderId,
+    });
+    return {
+      anexo: {
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+        driveFileId: driveFile.id,
+        driveWebViewLink: driveFile.webViewLink,
+        driveWebContentLink: driveFile.webContentLink,
+      },
+      erro: '',
+    };
+  } catch (driveErr: any) {
+    const msg = driveErr?.message || 'Erro desconhecido';
+    console.error('Erro upload Drive:', msg);
+    return { anexo: null, erro: msg };
+  }
+}
+
+async function apagarAnexoDoDrive(oldAnexo: any): Promise<void> {
+  if (!oldAnexo?.driveFileId) return;
+  try {
+    const { deleteFromDrive } = await import('../services/googleDrive');
+    await deleteFromDrive(oldAnexo.driveFileId);
+  } catch (e) {
+    console.error('Falha ao apagar anexo no Drive:', e);
+  }
+}
+
 const router = express.Router();
 const DESPESAS_FOLDER_ID = process.env.GDRIVE_DESPESAS_FOLDER_ID!;
 
@@ -152,8 +203,12 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /faturas
-router.post('/', upload.single('anexo'), async (req, res) => {
+router.post('/', uploadDespesa, async (req, res) => {
   try {
+    const files = (req as any).files as Record<string, Express.Multer.File[]> | undefined;
+    const anexoFile = files?.anexo?.[0];
+    const comprovativoFile = files?.comprovativo?.[0];
+
     const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'departamento', 'tipo', 'numero', 'estado', 'descricao', 'detalhes', 'inventarioId', 'fornecedor', 'fornecedorNif', 'dataVencimento', 'contaSncId', 'entidadeId'];
     const payload: any = {};
     for (const k of ALLOWED_FIELDS) {
@@ -177,31 +232,14 @@ router.post('/', upload.single('anexo'), async (req, res) => {
       eventosInput = [{ eventoId: Number(req.body.eventoId), valor: payload.valor || 0 }];
     }
 
-    let driveError = '';
-    if (req.file && DESPESAS_FOLDER_ID) {
-      try {
-        const { uploadBufferToDrive } = await import('../services/googleDrive');
-        const driveFile = await uploadBufferToDrive({
-          buffer: req.file.buffer,
-          filename: req.file.originalname,
-          mimeType: req.file.mimetype,
-          folderId: DESPESAS_FOLDER_ID,
-        });
-        payload.anexo = {
-          originalName: req.file.originalname,
-          mimeType: req.file.mimetype,
-          size: req.file.size,
-          driveFileId: driveFile.id,
-          driveWebViewLink: driveFile.webViewLink,
-          driveWebContentLink: driveFile.webContentLink,
-        };
-      } catch (driveErr: any) {
-        driveError = driveErr.message || 'Erro desconhecido';
-        console.error('Erro upload Drive:', driveError);
-      }
-    } else if (req.file && !DESPESAS_FOLDER_ID) {
-      driveError = 'Pasta do Google Drive não configurada (GDRIVE_DESPESAS_FOLDER_ID)';
-    }
+    const warnings: string[] = [];
+    const anexoRes = await uploadAnexoParaDrive(anexoFile, DESPESAS_FOLDER_ID);
+    if (anexoRes.anexo) payload.anexo = anexoRes.anexo;
+    if (anexoFile && !anexoRes.anexo) warnings.push(`Documento não guardado: ${anexoRes.erro}`);
+
+    const compRes = await uploadAnexoParaDrive(comprovativoFile, DESPESAS_FOLDER_ID);
+    if (compRes.anexo) payload.comprovativo = compRes.anexo;
+    if (comprovativoFile && !compRes.anexo) warnings.push(`Comprovativo não guardado: ${compRes.erro}`);
 
     const novaFatura = await prisma.fatura.create({
       data: {
@@ -215,11 +253,9 @@ router.post('/', upload.single('anexo'), async (req, res) => {
       include: { faturaEventos: { include: { evento: { select: { id: true, nome: true } } } }, contaSnc: { select: { id: true, codigo: true, nome: true } }, entidade: { select: { id: true, nome: true, nif: true } } },
     });
     await syncMovimentoParaFatura(novaFatura, req.body.conta);
-    if (req.file) {
-      analisarFatura(novaFatura.id, req.file.buffer, req.file.mimetype, true).catch((e) => console.error('Análise IA (POST fatura):', e));
+    if (anexoFile) {
+      analisarFatura(novaFatura.id, anexoFile.buffer, anexoFile.mimetype, true).catch((e) => console.error('Análise IA (POST fatura):', e));
     }
-    const warnings: string[] = [];
-    if (req.file && !payload.anexo) warnings.push(`Anexo não guardado: ${driveError}`);
     res.status(201).json({ ...novaFatura, _warnings: warnings.length ? warnings : undefined });
   } catch (error: any) {
     console.error('Erro criar fatura:', error.message || error);
@@ -232,11 +268,15 @@ router.post('/', upload.single('anexo'), async (req, res) => {
 });
 
 // PUT /faturas/:id
-router.put('/:id', upload.single('anexo'), async (req, res) => {
+router.put('/:id', uploadDespesa, async (req, res) => {
   try {
     const id = Number(req.params.id);
     const fatura = await prisma.fatura.findUnique({ where: { id } });
     if (!fatura) return res.status(404).json({ error: 'Fatura não encontrada' });
+
+    const files = (req as any).files as Record<string, Express.Multer.File[]> | undefined;
+    const anexoFile = files?.anexo?.[0];
+    const comprovativoFile = files?.comprovativo?.[0];
 
     const ALLOWED_FIELDS = ['titulo', 'valor', 'data', 'departamento', 'tipo', 'numero', 'estado', 'descricao', 'detalhes', 'inventarioId', 'fornecedor', 'fornecedorNif', 'dataVencimento', 'contaSncId', 'entidadeId'];
     const payload: any = {};
@@ -262,46 +302,29 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
       eventosInput = eid ? [{ eventoId: Number(eid), valor: payload.valor || Number(fatura.valor) }] : [];
     }
 
-    if (!req.file && req.body.removeAnexo === 'true') {
-      const oldAnexo = fatura.anexo as any;
-      if (oldAnexo?.driveFileId) {
-        try {
-          const { deleteFromDrive } = await import('../services/googleDrive');
-          await deleteFromDrive(oldAnexo.driveFileId);
-        } catch (e) {
-          console.error('Falha ao apagar anexo no Drive:', e);
-        }
-      }
+    // Remoção explícita (sem upload novo)
+    if (!anexoFile && req.body.removeAnexo === 'true') {
+      await apagarAnexoDoDrive(fatura.anexo as any);
       payload.anexo = null;
     }
+    if (!comprovativoFile && req.body.removeComprovativo === 'true') {
+      await apagarAnexoDoDrive((fatura as any).comprovativo);
+      payload.comprovativo = null;
+    }
 
-    let driveError = '';
-    if (req.file && DESPESAS_FOLDER_ID) {
-      try {
-        const { uploadBufferToDrive, deleteFromDrive } = await import('../services/googleDrive');
-        const oldAnexo = fatura.anexo as any;
-        if (oldAnexo?.driveFileId) await deleteFromDrive(oldAnexo.driveFileId);
-
-        const driveFile = await uploadBufferToDrive({
-          buffer: req.file.buffer,
-          filename: req.file.originalname,
-          mimeType: req.file.mimetype,
-          folderId: DESPESAS_FOLDER_ID,
-        });
-        payload.anexo = {
-          originalName: req.file.originalname,
-          mimeType: req.file.mimetype,
-          size: req.file.size,
-          driveFileId: driveFile.id,
-          driveWebViewLink: driveFile.webViewLink,
-          driveWebContentLink: driveFile.webContentLink,
-        };
-      } catch (driveErr: any) {
-        driveError = driveErr.message || 'Erro desconhecido';
-        console.error('Erro upload Drive:', driveError);
-      }
-    } else if (req.file && !DESPESAS_FOLDER_ID) {
-      driveError = 'Pasta do Google Drive não configurada (GDRIVE_DESPESAS_FOLDER_ID)';
+    // Substituição ou criação (upload novo)
+    const warnings: string[] = [];
+    if (anexoFile) {
+      await apagarAnexoDoDrive(fatura.anexo as any);
+      const r = await uploadAnexoParaDrive(anexoFile, DESPESAS_FOLDER_ID);
+      if (r.anexo) payload.anexo = r.anexo;
+      else warnings.push(`Documento não guardado: ${r.erro}`);
+    }
+    if (comprovativoFile) {
+      await apagarAnexoDoDrive((fatura as any).comprovativo);
+      const r = await uploadAnexoParaDrive(comprovativoFile, DESPESAS_FOLDER_ID);
+      if (r.anexo) payload.comprovativo = r.anexo;
+      else warnings.push(`Comprovativo não guardado: ${r.erro}`);
     }
 
     if (eventosInput !== null) {
@@ -319,13 +342,11 @@ router.put('/:id', upload.single('anexo'), async (req, res) => {
       include: { faturaEventos: { include: { evento: { select: { id: true, nome: true } } } }, contaSnc: { select: { id: true, codigo: true, nome: true } }, entidade: { select: { id: true, nome: true, nif: true } } },
     });
     await syncMovimentoParaFatura(updated, req.body.conta);
-    if (req.file) {
-      analisarFatura(updated.id, req.file.buffer, req.file.mimetype, true).catch((e) => console.error('Análise IA (PUT fatura):', e));
+    if (anexoFile) {
+      analisarFatura(updated.id, anexoFile.buffer, anexoFile.mimetype, true).catch((e) => console.error('Análise IA (PUT fatura):', e));
     } else {
       await recompararFatura(updated.id);
     }
-    const warnings: string[] = [];
-    if (req.file && !payload.anexo) warnings.push(`Anexo não guardado: ${driveError}`);
     res.json({ ...updated, _warnings: warnings.length ? warnings : undefined });
   } catch (error: any) {
     console.error('Erro atualizar fatura:', error.message || error);
@@ -343,15 +364,8 @@ router.delete('/:id', async (req, res) => {
     const fatura = await prisma.fatura.findUnique({ where: { id } });
     if (!fatura) return res.status(404).json({ error: 'Fatura não encontrada' });
 
-    const anexo = fatura.anexo as any;
-    if (anexo?.driveFileId) {
-      try {
-        const { deleteFromDrive } = await import('../services/googleDrive');
-        await deleteFromDrive(anexo.driveFileId);
-      } catch (e) {
-        console.error('Falha ao apagar anexo no Drive:', e);
-      }
-    }
+    await apagarAnexoDoDrive(fatura.anexo as any);
+    await apagarAnexoDoDrive((fatura as any).comprovativo);
 
     await prisma.fatura.delete({ where: { id } });
     res.json({ message: 'Fatura eliminada com sucesso' });
@@ -400,24 +414,38 @@ router.post('/:id/validar-ia', async (req, res) => {
   }
 });
 
-// GET /faturas/:id/anexo
+// Helper partilhado por /anexo e /comprovativo (mesmo shape, campos distintos)
+async function servirAnexo(res: express.Response, anexo: any): Promise<any> {
+  if (!anexo?.driveFileId) return res.status(404).json({ error: 'Anexo indisponível' });
+  const { streamFromDrive } = await import('../services/googleDrive');
+  const stream = await streamFromDrive(anexo.driveFileId);
+  res.setHeader('Content-Type', anexo.mimeType || 'application/octet-stream');
+  res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(anexo.originalName || 'anexo')}"`);
+  return stream.pipe(res);
+}
+
+// GET /faturas/:id/anexo — documento da despesa
 router.get('/:id/anexo', async (req, res) => {
   try {
     const fatura = await prisma.fatura.findUnique({ where: { id: Number(req.params.id) } });
     if (!fatura || !fatura.anexo) return res.status(404).json({ error: 'Anexo não encontrado' });
-
-    const anexo = fatura.anexo as any;
-    if (anexo.driveFileId) {
-      const { streamFromDrive } = await import('../services/googleDrive');
-      const stream = await streamFromDrive(anexo.driveFileId);
-      res.setHeader('Content-Type', anexo.mimeType || 'application/octet-stream');
-      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(anexo.originalName || 'anexo')}"`);
-      return stream.pipe(res);
-    }
-    return res.status(404).json({ error: 'Anexo indisponível' });
+    return servirAnexo(res, fatura.anexo as any);
   } catch (error: any) {
     console.error('Erro servir anexo:', error.message || error);
     res.status(500).json({ error: 'Erro ao servir anexo' });
+  }
+});
+
+// GET /faturas/:id/comprovativo — comprovativo de pagamento
+router.get('/:id/comprovativo', async (req, res) => {
+  try {
+    const fatura = await prisma.fatura.findUnique({ where: { id: Number(req.params.id) } });
+    const comp = (fatura as any)?.comprovativo;
+    if (!fatura || !comp) return res.status(404).json({ error: 'Comprovativo não encontrado' });
+    return servirAnexo(res, comp);
+  } catch (error: any) {
+    console.error('Erro servir comprovativo:', error.message || error);
+    res.status(500).json({ error: 'Erro ao servir comprovativo' });
   }
 });
 

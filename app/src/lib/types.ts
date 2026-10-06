@@ -68,6 +68,8 @@ export interface Fatura {
   contaSnc?: ContaSNC | null;
   entidade?: Entidade | null;
   anexo?: any;
+  /** Comprovativo de pagamento (transferência, Multibanco, recibo). */
+  comprovativo?: any;
   faturaEventos?: Array<{ eventoId: number; valor: number; evento?: { id: number; nome: string } }>;
 }
 
