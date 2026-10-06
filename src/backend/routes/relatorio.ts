@@ -36,27 +36,61 @@ function drawHeader(doc: InstanceType<PDFDocumentType>, titulo: string, periodoL
   doc.fillColor('#0a0a0a').strokeColor('#0a0a0a');
 }
 
-// Capa: identidade YL com gradiente índigo → violeta
+// Capa: identidade YL — fundo índigo com acentos violeta, logo em cartão branco,
+// título bem contrastado. Nota: `fillOpacity(0)` não deve escorrer para outros
+// fills, por isso o pedaço do stroke corre dentro de save()/restore() próprios.
 function drawCover(doc: InstanceType<PDFDocumentType>, titulo: string, subtitulo: string, logo: Buffer | null) {
   const w = doc.page.width, h = doc.page.height;
-  doc.save();
-  // Fundo com faixas índigo → violeta (simulado com rect sobreposto)
-  doc.rect(0, 0, w, h).fill('#4f46e5');
-  doc.rect(0, h / 2, w, h / 2).fill('#6d28d9');
-  // Faixa clara no topo e no fundo
-  doc.rect(0, 0, w, 6).fill('#8b5cf6');
-  doc.rect(0, h - 6, w, 6).fill('#8b5cf6');
-  // Moldura branca
-  doc.rect(32, 32, w - 64, h - 64).lineWidth(1.5).strokeColor('#ffffff').fillOpacity(0).stroke();
 
-  if (logo) { try { doc.image(logo, (w - 160) / 2, 180, { width: 160 }); } catch {} }
-  doc.fillColor('#e9d5ff').font('Helvetica').fontSize(11).text('ASSOCIAÇÃO JUVENIL YOUNG-LINK', 40, 150, { width: w - 80, align: 'center', characterSpacing: 3 });
-  doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(32).text(titulo, 40, h / 2 - 20, { width: w - 80, align: 'center' });
-  doc.fillColor('#e9d5ff').font('Helvetica').fontSize(16).text(subtitulo, 40, h / 2 + 30, { width: w - 80, align: 'center' });
-  const hoje = new Date().toLocaleDateString('pt-PT', { year: 'numeric', month: 'long', day: 'numeric' });
-  doc.fillColor('#c4b5fd').font('Helvetica').fontSize(9).text(`Gerado em ${hoje}  ·  Gestor Young-Link`, 40, h - 60, { width: w - 80, align: 'center', characterSpacing: 1 });
+  // 1. Fundo índigo com faixa violeta diagonal subtil
+  doc.rect(0, 0, w, h).fill('#4f46e5');
+  doc.rect(0, h * 0.62, w, h * 0.38).fill('#6d28d9');
+  // Faixas finas superior/inferior
+  doc.rect(0, 0, w, 6).fill('#a78bfa');
+  doc.rect(0, h - 6, w, 6).fill('#a78bfa');
+
+  // 2. Moldura branca (isolada para o fillOpacity não contaminar o resto)
+  doc.save();
+  doc.lineWidth(1).strokeColor('#ffffff').fillOpacity(0.0)
+     .rect(28, 28, w - 56, h - 56).stroke();
   doc.restore();
-  doc.fillColor('#0a0a0a').strokeColor('#0a0a0a');
+
+  // 3. Cartão branco com o logo (dá contraste e identidade)
+  const cardW = 220, cardH = 110;
+  const cardX = (w - cardW) / 2, cardY = 170;
+  doc.roundedRect(cardX, cardY, cardW, cardH, 10).fill('#ffffff');
+  if (logo) {
+    try {
+      // Centrado no cartão
+      doc.image(logo, cardX + 10, cardY + 10, { fit: [cardW - 20, cardH - 20], align: 'center', valign: 'center' });
+    } catch { /* ignora logo partido */ }
+  }
+
+  // 4. Letreiro superior
+  doc.fillColor('#e9d5ff').font('Helvetica').fontSize(10)
+     .text('ASSOCIAÇÃO JUVENIL · CASTRO MARIM', 40, 110, { width: w - 80, align: 'center', characterSpacing: 4 });
+
+  // 5. Bloco central: título + subtítulo
+  const titleY = cardY + cardH + 70;
+  doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(30)
+     .text(titulo, 40, titleY, { width: w - 80, align: 'center', lineGap: 2 });
+
+  // Separador curto
+  const sepY = titleY + 70;
+  doc.rect((w - 60) / 2, sepY, 60, 2).fill('#c4b5fd');
+
+  doc.fillColor('#e9d5ff').font('Helvetica').fontSize(15)
+     .text(subtitulo, 40, sepY + 14, { width: w - 80, align: 'center' });
+
+  // 6. Rodapé da capa
+  const hoje = new Date().toLocaleDateString('pt-PT', { year: 'numeric', month: 'long', day: 'numeric' });
+  doc.fillColor('#c4b5fd').font('Helvetica').fontSize(9)
+     .text(`Documento gerado em ${hoje}`, 40, h - 70, { width: w - 80, align: 'center' });
+  doc.fillColor('#ddd6fe').font('Helvetica-Bold').fontSize(8)
+     .text('GESTOR YL', 40, h - 54, { width: w - 80, align: 'center', characterSpacing: 3 });
+
+  // Restaurar defaults de cor/opacidade antes do próximo page content
+  doc.fillColor('#0a0a0a').strokeColor('#0a0a0a').fillOpacity(1);
 }
 
 // Banda de destaques: cartões com os números grandes (Receitas · Despesas · Resultado).
@@ -933,10 +967,7 @@ router.post('/anual/pdf', async (req, res) => {
     };
 
     // --- Capa ---
-    if (logo) { try { doc.image(logo, (doc.page.width - 260) / 2, 200, { width: 260 }); } catch {} }
-    doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(15).text('Associação Young-Link', 40, 150, { width: 520, align: 'center' });
-    doc.fontSize(30).text('Relatório e Contas', 40, 430, { width: 520, align: 'center' });
-    doc.fontSize(22).fillColor('#475569').text(String(ano), 40, 470, { width: 520, align: 'center' });
+    drawCover(doc, 'Relatório e Contas', `Exercício ${ano}`, logo);
     doc.addPage();
 
     // --- Índice ---
