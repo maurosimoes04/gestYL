@@ -10,7 +10,7 @@ import { sugerirSncParaRegisto, SugestaoSncError } from '../services/sncSugestao
 
 const router = express.Router();
 
-/** POST /ia-snc/sugerir/:tipo/:id — tempo real (botão nos formulários) */
+/** POST /ia-snc/sugerir/:tipo/:id — tempo real (botão nos formulários, registo existente) */
 router.post('/sugerir/:tipo/:id', async (req, res) => {
   try {
     const tipo = req.params.tipo as 'fatura' | 'receita';
@@ -62,6 +62,52 @@ router.post('/sugerir/:tipo/:id', async (req, res) => {
     });
   } catch (err: any) {
     console.error('Erro sugerir SNC:', err);
+    res.status(500).json({ error: err.message || 'Erro' });
+  }
+});
+
+/** POST /ia-snc/sugerir-form — sugere SNC com dados do formulário (sem registo guardado) */
+router.post('/sugerir-form', async (req, res) => {
+  try {
+    const { tipo, titulo, valor, data, entidadeNome, departamento, numero, descricao } = req.body || {};
+    if (!tipo || !titulo) return res.status(400).json({ error: 'tipo e titulo são obrigatórios' });
+    if (tipo !== 'fatura' && tipo !== 'receita') return res.status(400).json({ error: 'tipo inválido' });
+
+    let sug;
+    try {
+      sug = await sugerirSncParaRegisto({
+        tipo,
+        titulo,
+        valor: Number(valor) || 0,
+        data: data || new Date().toISOString(),
+        fornecedor: null,
+        entidadeNome: entidadeNome || null,
+        departamento: departamento || null,
+        numero: numero || null,
+        descricao: descricao || null,
+      });
+    } catch (err: any) {
+      if (err instanceof SugestaoSncError) {
+        const status = err.kind === 'overloaded' ? 503 : err.kind === 'no-key' ? 500 : 502;
+        return res.status(status).json({ error: err.message, kind: err.kind });
+      }
+      throw err;
+    }
+    if (!sug) return res.status(502).json({ error: 'IA sem resposta' });
+
+    const sugerida = sug.codigo
+      ? await prisma.contaSNC.findUnique({ where: { codigo: sug.codigo }, select: { id: true, codigo: true, nome: true } })
+      : null;
+
+    res.json({
+      atual: null, sugerida,
+      confianca: sug.confianca,
+      motivo: sug.motivo,
+      avisos: sug.avisos || [],
+      diverge: false,
+    });
+  } catch (err: any) {
+    console.error('Erro sugerir-form SNC:', err);
     res.status(500).json({ error: err.message || 'Erro' });
   }
 });

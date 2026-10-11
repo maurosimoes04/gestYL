@@ -30,7 +30,7 @@ export function DespesasPage() {
   const [editing, setEditing] = useState<Fatura | null>(null);
   const readonly = role === 'fiscal';
 
-  const contasGasto = useMemo(() => contas.filter(c => c.tipo === 'gasto' || c.tipo === 'ativo'), [contas]);
+  const contasDespesa = useMemo(() => contas.filter(c => c.tipo === 'gasto' || c.tipo === 'ativo'), [contas]);
 
   async function reload() {
     setLoading(true);
@@ -47,7 +47,7 @@ export function DespesasPage() {
       if (sncId === '__none__') { if (f.contaSncId) return false; }
       else if (sncId && f.contaSncId !== Number(sncId)) return false;
       if (query) {
-        const hay = `${f.titulo} ${f.fornecedor || ''} ${f.numero || ''} ${f.entidade?.nome || ''}`.toLowerCase();
+        const hay = `${f.titulo} ${f.fornecedor || ''} ${f.numero || ''} ${f.entidade?.nome || ''} ${f.entidade?.nif || ''} ${f.contaSnc?.codigo || ''} ${f.contaSnc?.nome || ''} ${f.departamento || ''} ${f.descricao || ''} ${f.tipo || ''} ${f.estado || ''} ${f.faturaEventos?.map(fe => fe.evento?.nome).join(' ') || ''}`.toLowerCase();
         if (!hay.includes(query)) return false;
       }
       return true;
@@ -77,7 +77,7 @@ export function DespesasPage() {
       <Card className="mb-5 p-4 flex flex-wrap gap-3 items-center">
         <div className="relative flex-1 min-w-60">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted pointer-events-none" />
-          <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Pesquisar título, fornecedor, nº…" className="pl-9" />
+          <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Pesquisar em todos os campos…" className="pl-9" />
         </div>
         <Select value={estado} onChange={e => setEstado(e.target.value)} className="w-40">
           <option value="">Todos os estados</option>
@@ -91,7 +91,7 @@ export function DespesasPage() {
         <Select value={sncId} onChange={e => setSncId(e.target.value)} className="w-64">
           <option value="">Todas as contas SNC</option>
           <option value="__none__">— Sem classificação SNC</option>
-          {Object.entries(contasGasto.reduce((acc: Record<string, typeof contasGasto>, c) => {
+          {Object.entries(contasDespesa.reduce((acc: Record<string, typeof contasDespesa>, c) => {
             (acc[c.familia] ||= []).push(c); return acc;
           }, {})).map(([fam, lista]) => (
             <optgroup key={fam} label={fam}>

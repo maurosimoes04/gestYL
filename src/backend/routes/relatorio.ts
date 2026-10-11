@@ -2,7 +2,7 @@ import express from 'express';
 
 type PDFDocumentType = PDFKit.PDFDocument;
 import { prisma } from '../config/prisma';
-import { getLogoBuffer } from '../utils/logo';
+import { getLogoBuffer, getWhiteLogoBuffer } from '../utils/logo';
 import { gerarNarrativaRelatorio } from '../services/documentAnalysis';
 const upload = require('../middleware/upload').default;
 
@@ -27,9 +27,9 @@ const fmt = (v: number) => `${v.toFixed(2)} €`;
 const fmtDate = (d: string | Date) => new Date(d).toLocaleDateString('pt-PT');
 const toNum = (v: any) => Number(v) || 0;
 
-function drawHeader(doc: InstanceType<PDFDocumentType>, titulo: string, periodoLabel: string, logo: Buffer | null) {
+function drawHeader(doc: InstanceType<PDFDocumentType>, titulo: string, periodoLabel: string, whiteLogo: Buffer | null) {
   doc.rect(40, 30, 515, 60).fill('#4f46e5');
-  if (logo) try { doc.image(logo, 50, 34, { height: 52 }); } catch {}
+  if (whiteLogo) try { doc.image(whiteLogo, 50, 34, { height: 52 }); } catch {}
   doc.fillColor('#ffffff').fontSize(14).font('Helvetica-Bold').text(titulo, 200, 45, { width: 345, align: 'right' });
   doc.fontSize(10).font('Helvetica').text(periodoLabel, 200, 65, { width: 345, align: 'right' });
   doc.y = 115;
@@ -38,7 +38,7 @@ function drawHeader(doc: InstanceType<PDFDocumentType>, titulo: string, periodoL
 
 // Capa: fundo sólido com a cor da associação (índigo YL). Sem gradientes, sem
 // acentos — só o logo no centro e o título a destacar.
-function drawCover(doc: InstanceType<PDFDocumentType>, titulo: string, subtitulo: string, logo: Buffer | null) {
+function drawCover(doc: InstanceType<PDFDocumentType>, titulo: string, subtitulo: string, whiteLogo: Buffer | null) {
   const w = doc.page.width, h = doc.page.height;
 
   // 1. Fundo liso cor da associação
@@ -50,13 +50,12 @@ function drawCover(doc: InstanceType<PDFDocumentType>, titulo: string, subtitulo
      .rect(28, 28, w - 56, h - 56).stroke();
   doc.restore();
 
-  // 3. Cartão branco com o logo
-  const cardW = 240, cardH = 120;
-  const cardX = (w - cardW) / 2, cardY = h / 2 - cardH - 40;
-  doc.roundedRect(cardX, cardY, cardW, cardH, 10).fill('#ffffff');
-  if (logo) {
+  // 3. Logo branco sem fundo, diretamente sobre o índigo
+  const logoW = 280, logoH = 100;
+  const logoX = (w - logoW) / 2, logoY = h / 2 - logoH - 50;
+  if (whiteLogo) {
     try {
-      doc.image(logo, cardX + 12, cardY + 12, { fit: [cardW - 24, cardH - 24], align: 'center', valign: 'center' });
+      doc.image(whiteLogo, logoX, logoY, { fit: [logoW, logoH], align: 'center', valign: 'center' });
     } catch { /* ignora logo partido */ }
   }
 
@@ -252,7 +251,7 @@ function cofinanciamentoRows(receitas: any[]): { rows: Row[]; total: number } {
 //  "fora de eventos", para os totais fecharem certo mesmo com alocações
 //  parciais (ex.: fatura de 100 € com 60 € num evento e 40 € sem evento).
 // ==========================================================================
-type MovLinha = { data: any; titulo: string; extra: string; valor: number };
+type MovLinha = { data: any; titulo: string; extra: string; valor: number; snc?: string };
 type MovGrupo = { total: number; itens: MovLinha[] };
 type EventoBloco = {
   id: number; nome: string; departamento: string | null;
@@ -293,7 +292,8 @@ function buildEventoData(faturas: any[], receitas: any[], faturaEventos: any[], 
     if (!ev.despPorDept.has(dept)) ev.despPorDept.set(dept, { total: 0, itens: [] });
     const g = ev.despPorDept.get(dept)!;
     g.total += v;
-    g.itens.push({ data: f.data, titulo: f.titulo, extra: (f.fornecedor && String(f.fornecedor).trim()) || '', valor: v });
+    const sncF = f.contaSnc ? `[${f.contaSnc.codigo}]` : '';
+    g.itens.push({ data: f.data, titulo: f.titulo, extra: (f.fornecedor && String(f.fornecedor).trim()) || '', valor: v, snc: sncF });
     ev.despTotal += v;
     faturaAlloc.set(f.id, (faturaAlloc.get(f.id) || 0) + v);
   });
@@ -307,7 +307,8 @@ function buildEventoData(faturas: any[], receitas: any[], faturaEventos: any[], 
     if (!ev.recPorEnt.has(ent)) ev.recPorEnt.set(ent, { total: 0, itens: [] });
     const g = ev.recPorEnt.get(ent)!;
     g.total += v;
-    g.itens.push({ data: r.data, titulo: r.titulo, extra: [r.categoria, r.estado].filter(Boolean).join(' · '), valor: v });
+    const sncR = r.contaSnc ? `[${r.contaSnc.codigo}]` : '';
+    g.itens.push({ data: r.data, titulo: r.titulo, extra: [r.categoria, r.estado].filter(Boolean).join(' · '), valor: v, snc: sncR });
     ev.recTotal += v;
     receitaAlloc.set(r.id, (receitaAlloc.get(r.id) || 0) + v);
   });
@@ -321,7 +322,8 @@ function buildEventoData(faturas: any[], receitas: any[], faturaEventos: any[], 
     if (!foraDesp.has(dept)) foraDesp.set(dept, { total: 0, itens: [] });
     const g = foraDesp.get(dept)!;
     g.total += resto;
-    g.itens.push({ data: f.data, titulo: f.titulo, extra: (f.fornecedor && String(f.fornecedor).trim()) || '', valor: resto });
+    const sncF = f.contaSnc ? `[${f.contaSnc.codigo}]` : '';
+    g.itens.push({ data: f.data, titulo: f.titulo, extra: (f.fornecedor && String(f.fornecedor).trim()) || '', valor: resto, snc: sncF });
   });
   const foraRec = new Map<string, MovGrupo>();
   receitas.forEach((r) => {
@@ -331,7 +333,8 @@ function buildEventoData(faturas: any[], receitas: any[], faturaEventos: any[], 
     if (!foraRec.has(ent)) foraRec.set(ent, { total: 0, itens: [] });
     const g = foraRec.get(ent)!;
     g.total += resto;
-    g.itens.push({ data: r.data, titulo: r.titulo, extra: [r.categoria, r.estado].filter(Boolean).join(' · '), valor: resto });
+    const sncR = r.contaSnc ? `[${r.contaSnc.codigo}]` : '';
+    g.itens.push({ data: r.data, titulo: r.titulo, extra: [r.categoria, r.estado].filter(Boolean).join(' · '), valor: resto, snc: sncR });
   });
 
   // Ordem cronológica (por data de início; eventos sem data no fim).
@@ -354,13 +357,13 @@ function eventoDetailRows(ev: EventoData['eventosSorted'][number], tipo: TipoRel
   if (tipo !== 'receitas' && ev.despPorDept.size) {
     Array.from(ev.despPorDept.entries()).sort((a, b) => b[1].total - a[1].total).forEach(([d, g]) => {
       rows.push({ cells: [d, fmt(g.total)], fill: '#ffe2e5', color: '#b91c1c', bold: true });
-      ordDesc(g.itens).forEach((it) => rows.push({ cells: [`${fmtDate(it.data)} — ${it.titulo}${it.extra ? ' · ' + it.extra : ''}`, fmt(it.valor)], indent: 1, small: true }));
+      ordDesc(g.itens).forEach((it) => rows.push({ cells: [`${fmtDate(it.data)} — ${it.snc ? it.snc + ' ' : ''}${it.titulo}${it.extra ? ' · ' + it.extra : ''}`, fmt(it.valor)], indent: 1, small: true }));
     });
   }
   if (tipo !== 'despesas' && ev.recPorEnt.size) {
     Array.from(ev.recPorEnt.entries()).sort((a, b) => b[1].total - a[1].total).forEach(([e, g]) => {
       rows.push({ cells: [e, fmt(g.total)], fill: '#dcfce7', color: '#15803d', bold: true });
-      ordDesc(g.itens).forEach((it) => rows.push({ cells: [`${fmtDate(it.data)} — ${it.titulo}${it.extra ? ' · ' + it.extra : ''}`, fmt(it.valor)], indent: 1, small: true }));
+      ordDesc(g.itens).forEach((it) => rows.push({ cells: [`${fmtDate(it.data)} — ${it.snc ? it.snc + ' ' : ''}${it.titulo}${it.extra ? ' · ' + it.extra : ''}`, fmt(it.valor)], indent: 1, small: true }));
     });
   }
   const semDesp = tipo === 'receitas' || !ev.despPorDept.size;
@@ -411,7 +414,7 @@ function foraEventosRows(data: EventoData, tipo: TipoRelatorio): Row[] {
     rows.push({ cells: ['Despesas gerais (sem evento)', fmt(tot)], fill: '#f1f5f9', bold: true });
     Array.from(data.foraDesp.entries()).sort((a, b) => b[1].total - a[1].total).forEach(([d, g]) => {
       rows.push({ cells: [d, fmt(g.total)], fill: '#ffe2e5', color: '#b91c1c', bold: true, indent: 1 });
-      ordDesc(g.itens).forEach((it) => rows.push({ cells: [`${fmtDate(it.data)} — ${it.titulo}${it.extra ? ' · ' + it.extra : ''}`, fmt(it.valor)], indent: 2, small: true }));
+      ordDesc(g.itens).forEach((it) => rows.push({ cells: [`${fmtDate(it.data)} — ${it.snc ? it.snc + ' ' : ''}${it.titulo}${it.extra ? ' · ' + it.extra : ''}`, fmt(it.valor)], indent: 2, small: true }));
     });
   }
   if (tipo !== 'despesas' && data.foraRec.size) {
@@ -419,7 +422,7 @@ function foraEventosRows(data: EventoData, tipo: TipoRelatorio): Row[] {
     rows.push({ cells: ['Receitas gerais (sem evento)', fmt(tot)], fill: '#f1f5f9', bold: true });
     Array.from(data.foraRec.entries()).sort((a, b) => b[1].total - a[1].total).forEach(([e, g]) => {
       rows.push({ cells: [e, fmt(g.total)], fill: '#dcfce7', color: '#15803d', bold: true, indent: 1 });
-      ordDesc(g.itens).forEach((it) => rows.push({ cells: [`${fmtDate(it.data)} — ${it.titulo}${it.extra ? ' · ' + it.extra : ''}`, fmt(it.valor)], indent: 2, small: true }));
+      ordDesc(g.itens).forEach((it) => rows.push({ cells: [`${fmtDate(it.data)} — ${it.snc ? it.snc + ' ' : ''}${it.titulo}${it.extra ? ' · ' + it.extra : ''}`, fmt(it.valor)], indent: 2, small: true }));
     });
   }
   return rows;
@@ -542,7 +545,7 @@ router.get('/balancete-snc/pdf', async (req, res) => {
     doc.pipe(res);
 
     // === Cabeçalho ===
-    const logo = await getLogoBuffer();
+    const logo = await getWhiteLogoBuffer();
     doc.rect(40, 30, 515, 70).fill('#4f46e5');
     if (logo) try { doc.image(logo, 50, 38, { height: 54 }); } catch {}
     doc.fillColor('#ffffff').fontSize(10).font('Helvetica').text('BALANCETE', 200, 40, { width: 345, align: 'right', characterSpacing: 3 });
@@ -753,15 +756,15 @@ router.get('/pdf', async (req, res) => {
     res.attachment('relatorio-financeiro.pdf');
     doc.pipe(res);
 
-    const logo = await getLogoBuffer();
+    const whiteLogo = await getWhiteLogoBuffer();
     const tituloRel = isAnual
       ? 'Relatório Anual de Atividade'
       : (tipo === 'despesas' ? 'Relatório de Despesas' : tipo === 'receitas' ? 'Relatório de Receitas' : 'Relatório Financeiro');
 
     // Capa
-    drawCover(doc, tituloRel, periodoLabel, logo);
+    drawCover(doc, tituloRel, periodoLabel, whiteLogo);
     doc.addPage();
-    drawHeader(doc, tituloRel, periodoLabel, logo);
+    drawHeader(doc, tituloRel, periodoLabel, whiteLogo);
 
     const eventoData = buildEventoData(faturas as any[], receitas as any[], faturaEventos as any[], receitaEventos as any[]);
 
@@ -843,11 +846,12 @@ router.get('/pdf', async (req, res) => {
 // (para a análise de IA e para o PDF final).
 async function apurarDadosAno(ano: number) {
   const dateRange = { gte: new Date(`${ano}-01-01`), lte: new Date(`${ano}-12-31`) };
+  const incSnc = { contaSnc: { select: { codigo: true, nome: true } }, entidade: { select: { nome: true, nif: true } } };
   const [faturas, receitas, faturaEventos, receitaEventos] = await Promise.all([
-    prisma.fatura.findMany({ where: { data: dateRange }, orderBy: { data: 'desc' } }),
-    prisma.receita.findMany({ where: { data: dateRange }, orderBy: { data: 'desc' } }),
-    prisma.faturaEvento.findMany({ where: { fatura: { data: dateRange } }, include: { evento: { select: { id: true, nome: true, departamento: true, data_inicio: true, data_fim: true } } } }),
-    prisma.receitaEvento.findMany({ where: { receita: { data: dateRange } }, include: { evento: { select: { id: true, nome: true, departamento: true, data_inicio: true, data_fim: true } } } }),
+    prisma.fatura.findMany({ where: { data: dateRange }, orderBy: { data: 'desc' }, include: incSnc }),
+    prisma.receita.findMany({ where: { data: dateRange }, orderBy: { data: 'desc' }, include: incSnc }),
+    prisma.faturaEvento.findMany({ where: { fatura: { data: dateRange } }, include: { evento: { select: { id: true, nome: true, departamento: true, data_inicio: true, data_fim: true } }, fatura: { include: incSnc } } }),
+    prisma.receitaEvento.findMany({ where: { receita: { data: dateRange } }, include: { evento: { select: { id: true, nome: true, departamento: true, data_inicio: true, data_fim: true } }, receita: { include: incSnc } } }),
   ]);
 
   const totalDespesas = faturas.reduce((s, f) => s + toNum(f.valor), 0);
@@ -942,7 +946,7 @@ router.post('/anual/pdf', async (req, res) => {
     const ano = parseInt((req.body?.ano as string) || '', 10) || new Date().getFullYear();
     const narrativa = (req.body?.narrativa || {}) as any;
     const dados = await apurarDadosAno(ano);
-    const logo = await getLogoBuffer();
+    const whiteLogo = await getWhiteLogoBuffer();
 
     const doc = new PDFDocument({ margin: 40, bufferPages: true });
     res.header('Content-Type', 'application/pdf');
@@ -960,11 +964,11 @@ router.post('/anual/pdf', async (req, res) => {
     };
 
     // --- Capa ---
-    drawCover(doc, 'Relatório e Contas', `Exercício ${ano}`, logo);
+    drawCover(doc, 'Relatório e Contas', `Exercício ${ano}`, whiteLogo);
     doc.addPage();
 
     // --- Índice ---
-    drawHeader(doc, `Relatório e Contas ${ano}`, `Ano ${ano}`, logo);
+    drawHeader(doc, `Relatório e Contas ${ano}`, `Ano ${ano}`, whiteLogo);
     doc.moveDown(1).fillColor('#0f172a').font('Helvetica-Bold').fontSize(18).text('Índice', 40, doc.y, { width: 520 });
     doc.moveDown(0.8);
     const indicePageIndex = doc.bufferedPageRange().count - 1;
@@ -982,7 +986,7 @@ router.post('/anual/pdf', async (req, res) => {
     doc.addPage();
 
     // --- Secções narrativas ---
-    drawHeader(doc, `Relatório e Contas ${ano}`, `Ano ${ano}`, logo);
+    drawHeader(doc, `Relatório e Contas ${ano}`, `Ano ${ano}`, whiteLogo);
     marcar('Nota de Introdução');
     drawParagraphs(doc, 'Nota de Introdução', narrativa.notaIntroducao);
 
@@ -1038,6 +1042,30 @@ router.post('/anual/pdf', async (req, res) => {
     renderBars(doc, 'Despesas por Departamento', toArray(dados.depDespesas));
     doc.moveDown(0.4);
     renderBars(doc, 'Receitas por Entidade', toArray(dados.receitasPorEntidade));
+
+    // Gráficos por conta SNC
+    const despPorSnc: Record<string, number> = {};
+    (dados.faturas as any[]).forEach((f) => {
+      if (f.contaSnc) {
+        const label = `${f.contaSnc.codigo} — ${f.contaSnc.nome}`;
+        despPorSnc[label] = (despPorSnc[label] || 0) + toNum(f.valor);
+      }
+    });
+    if (Object.keys(despPorSnc).length) {
+      doc.moveDown(0.4);
+      renderBars(doc, 'Despesas por Conta SNC', toArray(despPorSnc));
+    }
+    const recPorSnc: Record<string, number> = {};
+    (dados.receitas as any[]).forEach((r) => {
+      if (r.contaSnc) {
+        const label = `${r.contaSnc.codigo} — ${r.contaSnc.nome}`;
+        recPorSnc[label] = (recPorSnc[label] || 0) + toNum(r.valor);
+      }
+    });
+    if (Object.keys(recPorSnc).length) {
+      doc.moveDown(0.4);
+      renderBars(doc, 'Receitas por Conta SNC', toArray(recPorSnc));
+    }
 
     // --- Conclusão ---
     marcar('Conclusão');

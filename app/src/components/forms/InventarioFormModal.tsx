@@ -153,7 +153,7 @@ export function InventarioFormModal({ item, onClose, onSaved }: Props) {
           <FormSection title="Capitalização SNC + depreciação" accent>
             <FormGrid>
               <FormField label="Conta SNC (classe 43x)" required hint="Equipamento TI → 435 (3 anos). Mobiliário → 435 (8 anos). Viatura → 434 (4 anos). Obra → 432 (50).">
-                <SncRichSelect tipo="ativo" value={contaSncId} onChange={id => setContaSncId(id || '')} />
+                <SncRichSelect tipos="ativo" value={contaSncId} onChange={id => setContaSncId(id || '')} />
               </FormField>
               <FormField label="Vida útil (anos)" hint="Período durante o qual o custo é espalhado como depreciação na conta 68">
                 <Input type="number" min={1} max={60} value={anosDepreciacao} onChange={e => setAnosDepreciacao(e.target.value)} />

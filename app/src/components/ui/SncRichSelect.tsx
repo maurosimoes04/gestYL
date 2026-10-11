@@ -4,18 +4,17 @@ import { useCatalogos } from '@/hooks/useCatalogos';
 import { cn } from '@/lib/cn';
 import type { ContaSNC } from '@/lib/types';
 
+type TipoSNC = 'proveito' | 'gasto' | 'ativo' | 'passivo' | 'capital';
+
 interface Props {
   value: number | '' | null;
   onChange: (id: number | null) => void;
-  tipo?: 'proveito' | 'gasto' | 'ativo' | 'passivo' | 'capital';
+  /** Um tipo ou array de tipos — ex. ['gasto','ativo'] para despesas. */
+  tipos?: TipoSNC | TipoSNC[];
   required?: boolean;
 }
 
-/**
- * Dropdown rico de ContaSNC — mostra código + nome + pergunta de decisão em cada opção,
- * agrupado por família, pesquisável. Substitui o `<select>` nativo onde a decisão é delicada.
- */
-export function SncRichSelect({ value, onChange, tipo }: Props) {
+export function SncRichSelect({ value, onChange, tipos }: Props) {
   const { contas } = useCatalogos();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -32,14 +31,15 @@ export function SncRichSelect({ value, onChange, tipo }: Props) {
 
   const porFamilia = useMemo(() => {
     const query = q.trim().toLowerCase();
-    const base = contas.filter(c => (!tipo || c.tipo === tipo));
+    const tipoArr = !tipos ? null : Array.isArray(tipos) ? tipos : [tipos];
+    const base = contas.filter(c => (!tipoArr || tipoArr.includes(c.tipo as TipoSNC)));
     const filtradas = query
       ? base.filter(c => `${c.codigo} ${c.nome} ${c.pergunta || ''}`.toLowerCase().includes(query))
       : base;
     const grp: Record<string, ContaSNC[]> = {};
     for (const c of filtradas) (grp[c.familia] ||= []).push(c);
     return grp;
-  }, [contas, tipo, q]);
+  }, [contas, tipos, q]);
 
   return (
     <div ref={ref} className="relative">

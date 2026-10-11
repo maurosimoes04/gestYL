@@ -116,12 +116,15 @@ export function FaturaFormModal({ fatura, onClose, onSaved }: Props) {
         <FormSection title="Classificação SNC + Entidade" accent>
           <FormGrid>
             <FormField label="Conta SNC" required>
-              <SncRichSelect tipo="gasto" value={contaSncId} onChange={id => setContaSncId(id || '')} required />
-              {fatura?.id && (
-                <div className="mt-2">
-                  <SugestaoSncButton tipo="fatura" registoId={fatura.id} onAplicar={setContaSncId} />
-                </div>
-              )}
+              <SncRichSelect tipos={['gasto', 'ativo']} value={contaSncId} onChange={id => setContaSncId(id || '')} required />
+              <div className="mt-2">
+                <SugestaoSncButton
+                  tipo="fatura"
+                  registoId={fatura?.id ?? null}
+                  formData={{ titulo, valor, data, entidadeNome: entidades.find(e => e.id === entidadeId)?.nome, departamento, numero, descricao }}
+                  onAplicar={setContaSncId}
+                />
+              </div>
             </FormField>
             <FormField label="Entidade (fornecedor)" required>
               <EntidadeSelect value={entidadeId} onChange={setEntidadeId} tipo="fornecedor" />

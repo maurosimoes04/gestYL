@@ -29,7 +29,7 @@ export function ReceitasPage() {
   const [editing, setEditing] = useState<Receita | null>(null);
   const readonly = role === 'fiscal';
 
-  const contasProveito = useMemo(() => contas.filter(c => c.tipo === 'proveito' || c.tipo === 'passivo'), [contas]);
+  const contasReceita = useMemo(() => contas.filter(c => c.tipo === 'proveito' || c.tipo === 'passivo' || c.tipo === 'capital'), [contas]);
 
   async function reload() {
     setLoading(true);
@@ -45,7 +45,7 @@ export function ReceitasPage() {
       if (sncId === '__none__') { if (r.contaSncId) return false; }
       else if (sncId && r.contaSncId !== Number(sncId)) return false;
       if (query) {
-        const hay = `${r.titulo} ${r.financiador || ''} ${r.entidade?.nome || ''}`.toLowerCase();
+        const hay = `${r.titulo} ${r.financiador || ''} ${r.entidade?.nome || ''} ${r.entidade?.nif || ''} ${r.contaSnc?.codigo || ''} ${r.contaSnc?.nome || ''} ${r.categoria || ''} ${r.estado || ''} ${r.observacoes || ''} ${r.receitaEventos?.map(re => re.evento?.nome).join(' ') || ''}`.toLowerCase();
         if (!hay.includes(query)) return false;
       }
       return true;
@@ -75,7 +75,7 @@ export function ReceitasPage() {
       <Card className="mb-5 p-4 flex flex-wrap gap-3 items-center">
         <div className="relative flex-1 min-w-60">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted pointer-events-none" />
-          <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Pesquisar título, financiador…" className="pl-9" />
+          <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Pesquisar em todos os campos…" className="pl-9" />
         </div>
         <Select value={estado} onChange={e => setEstado(e.target.value)} className="w-40">
           <option value="">Todos os estados</option>
@@ -86,7 +86,7 @@ export function ReceitasPage() {
         <Select value={sncId} onChange={e => setSncId(e.target.value)} className="w-64">
           <option value="">Todas as contas SNC</option>
           <option value="__none__">— Sem classificação SNC</option>
-          {Object.entries(contasProveito.reduce((acc: Record<string, typeof contasProveito>, c) => {
+          {Object.entries(contasReceita.reduce((acc: Record<string, typeof contasReceita>, c) => {
             (acc[c.familia] ||= []).push(c); return acc;
           }, {})).map(([fam, lista]) => (
             <optgroup key={fam} label={fam}>

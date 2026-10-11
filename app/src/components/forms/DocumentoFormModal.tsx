@@ -10,12 +10,12 @@ import { useToast } from '@/contexts/ToastContext';
 import { useCatalogos } from '@/hooks/useCatalogos';
 import type { Documento } from '@/lib/types';
 
-interface Props { documento: Documento | null; onClose: () => void; onSaved: () => void; }
+interface Props { documento: Documento | null; prefilledEntidadeId?: number | null; onClose: () => void; onSaved: () => void; }
 
 const TIPOS = ['Contrato', 'Plano Individual', 'Apólice Seguro', 'Declaração SS', 'Declaração NEET',
                 'Certificado Habilitações', 'Certificado Final', 'Documento Identificação', 'Protocolo', 'Outro'];
 
-export function DocumentoFormModal({ documento, onClose, onSaved }: Props) {
+export function DocumentoFormModal({ documento, prefilledEntidadeId, onClose, onSaved }: Props) {
   const { toast } = useToast();
   const { processos } = useCatalogos();
   const [saving, setSaving] = useState(false);
@@ -24,7 +24,7 @@ export function DocumentoFormModal({ documento, onClose, onSaved }: Props) {
   const [estado, setEstado] = useState(documento?.estado || 'Pendente');
   const [dataLimite, setDataLimite] = useState(documento?.dataLimite ? String(documento.dataLimite).slice(0, 10) : '');
   const [processoId, setProcessoId] = useState<number | ''>(documento?.processoId || '');
-  const [entidadeId, setEntidadeId] = useState<number | null>(documento?.entidadeId || null);
+  const [entidadeId, setEntidadeId] = useState<number | null>(documento?.entidadeId || prefilledEntidadeId || null);
   const [descricao, setDescricao] = useState(documento?.descricao || '');
   const [notas, setNotas] = useState(documento?.notas || '');
   const [anexo, setAnexo] = useState<File | null>(null);

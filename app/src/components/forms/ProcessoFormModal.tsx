@@ -128,7 +128,7 @@ export function ProcessoFormModal({ processo, onClose, onSaved }: Props) {
                 <Input type="number" step="0.01" value={valorAprovado} onChange={e => setValorAprovado(e.target.value)} />
               </FormField>
               <FormField label="Conta SNC das prestações recebidas">
-                <SncRichSelect tipo="proveito" value={contaSncReceitaId} onChange={id => setContaSncReceitaId(id || '')} />
+                <SncRichSelect tipos={['proveito', 'passivo', 'capital']} value={contaSncReceitaId} onChange={id => setContaSncReceitaId(id || '')} />
               </FormField>
             </FormGrid>
           </FormSection>

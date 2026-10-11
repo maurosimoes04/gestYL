@@ -1,9 +1,8 @@
 import fs from 'fs/promises';
 import path from 'path';
 
-// Carrega o logo YL do build do frontend (que o Express já serve estaticamente).
-// Mantém o buffer em cache para evitar ler o ficheiro do disco em cada PDF.
 let cachedLogo: Buffer | null = null;
+let cachedWhiteLogo: Buffer | null = null;
 
 const LOGO_PATHS = [
   path.join(process.cwd(), 'src', 'frontend', 'app', 'logo-original.png'),
@@ -20,4 +19,20 @@ export async function getLogoBuffer(): Promise<Buffer | null> {
     } catch { /* tenta o próximo */ }
   }
   return null;
+}
+
+export async function getWhiteLogoBuffer(): Promise<Buffer | null> {
+  if (cachedWhiteLogo) return cachedWhiteLogo;
+  const original = await getLogoBuffer();
+  if (!original) return null;
+  try {
+    const sharp = require('sharp');
+    cachedWhiteLogo = await sharp(original)
+      .negate({ alpha: false })
+      .toBuffer();
+    return cachedWhiteLogo;
+  } catch (err) {
+    console.warn('Não foi possível criar logo branco:', err);
+    return null;
+  }
 }

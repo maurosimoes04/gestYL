@@ -13,26 +13,53 @@ interface Sugestao {
   diverge: boolean;
 }
 
+interface FormData {
+  titulo: string;
+  valor?: string | number;
+  data?: string;
+  entidadeNome?: string;
+  departamento?: string;
+  numero?: string;
+  descricao?: string;
+}
+
 interface Props {
   tipo: 'fatura' | 'receita';
   registoId: number | null;
+  /** Dados do formulário — permitem sugerir SNC sem registo guardado. */
+  formData?: FormData;
   onAplicar: (contaSncId: number) => void;
 }
 
-/**
- * Botão "Sugerir SNC" (IA) para os modais de Fatura/Receita.
- * Só visível quando o registo já existe (precisa de id para a IA ler o contexto).
- */
-export function SugestaoSncButton({ tipo, registoId, onAplicar }: Props) {
+export function SugestaoSncButton({ tipo, registoId, formData, onAplicar }: Props) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [sug, setSug] = useState<Sugestao | null>(null);
 
+  const temInfoSuficiente = registoId || (formData?.titulo && formData.titulo.trim().length >= 3);
+
   async function sugerir() {
-    if (!registoId) { toast('Guarda primeiro para a IA poder analisar', 'info'); return; }
+    if (!temInfoSuficiente) {
+      toast('Preenche pelo menos o título para a IA poder sugerir', 'info');
+      return;
+    }
     setLoading(true);
     try {
-      const r = await apiPost<Sugestao>(`/ia-snc/sugerir/${tipo}/${registoId}`);
+      let r: Sugestao;
+      if (registoId) {
+        r = await apiPost<Sugestao>(`/ia-snc/sugerir/${tipo}/${registoId}`);
+      } else {
+        r = await apiPost<Sugestao>('/ia-snc/sugerir-form', {
+          tipo,
+          titulo: formData!.titulo,
+          valor: formData?.valor,
+          data: formData?.data,
+          entidadeNome: formData?.entidadeNome,
+          departamento: formData?.departamento,
+          numero: formData?.numero,
+          descricao: formData?.descricao,
+        });
+      }
       setSug(r);
     } catch (e: any) { toast(e.message || 'IA indisponível', 'error'); }
     finally { setLoading(false); }
@@ -51,9 +78,12 @@ export function SugestaoSncButton({ tipo, registoId, onAplicar }: Props) {
   return (
     <div>
       <Button type="button" size="sm" variant="subtle" icon={<Sparkles className="w-3.5 h-3.5" />}
-              loading={loading} onClick={sugerir}>
+              loading={loading} onClick={sugerir} disabled={!temInfoSuficiente && !loading}>
         {sug ? 'Rever sugestão IA' : 'Sugerir SNC com IA'}
       </Button>
+      {!temInfoSuficiente && (
+        <p className="text-[0.68rem] text-ink-soft mt-1">Preenche o título para ativar a sugestão IA.</p>
+      )}
 
       {sug && (
         <div className="mt-2 bg-white border-2 border-brand rounded-lg p-3 shadow-card">

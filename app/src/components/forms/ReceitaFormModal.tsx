@@ -103,12 +103,15 @@ export function ReceitaFormModal({ receita, onClose, onSaved }: Props) {
         <FormSection title="Classificação SNC + Entidade" accent>
           <FormGrid>
             <FormField label="Conta SNC" required>
-              <SncRichSelect tipo="proveito" value={contaSncId} onChange={id => setContaSncId(id || '')} required />
-              {receita?.id && (
-                <div className="mt-2">
-                  <SugestaoSncButton tipo="receita" registoId={receita.id} onAplicar={setContaSncId} />
-                </div>
-              )}
+              <SncRichSelect tipos={['proveito', 'passivo', 'capital']} value={contaSncId} onChange={id => setContaSncId(id || '')} required />
+              <div className="mt-2">
+                <SugestaoSncButton
+                  tipo="receita"
+                  registoId={receita?.id ?? null}
+                  formData={{ titulo, valor, data, entidadeNome: entidades.find(e => e.id === entidadeId)?.nome, descricao: observacoes }}
+                  onAplicar={setContaSncId}
+                />
+              </div>
             </FormField>
             <FormField label="Entidade (financiador)" required>
               <EntidadeSelect value={entidadeId} onChange={setEntidadeId} tipo="financiador" placeholder="IPDJ, Câmara, Junta…" />
