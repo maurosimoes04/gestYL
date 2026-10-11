@@ -167,4 +167,19 @@ app.use('/entidades', auditRoutes('entidade'), entidadeRoutes);
 app.use('/documentos', auditRoutes('documento'), documentoRoutes);
 app.use('/ia-snc', auditRoutes('sncIa'), sncIaRoutes);
 
+// Error handler global — captura erros de multer e outros middlewares
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ error: 'Ficheiro demasiado grande (máx. 10 MB).' });
+  }
+  if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+    return res.status(400).json({ error: 'Campo de ficheiro inesperado.' });
+  }
+  if (err.message?.includes('Tipo de ficheiro inválido')) {
+    return res.status(400).json({ error: err.message });
+  }
+  console.error('Erro não tratado:', err.message || err);
+  res.status(err.status || 500).json({ error: err.message || 'Erro interno' });
+});
+
 export default app;

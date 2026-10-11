@@ -31,8 +31,8 @@ function pickIcon(file: File | null) {
 export function FileDropzone({
   value,
   onChange,
-  accept = 'application/pdf,image/*',
-  maxSizeMB = 15,
+  accept = 'application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png',
+  maxSizeMB = 10,
   hint,
   current,
   disabled,
