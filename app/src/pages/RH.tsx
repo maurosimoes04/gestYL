@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Paperclip, Pencil, Trash2, AlertTriangle, ChevronDown, ChevronRight, User, FileText, Briefcase, Search } from 'lucide-react';
+import { Plus, Paperclip, Pencil, Trash2, AlertTriangle, ChevronDown, ChevronRight, User, FileText, Briefcase, Search, FolderPlus } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/Input';
 import { Badge, estadoVariant } from '@/components/ui/Badge';
 import { Empty } from '@/components/ui/Table';
 import { LoadingBlock } from '@/components/ui/Spinner';
-import { apiDel, apiGet } from '@/lib/api';
+import { apiDel, apiGet, apiPost } from '@/lib/api';
 import { fmtData, fmtDias, fmtEuro } from '@/lib/format';
 import { useToast } from '@/contexts/ToastContext';
 import { openProtected } from '@/lib/download';
@@ -81,6 +81,25 @@ export function RHPage() {
     if (!confirm('Eliminar este documento?')) return;
     try { await apiDel(`/documentos/${d.id}`); toast('Eliminado', 'success'); reload(); }
     catch (e: any) { toast(e.message || 'Erro', 'error'); }
+  }
+
+  async function criarDossieBase(pessoaId: number, processoId: number, processoNome: string) {
+    const template = processoNome.toUpperCase().includes('IEFP') || processoNome.toUpperCase().includes('IDA') || processoNome.toUpperCase().includes('ESTÁGIO')
+      ? 'IEFP'
+      : processoNome.toUpperCase().includes('IPDJ')
+        ? 'IPDJ'
+        : 'Outro';
+    try {
+      const r = await apiPost<{ criados: number; tipos?: string[]; mensagem?: string }>('/documentos/dossie-base', {
+        entidadeId: pessoaId, processoId, template,
+      });
+      if (r.criados > 0) {
+        toast(`${r.criados} documento(s) base criado(s): ${r.tipos!.join(', ')}`, 'success');
+        reload();
+      } else {
+        toast(r.mensagem || 'Dossiê base já completo', 'info');
+      }
+    } catch (e: any) { toast(e.message || 'Erro', 'error'); }
   }
 
   function novoDocPessoa(pessoaId: number) {
@@ -195,6 +214,13 @@ export function RHPage() {
                               <div className="text-xs text-ink-soft mt-1">
                                 {fmtData(s.data_inicio)} → {fmtData(s.data_fim) || '—'}
                               </div>
+                              {!readonly && (
+                                <button type="button"
+                                        onClick={() => criarDossieBase(pessoa.id, s.id, s.nome)}
+                                        className="mt-2 flex items-center gap-1 text-[0.7rem] text-brand hover:text-brand-strong transition-colors font-medium">
+                                  <FolderPlus className="w-3 h-3" /> Criar dossiê base
+                                </button>
+                              )}
                             </div>
                           ))}
                         </div>

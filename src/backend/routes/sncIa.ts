@@ -1,12 +1,15 @@
 /**
- * Rotas: /ia-snc — sugestão de conta SNC via Gemini.
- *   POST /ia-snc/sugerir/:tipo/:id  — sugere para um registo específico (fatura|receita)
- *   GET  /ia-snc/auditoria?limit=…  — auditoria batch (compara atual vs sugerido)
+ * Rotas: /ia-snc — sugestão via Gemini.
+ *   POST /ia-snc/sugerir/:tipo/:id      — sugere conta SNC para registo existente
+ *   POST /ia-snc/sugerir-form           — sugere conta SNC com dados de formulário
+ *   POST /ia-snc/sugerir-tipo-processo  — sugere tipo de processo (Evento/Projeto/…)
+ *   GET  /ia-snc/auditoria?limit=…      — auditoria batch
  */
 
 import express from 'express';
 import { prisma } from '../config/prisma';
 import { sugerirSncParaRegisto, SugestaoSncError } from '../services/sncSugestao';
+import { sugerirTipoProcesso, SugestaoTipoError } from '../services/processoTipoSugestao';
 
 const router = express.Router();
 
@@ -108,6 +111,31 @@ router.post('/sugerir-form', async (req, res) => {
     });
   } catch (err: any) {
     console.error('Erro sugerir-form SNC:', err);
+    res.status(500).json({ error: err.message || 'Erro' });
+  }
+});
+
+/** POST /ia-snc/sugerir-tipo-processo — sugere tipo de processo via IA */
+router.post('/sugerir-tipo-processo', async (req, res) => {
+  try {
+    const { nome, descricao, departamento, dataInicio, dataFim } = req.body || {};
+    if (!nome || nome.trim().length < 3) {
+      return res.status(400).json({ error: 'Nome com pelo menos 3 caracteres é obrigatório' });
+    }
+    let sug;
+    try {
+      sug = await sugerirTipoProcesso({ nome, descricao, departamento, dataInicio, dataFim });
+    } catch (err: any) {
+      if (err instanceof SugestaoTipoError) {
+        const status = err.kind === 'overloaded' ? 503 : err.kind === 'no-key' ? 500 : 502;
+        return res.status(status).json({ error: err.message, kind: err.kind });
+      }
+      throw err;
+    }
+    if (!sug) return res.status(502).json({ error: 'IA sem resposta' });
+    res.json(sug);
+  } catch (err: any) {
+    console.error('Erro sugerir-tipo-processo:', err);
     res.status(500).json({ error: err.message || 'Erro' });
   }
 });

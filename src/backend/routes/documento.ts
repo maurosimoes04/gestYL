@@ -64,7 +64,43 @@ async function uploadAnexo(file: Express.Multer.File) {
   }
 }
 
-router.get('/catalogo', (_req, res) => res.json({ tipos: TIPOS }));
+const DOSSIE_BASE: Record<string, string[]> = {
+  'IEFP':  ['Contrato', 'Plano Individual', 'Apólice Seguro', 'Declaração SS', 'Certificado Habilitações', 'Documento Identificação'],
+  'IPDJ':  ['Protocolo', 'Declaração NEET', 'Certificado Habilitações', 'Documento Identificação'],
+  'Outro': ['Contrato', 'Certificado Habilitações', 'Documento Identificação'],
+};
+
+router.get('/catalogo', (_req, res) => res.json({ tipos: TIPOS, dossieBase: DOSSIE_BASE }));
+
+router.post('/dossie-base', async (req, res) => {
+  try {
+    const { entidadeId, processoId, template } = req.body || {};
+    if (!entidadeId) return res.status(400).json({ error: 'entidadeId obrigatório' });
+    if (!processoId) return res.status(400).json({ error: 'processoId obrigatório' });
+    const tiposDossie = DOSSIE_BASE[template] || DOSSIE_BASE['Outro'];
+    const existing = await prisma.documento.findMany({
+      where: { entidadeId: Number(entidadeId), processoId: Number(processoId) },
+      select: { tipo: true },
+    });
+    const existingTipos = new Set(existing.map(d => d.tipo));
+    const novos = tiposDossie.filter(t => !existingTipos.has(t));
+    if (novos.length === 0) {
+      return res.json({ criados: 0, mensagem: 'Todos os documentos base já existem para esta pessoa/processo.' });
+    }
+    const docs = await prisma.documento.createMany({
+      data: novos.map(tipo => ({
+        tipo,
+        estado: 'Pendente',
+        entidadeId: Number(entidadeId),
+        processoId: Number(processoId),
+      })),
+    });
+    res.status(201).json({ criados: docs.count, tipos: novos });
+  } catch (err: any) {
+    console.error('Erro criar dossiê base:', err.message || err);
+    res.status(400).json({ error: err.message || 'Erro' });
+  }
+});
 
 /** GET /documentos — lista com filtros */
 router.get('/', async (req, res) => {

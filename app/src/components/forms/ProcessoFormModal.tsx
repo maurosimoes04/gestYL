@@ -8,6 +8,7 @@ import { EntidadeSelect } from '@/components/ui/EntidadeSelect';
 import { apiPost, apiPut } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
 import { useCatalogos } from '@/hooks/useCatalogos';
+import { SugestaoTipoButton } from '@/components/ui/SugestaoTipoButton';
 import type { Processo } from '@/lib/types';
 import { Info } from 'lucide-react';
 
@@ -113,6 +114,11 @@ export function ProcessoFormModal({ processo, onClose, onSaved }: Props) {
           <FormField label="Descrição" className="mt-3">
             <Textarea value={descricao} onChange={e => setDescricao(e.target.value)} rows={2} />
           </FormField>
+          <div className="mt-3">
+            <SugestaoTipoButton nome={nome} descricao={descricao} departamento={departamento}
+                                dataInicio={dataInicio} dataFim={dataFim}
+                                onAplicar={t => setTipo(t as Processo['tipo'])} />
+          </div>
         </FormSection>
 
         {tipo === 'Subsídio' && (
