@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Paperclip, Pencil, Trash2, AlertTriangle, ChevronDown, ChevronRight, User, FileText, Briefcase, Search, FolderPlus } from 'lucide-react';
+import { Plus, Paperclip, Pencil, Trash2, AlertTriangle, ChevronDown, ChevronRight, User, FileText, Briefcase, Search, FolderPlus, LinkIcon, UserPlus } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
+import { Input, Select } from '@/components/ui/Input';
 import { Badge, estadoVariant } from '@/components/ui/Badge';
 import { Empty } from '@/components/ui/Table';
 import { LoadingBlock } from '@/components/ui/Spinner';
-import { apiDel, apiGet, apiPost } from '@/lib/api';
+import { Modal } from '@/components/ui/Modal';
+import { apiDel, apiGet, apiPost, apiPut } from '@/lib/api';
 import { fmtData, fmtDias, fmtEuro } from '@/lib/format';
 import { useToast } from '@/contexts/ToastContext';
 import { openProtected } from '@/lib/download';
@@ -32,9 +33,11 @@ export function RHPage() {
   const [docs, setDocs] = useState<Documento[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showDossieModal, setShowDossieModal] = useState(false);
   const [editing, setEditing] = useState<Documento | null>(null);
   const [prefilledEntidade, setPrefilledEntidade] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [subsidioResumos, setSubsidioResumos] = useState<Record<number, { totalDespesas: number; totalReceitas: number; saldo: number } | null>>({});
   const [q, setQ] = useState('');
   const readonly = role === 'fiscal';
 
@@ -48,14 +51,19 @@ export function RHPage() {
   const pessoasInternas = useMemo(() => entidades.filter(e => (e.tipos || []).includes('pessoa-interna')), [entidades]);
   const subsidios = useMemo(() => processos.filter(p => p.tipo === 'Subsídio'), [processos]);
 
+  const subsidiosPendentes = useMemo(() => subsidios.filter(s => !s.pessoaId), [subsidios]);
+  const pessoasSemDossie = useMemo(() => {
+    const comDocs = new Set(docs.map(d => d.entidadeId).filter(Boolean));
+    const comSub = new Set(subsidios.map(s => s.pessoaId).filter(Boolean));
+    return pessoasInternas.filter(p => !comDocs.has(p.id) && !comSub.has(p.id));
+  }, [pessoasInternas, docs, subsidios]);
+
   const pessoasResumo = useMemo<PessoaResumo[]>(() => {
     const query = q.trim().toLowerCase();
     return pessoasInternas
       .map(pessoa => {
         const pessoaDocs = docs.filter(d => d.entidadeId === pessoa.id);
-        const pessoaSubsidios = subsidios.filter(s => {
-          return pessoaDocs.some(d => d.processoId === s.id);
-        });
+        const pessoaSubsidios = subsidios.filter(s => s.pessoaId === pessoa.id);
         const alertas = pessoaDocs.filter(d => d.estado !== 'Enviado');
         const criticos = alertas.filter(d => d._severidade === 'vencido' || d._severidade === 'critico').length;
         return {
@@ -102,6 +110,18 @@ export function RHPage() {
     } catch (e: any) { toast(e.message || 'Erro', 'error'); }
   }
 
+  async function expandPessoa(pessoaId: number, pessoaSubsidios: Processo[]) {
+    if (expandedId === pessoaId) { setExpandedId(null); return; }
+    setExpandedId(pessoaId);
+    for (const s of pessoaSubsidios) {
+      if (subsidioResumos[s.id] !== undefined) continue;
+      try {
+        const det = await apiGet<{ resumo: { totalDespesas: number; totalReceitas: number; saldo: number } }>(`/eventos/${s.id}/details`);
+        setSubsidioResumos(prev => ({ ...prev, [s.id]: det.resumo }));
+      } catch { setSubsidioResumos(prev => ({ ...prev, [s.id]: null })); }
+    }
+  }
+
   function novoDocPessoa(pessoaId: number) {
     setEditing(null);
     setPrefilledEntidade(pessoaId);
@@ -117,7 +137,17 @@ export function RHPage() {
       <PageHeader
         title="RH / Dossiês"
         subtitle={`${pessoasInternas.length} pessoas · ${subsidios.length} subsídios · ${totalAlertas} alertas críticos`}
-        actions={!readonly && <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setPrefilledEntidade(null); setShowForm(true); }}>Novo documento</Button>}
+        actions={!readonly && (
+          <div className="flex gap-2">
+            <Button variant="subtle" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setPrefilledEntidade(null); setShowForm(true); }}>Novo documento</Button>
+            <Button icon={<FolderPlus className="w-4 h-4" />} onClick={() => setShowDossieModal(true)}>
+              Novo dossiê
+              {(subsidiosPendentes.length > 0 || pessoasSemDossie.length > 0) && (
+                <span className="ml-1.5 bg-white/25 text-[0.65rem] rounded-full px-1.5 py-0.5 font-bold">{subsidiosPendentes.length + pessoasSemDossie.length}</span>
+              )}
+            </Button>
+          </div>
+        )}
       />
 
       <Card className="mb-5 p-4 flex flex-wrap gap-3 items-center">
@@ -146,7 +176,7 @@ export function RHPage() {
                 {/* Cabeçalho da pessoa — clicável para expandir */}
                 <button
                   type="button"
-                  onClick={() => setExpandedId(isExpanded ? null : pessoa.id)}
+                  onClick={() => expandPessoa(pessoa.id, pessoaSubsidios)}
                   className="w-full flex items-center gap-4 px-5 py-4 hover:bg-surface-page transition-colors text-left"
                 >
                   <div className="w-10 h-10 rounded-full bg-brand-soft flex items-center justify-center shrink-0">
@@ -157,7 +187,7 @@ export function RHPage() {
                     <div className="text-xs text-ink-soft flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                       {pessoa.funcao && <span>{pessoa.funcao}</span>}
                       {pessoa.tipoVinculo && <span className="text-brand">{pessoa.tipoVinculo}</span>}
-                      {pessoa.bolsaBase != null && <span className="font-mono">Bolsa: {fmtEuro(pessoa.bolsaBase)}</span>}
+                      {pessoa.bolsaBase != null && <span className="font-mono" title="Valor líquido mensal">Bolsa líq.: {fmtEuro(pessoa.bolsaBase)}</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -203,26 +233,38 @@ export function RHPage() {
                           <Briefcase className="w-3.5 h-3.5" /> Apoios / Subsídios
                         </h4>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {pessoaSubsidios.map(s => (
-                            <div key={s.id} className="bg-white border border-line rounded-md px-3 py-2">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="font-medium text-sm text-ink">{s.nome}</span>
-                                <Badge variant={s.estado === 'Concluído' ? 'good' : s.estado === 'Cancelado' ? 'bad' : 'neutral'}>{s.estado}</Badge>
+                          {pessoaSubsidios.map(s => {
+                            const resumo = subsidioResumos[s.id];
+                            return (
+                              <div key={s.id} className="bg-white border border-line rounded-md px-3 py-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="font-medium text-sm text-ink">{s.nome}</span>
+                                  <Badge variant={s.estado === 'Concluído' ? 'good' : s.estado === 'Cancelado' ? 'bad' : 'neutral'}>{s.estado}</Badge>
+                                </div>
+                                {s.numeroProcesso && <div className="text-xs text-ink-soft mt-1">Processo nº <span className="font-mono">{s.numeroProcesso}</span></div>}
+                                {s.valorAprovado != null && <div className="text-xs font-mono font-semibold mt-1">{fmtEuro(s.valorAprovado)} aprovados</div>}
+                                <div className="text-xs text-ink-soft mt-1">
+                                  {fmtData(s.data_inicio)} → {fmtData(s.data_fim) || '—'}
+                                </div>
+                                {resumo && (
+                                  <div className="mt-2 flex gap-3 text-[0.7rem] font-mono border-t border-line-soft pt-1.5">
+                                    <span className="text-green-700" title="Receitas recebidas">▲ {fmtEuro(resumo.totalReceitas)}</span>
+                                    <span className="text-red-600" title="Despesas associadas">▼ {fmtEuro(resumo.totalDespesas)}</span>
+                                    <span className={resumo.saldo >= 0 ? 'text-green-700' : 'text-red-600'} title="Saldo">
+                                      Saldo: {fmtEuro(resumo.saldo)}
+                                    </span>
+                                  </div>
+                                )}
+                                {!readonly && (
+                                  <button type="button"
+                                          onClick={() => criarDossieBase(pessoa.id, s.id, s.nome)}
+                                          className="mt-2 flex items-center gap-1 text-[0.7rem] text-brand hover:text-brand-strong transition-colors font-medium">
+                                    <FolderPlus className="w-3 h-3" /> Criar dossiê base
+                                  </button>
+                                )}
                               </div>
-                              {s.numeroProcesso && <div className="text-xs text-ink-soft mt-1">Processo nº <span className="font-mono">{s.numeroProcesso}</span></div>}
-                              {s.valorAprovado != null && <div className="text-xs font-mono font-semibold mt-1">{fmtEuro(s.valorAprovado)} aprovados</div>}
-                              <div className="text-xs text-ink-soft mt-1">
-                                {fmtData(s.data_inicio)} → {fmtData(s.data_fim) || '—'}
-                              </div>
-                              {!readonly && (
-                                <button type="button"
-                                        onClick={() => criarDossieBase(pessoa.id, s.id, s.nome)}
-                                        className="mt-2 flex items-center gap-1 text-[0.7rem] text-brand hover:text-brand-strong transition-colors font-medium">
-                                  <FolderPlus className="w-3 h-3" /> Criar dossiê base
-                                </button>
-                              )}
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -323,6 +365,139 @@ export function RHPage() {
           onSaved={() => { setShowForm(false); setPrefilledEntidade(null); reload(); }}
         />
       )}
+
+      {showDossieModal && (
+        <NovoDossieModal
+          subsidiosPendentes={subsidiosPendentes}
+          pessoasSemDossie={pessoasSemDossie}
+          pessoasInternas={pessoasInternas}
+          onClose={() => setShowDossieModal(false)}
+          onChanged={() => { setShowDossieModal(false); reload(); }}
+        />
+      )}
     </>
+  );
+}
+
+/* ─── Modal "Novo dossiê" ─── */
+
+function NovoDossieModal({ subsidiosPendentes, pessoasSemDossie, pessoasInternas, onClose, onChanged }: {
+  subsidiosPendentes: Processo[];
+  pessoasSemDossie: Entidade[];
+  pessoasInternas: Entidade[];
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const { toast } = useToast();
+  const { reload: reloadCat } = useCatalogos();
+  const [associando, setAssociando] = useState<Record<number, number | null>>({});
+  const [saving, setSaving] = useState(false);
+
+  async function associarECriarDossie(processoId: number, pessoaId: number, processoNome: string) {
+    setSaving(true);
+    try {
+      await apiPut(`/eventos/${processoId}`, { pessoaId });
+      const template = processoNome.toUpperCase().includes('IEFP') || processoNome.toUpperCase().includes('IDA') || processoNome.toUpperCase().includes('ESTÁGIO')
+        ? 'IEFP'
+        : processoNome.toUpperCase().includes('IPDJ')
+          ? 'IPDJ'
+          : 'Outro';
+      const r = await apiPost<{ criados: number; tipos?: string[]; mensagem?: string }>('/documentos/dossie-base', {
+        entidadeId: pessoaId, processoId, template,
+      });
+      await reloadCat();
+      if (r.criados > 0) toast(`Associado + ${r.criados} doc(s) base criado(s)`, 'success');
+      else toast('Associado com sucesso', 'success');
+      onChanged();
+    } catch (e: any) {
+      toast(e.message || 'Erro', 'error');
+    } finally { setSaving(false); }
+  }
+
+  const hasPendentes = subsidiosPendentes.length > 0;
+  const hasSemDossie = pessoasSemDossie.length > 0;
+
+  return (
+    <Modal open onClose={onClose} size="lg" title="Novo dossiê">
+      <div className="space-y-6">
+        {/* Subsídios sem pessoa associada */}
+        <div>
+          <h3 className="text-sm font-semibold text-ink flex items-center gap-2 mb-3">
+            <LinkIcon className="w-4 h-4 text-brand" />
+            Subsídios pendentes de associar
+            {hasPendentes && <Badge variant="warn">{subsidiosPendentes.length}</Badge>}
+          </h3>
+          {!hasPendentes ? (
+            <p className="text-xs text-ink-soft italic">Todos os subsídios já estão associados a uma pessoa.</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {subsidiosPendentes.map(s => (
+                <div key={s.id} className="bg-surface-page border border-line rounded-md px-4 py-3">
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <div>
+                      <span className="font-medium text-sm text-ink">{s.nome}</span>
+                      {s.numeroProcesso && <span className="text-xs text-ink-soft ml-2">nº {s.numeroProcesso}</span>}
+                    </div>
+                    <Badge variant={s.estado === 'Em curso' ? 'neutral' : s.estado === 'Concluído' ? 'good' : 'bad'}>{s.estado}</Badge>
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <label className="text-xs text-ink-soft mb-1 block">Associar a pessoa:</label>
+                      <Select
+                        value={associando[s.id] ?? ''}
+                        onChange={e => setAssociando(prev => ({ ...prev, [s.id]: e.target.value ? Number(e.target.value) : null }))}
+                      >
+                        <option value="">— Selecionar pessoa —</option>
+                        {pessoasInternas.map(p => (
+                          <option key={p.id} value={p.id}>{p.nome}{p.funcao ? ` (${p.funcao})` : ''}</option>
+                        ))}
+                      </Select>
+                    </div>
+                    <Button
+                      size="sm"
+                      disabled={!associando[s.id] || saving}
+                      loading={saving}
+                      onClick={() => associando[s.id] && associarECriarDossie(s.id, associando[s.id]!, s.nome)}
+                    >
+                      Associar + criar dossiê
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Pessoas sem dossiê */}
+        <div>
+          <h3 className="text-sm font-semibold text-ink flex items-center gap-2 mb-3">
+            <UserPlus className="w-4 h-4 text-brand" />
+            Pessoas internas sem dossiê
+            {hasSemDossie && <Badge variant="warn">{pessoasSemDossie.length}</Badge>}
+          </h3>
+          {!hasSemDossie ? (
+            <p className="text-xs text-ink-soft italic">Todas as pessoas internas já têm documentos ou subsídios associados.</p>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {pessoasSemDossie.map(p => (
+                <div key={p.id} className="bg-surface-page border border-line rounded-md px-4 py-2 flex items-center gap-3">
+                  <User className="w-4 h-4 text-ink-soft shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-ink">{p.nome}</span>
+                    {p.funcao && <span className="text-xs text-ink-soft ml-2">{p.funcao}</span>}
+                  </div>
+                  <span className="text-xs text-ink-soft">Cria um subsídio com esta pessoa para gerar o dossiê.</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <p className="text-xs text-ink-soft border-t border-line-soft pt-3">
+          <strong>Como funciona:</strong> Cada despesa (fatura) é ligada ao processo/subsídio específico (IEFP ou IPDJ).
+          Se uma pessoa tem dois apoios, cada fatura pertence ao processo correto — não há duplicação.
+        </p>
+      </div>
+    </Modal>
   );
 }

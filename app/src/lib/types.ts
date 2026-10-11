@@ -82,6 +82,8 @@ export interface Processo {
   data_fim?: string | null;
   departamento?: string | null;
   estado: string;
+  pessoaId?: number | null;
+  pessoa?: { id: number; nome: string } | null;
   entidadeFinanciadoraId?: number | null;
   numeroProcesso?: string | null;
   valorAprovado?: number | null;

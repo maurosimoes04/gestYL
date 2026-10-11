@@ -12,7 +12,7 @@ import { SugestaoTipoButton } from '@/components/ui/SugestaoTipoButton';
 import type { Processo } from '@/lib/types';
 import { Info } from 'lucide-react';
 
-interface Props { processo: Processo | null; onClose: () => void; onSaved: () => void; }
+interface Props { processo: Processo | null; prefilledPessoaId?: number | null; onClose: () => void; onSaved: () => void; }
 
 /** Pergunta de decisão para cada tipo — ajuda o utilizador a classificar sem precisar de pedir. */
 const TIPO_HELP: Record<Processo['tipo'], string> = {
@@ -26,7 +26,7 @@ const TIPO_HELP: Record<Processo['tipo'], string> = {
     'Subsídio multi-prestação (IEFP, IPDJ, Câmara). Permite guardar nº de processo, valor aprovado e ligar as receitas das prestações recebidas.',
 };
 
-export function ProcessoFormModal({ processo, onClose, onSaved }: Props) {
+export function ProcessoFormModal({ processo, prefilledPessoaId, onClose, onSaved }: Props) {
   const { toast } = useToast();
   const { departamentos, reload } = useCatalogos();
   const [saving, setSaving] = useState(false);
@@ -38,6 +38,7 @@ export function ProcessoFormModal({ processo, onClose, onSaved }: Props) {
   const [dataInicio, setDataInicio] = useState(processo?.data_inicio ? String(processo.data_inicio).slice(0, 10) : '');
   const [dataFim, setDataFim] = useState(processo?.data_fim ? String(processo.data_fim).slice(0, 10) : '');
   const [departamento, setDepartamento] = useState(processo?.departamento || '');
+  const [pessoaId, setPessoaId] = useState<number | null>(processo?.pessoaId || prefilledPessoaId || null);
   const [entidadeFinanciadoraId, setEntidadeFinanciadoraId] = useState<number | null>(processo?.entidadeFinanciadoraId || null);
   const [numeroProcesso, setNumeroProcesso] = useState(processo?.numeroProcesso || '');
   const [valorAprovado, setValorAprovado] = useState(processo?.valorAprovado ? String(processo.valorAprovado) : '');
@@ -54,6 +55,7 @@ export function ProcessoFormModal({ processo, onClose, onSaved }: Props) {
       departamento: departamento || undefined,
     };
     if (tipo === 'Subsídio') {
+      if (pessoaId) payload.pessoaId = pessoaId;
       if (entidadeFinanciadoraId) payload.entidadeFinanciadoraId = entidadeFinanciadoraId;
       if (numeroProcesso) payload.numeroProcesso = numeroProcesso;
       if (valorAprovado) payload.valorAprovado = parseFloat(valorAprovado);
@@ -124,6 +126,9 @@ export function ProcessoFormModal({ processo, onClose, onSaved }: Props) {
         {tipo === 'Subsídio' && (
           <FormSection title="Dados do subsídio" accent>
             <FormGrid>
+              <FormField label="Pessoa beneficiária" hint="Colaborador/estagiário/voluntário abrangido por este subsídio.">
+                <EntidadeSelect value={pessoaId} onChange={setPessoaId} tipo="pessoa-interna" />
+              </FormField>
               <FormField label="Entidade financiadora">
                 <EntidadeSelect value={entidadeFinanciadoraId} onChange={setEntidadeFinanciadoraId} tipo="financiador" />
               </FormField>

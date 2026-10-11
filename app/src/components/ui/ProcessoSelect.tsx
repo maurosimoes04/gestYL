@@ -50,7 +50,7 @@ export function ProcessoSelect({ value, onChange, tipos, incluirFechados, requir
         <optgroup key={g.tipo} label={g.tipo}>
           {g.items.map(p => (
             <option key={p.id} value={p.id}>
-              {p.nome}{p.estado !== 'Em curso' ? ` (${p.estado})` : ''}
+              {p.nome}{p.pessoa ? ` — ${p.pessoa.nome}` : ''}{p.estado !== 'Em curso' ? ` (${p.estado})` : ''}
             </option>
           ))}
         </optgroup>

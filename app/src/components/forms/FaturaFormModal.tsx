@@ -1,4 +1,5 @@
 import { useState, useEffect, FormEvent } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea } from '@/components/ui/Input';
@@ -51,7 +52,11 @@ export function FaturaFormModal({ fatura, onClose, onSaved }: Props) {
   const [dataVencimento, setDataVencimento] = useState(fatura?.dataVencimento ? String(fatura.dataVencimento).slice(0, 10) : '');
   const [estado, setEstado] = useState(fatura?.estado || 'Pendente');
   const [descricao, setDescricao] = useState(fatura?.descricao || '');
-  const [eventoId, setEventoId] = useState<number | null>(fatura?.faturaEventos?.[0]?.eventoId ?? null);
+  const [processoRows, setProcessoRows] = useState<{ eventoId: number | null; valor: string }[]>(() => {
+    const fes = fatura?.faturaEventos ?? [];
+    if (fes.length > 0) return fes.map(fe => ({ eventoId: fe.eventoId, valor: String(fe.valor) }));
+    return [{ eventoId: null, valor: '' }];
+  });
   const [anexo, setAnexo] = useState<File | null>(null);
   const [removerAnexo, setRemoverAnexo] = useState(false);
   const [comprovativo, setComprovativo] = useState<File | null>(null);
@@ -79,8 +84,12 @@ export function FaturaFormModal({ fatura, onClose, onSaved }: Props) {
     if (removerAnexo && !anexo) fd.append('removeAnexo', 'true');
     if (comprovativo) fd.append('comprovativo', comprovativo);
     if (removerComprovativo && !comprovativo) fd.append('removeComprovativo', 'true');
-    // eventoId: envia o id (ou string vazia para desassociar); o backend trata ambos
-    fd.append('eventoId', eventoId ? String(eventoId) : '');
+    const activeRows = processoRows.filter(r => r.eventoId);
+    const totalVal = parseFloat(valor) || 0;
+    if (activeRows.length === 1 && !activeRows[0].valor) {
+      activeRows[0].valor = String(totalVal);
+    }
+    fd.append('eventos', JSON.stringify(activeRows.map(r => ({ eventoId: r.eventoId, valor: parseFloat(r.valor) || totalVal }))));
 
     setSaving(true);
     try {
@@ -135,10 +144,46 @@ export function FaturaFormModal({ fatura, onClose, onSaved }: Props) {
                 {departamentos.map(d => <option key={d} value={d}>{d}</option>)}
               </Select>
             </FormField>
-            <FormField label="Processo" hint="Evento, projeto, investimento ou subsídio a que esta despesa pertence (opcional).">
-              <ProcessoSelect value={eventoId} onChange={setEventoId} incluirFechados={!!eventoId} />
-            </FormField>
           </FormGrid>
+          <div className="mt-3">
+            <FormField label="Processo(s)" hint="Reparte a despesa por vários processos/subsídios (ex: 80% IEFP + 20% IPDJ).">
+              <div className="flex flex-col gap-2">
+                {processoRows.map((row, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <ProcessoSelect
+                        value={row.eventoId}
+                        onChange={eid => setProcessoRows(prev => prev.map((r, j) => j === i ? { ...r, eventoId: eid } : r))}
+                        incluirFechados={!!row.eventoId}
+                      />
+                    </div>
+                    {processoRows.filter(r => r.eventoId).length > 1 && (
+                      <div className="w-28">
+                        <Input
+                          type="number" step="0.01" placeholder="Valor €"
+                          value={row.valor}
+                          onChange={e => setProcessoRows(prev => prev.map((r, j) => j === i ? { ...r, valor: e.target.value } : r))}
+                        />
+                      </div>
+                    )}
+                    {processoRows.length > 1 && (
+                      <button type="button" onClick={() => setProcessoRows(prev => prev.filter((_, j) => j !== i))}
+                              className="p-1 text-ink-soft hover:text-bad-ink rounded shrink-0">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setProcessoRows(prev => [...prev, { eventoId: null, valor: '' }])}
+                  className="flex items-center gap-1 text-xs text-brand hover:text-brand-strong font-medium mt-1"
+                >
+                  <Plus className="w-3 h-3" /> Adicionar processo
+                </button>
+              </div>
+            </FormField>
+          </div>
         </FormSection>
 
         <FormSection title="Valores e datas">

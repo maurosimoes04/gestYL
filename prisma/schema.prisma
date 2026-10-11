@@ -70,6 +70,7 @@ model Entidade {
   receitas   Receita[]
   faturas    Fatura[]
   processos  Evento[]    @relation("ProcessoEntidade")
+  subsidios  Evento[]    @relation("ProcessoPessoa")
   documentos Documento[]
 
   @@index([nome])
@@ -129,6 +130,7 @@ model Evento {
   data_fim     DateTime?
   departamento String?
   // Campos opcionais usados por processos tipo "Subsídio"
+  pessoaId               Int?                                  // pessoa beneficiária do subsídio
   entidadeFinanciadoraId Int?
   numeroProcesso         String?
   valorAprovado          Decimal? @db.Decimal(12, 2)
@@ -144,12 +146,14 @@ model Evento {
   shares                 EventoShare[]
   documentos             Documento[]
   stockMovimentos        StockMovimento[]
+  pessoa                 Entidade? @relation("ProcessoPessoa", fields: [pessoaId], references: [id], onDelete: SetNull)
   entidadeFinanciadora   Entidade? @relation("ProcessoEntidade", fields: [entidadeFinanciadoraId], references: [id], onDelete: SetNull)
   contaSncReceita        ContaSNC? @relation("ProcessoContaReceita", fields: [contaSncReceitaId], references: [id], onDelete: SetNull)
   contaSncDespesa        ContaSNC? @relation("ProcessoContaDespesa", fields: [contaSncDespesaId], references: [id], onDelete: SetNull)
 
   @@index([departamento])
   @@index([tipo])
+  @@index([pessoaId])
   @@index([entidadeFinanciadoraId])
   @@map("eventos")
 }

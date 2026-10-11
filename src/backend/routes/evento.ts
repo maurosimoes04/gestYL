@@ -6,7 +6,7 @@ import { drawDetailTable } from '../utils/pdfTable';
 const router = express.Router();
 
 const PROCESSO_FIELDS = ['nome', 'tipo', 'descricao', 'data_inicio', 'data_fim', 'departamento', 'estado',
-                         'entidadeFinanciadoraId', 'numeroProcesso', 'valorAprovado',
+                         'pessoaId', 'entidadeFinanciadoraId', 'numeroProcesso', 'valorAprovado',
                          'contaSncReceitaId', 'contaSncDespesaId'];
 
 function sanitizeProcesso(body: any) {
@@ -18,6 +18,7 @@ function sanitizeProcesso(body: any) {
   }
   if (payload.data_inicio) payload.data_inicio = new Date(payload.data_inicio);
   if (payload.data_fim) payload.data_fim = new Date(payload.data_fim);
+  if (payload.pessoaId) payload.pessoaId = Number(payload.pessoaId);
   if (payload.entidadeFinanciadoraId) payload.entidadeFinanciadoraId = Number(payload.entidadeFinanciadoraId);
   if (payload.contaSncReceitaId) payload.contaSncReceitaId = Number(payload.contaSncReceitaId);
   if (payload.contaSncDespesaId) payload.contaSncDespesaId = Number(payload.contaSncDespesaId);
@@ -42,7 +43,9 @@ router.post('/', async (req, res) => {
 
 router.get('/', async (_req, res) => {
   try {
-    const eventos = await prisma.evento.findMany();
+    const eventos = await prisma.evento.findMany({
+      include: { pessoa: { select: { id: true, nome: true } } },
+    });
     res.json(eventos);
   } catch (err) {
     res.status(500).json({ error: 'Erro ao listar eventos' });
