@@ -9,6 +9,11 @@ const LOGO_PATHS = [
   path.join(process.cwd(), 'app', 'public', 'logo-original.png'),
 ];
 
+const WHITE_LOGO_PATHS = [
+  path.join(process.cwd(), 'src', 'backend', 'uploads', 'logo-white.png'),
+  path.join(process.cwd(), 'app', 'public', 'logo-white.png'),
+];
+
 export async function getLogoBuffer(): Promise<Buffer | null> {
   if (cachedLogo) return cachedLogo;
   for (const p of LOGO_PATHS) {
@@ -23,16 +28,12 @@ export async function getLogoBuffer(): Promise<Buffer | null> {
 
 export async function getWhiteLogoBuffer(): Promise<Buffer | null> {
   if (cachedWhiteLogo) return cachedWhiteLogo;
-  const original = await getLogoBuffer();
-  if (!original) return null;
-  try {
-    const sharp = require('sharp');
-    cachedWhiteLogo = await sharp(original)
-      .negate({ alpha: false })
-      .toBuffer();
-    return cachedWhiteLogo;
-  } catch (err) {
-    console.warn('Não foi possível criar logo branco:', err);
-    return null;
+  for (const p of WHITE_LOGO_PATHS) {
+    try {
+      const buf = await fs.readFile(p);
+      cachedWhiteLogo = buf;
+      return cachedWhiteLogo;
+    } catch { /* tenta o próximo */ }
   }
+  return null;
 }

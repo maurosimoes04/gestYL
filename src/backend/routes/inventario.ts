@@ -1,7 +1,7 @@
 import express from 'express';
 import { prisma } from '../config/prisma';
 import { Prisma } from '@prisma/client';
-import { getLogoBuffer } from '../utils/logo';
+import { getLogoBuffer, getWhiteLogoBuffer } from '../utils/logo';
 import { depreciacaoAnual, depreciacaoAcumulada, valorLiquido, VIDA_UTIL_PADRAO } from '../utils/depreciacao';
 
 const router = express.Router();
@@ -229,7 +229,11 @@ router.get('/', async (req, res) => {
         { localizacao: { contains: q, mode: 'insensitive' } },
       ];
     }
-    const itens = await prisma.inventario.findMany({ where, orderBy: { nome: 'asc' } });
+    const itens = await prisma.inventario.findMany({
+      where,
+      include: { contaSnc: { select: { id: true, codigo: true, nome: true } } },
+      orderBy: { nome: 'asc' },
+    });
     res.json(itens);
   } catch (err) {
     res.status(500).json({ error: 'Erro ao listar inventário' });
@@ -250,7 +254,7 @@ router.get('/export/pdf', async (_req, res) => {
     const usableWidth = pageWidth - doc.page.margins.left - doc.page.margins.right;
     const headerRightPadding = 12;
     doc.rect(doc.page.margins.left, 30, usableWidth, 60).fill('#0f172a');
-    try { const logoBuffer = await getLogoBuffer(); if (logoBuffer) doc.image(logoBuffer, 50, 34, { height: 52 }); } catch {}
+    try { const logoBuffer = await getWhiteLogoBuffer() || await getLogoBuffer(); if (logoBuffer) doc.image(logoBuffer, 50, 34, { height: 52 }); } catch {}
     doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(16)
       .text('Inventário Completo', doc.page.margins.left, 42, { width: usableWidth - headerRightPadding, align: 'right' });
     doc.fontSize(10).font('Helvetica')
@@ -378,7 +382,10 @@ router.get('/etiquetas/pdf', async (req, res) => {
 // Rotas genéricas /:id DEPOIS das específicas
 router.get('/:id', async (req, res) => {
   try {
-    const item = await prisma.inventario.findUnique({ where: { id: Number(req.params.id) } });
+    const item = await prisma.inventario.findUnique({
+      where: { id: Number(req.params.id) },
+      include: { contaSnc: { select: { id: true, codigo: true, nome: true } } },
+    });
     if (!item) return res.status(404).json({ error: 'Item não encontrado' });
     res.json(item);
   } catch (err) {

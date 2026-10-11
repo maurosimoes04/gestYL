@@ -1,6 +1,6 @@
 import express from 'express';
 import { prisma } from '../config/prisma';
-import { getLogoBuffer } from '../utils/logo';
+import { getLogoBuffer, getWhiteLogoBuffer } from '../utils/logo';
 import { drawDetailTable } from '../utils/pdfTable';
 
 const router = express.Router();
@@ -102,7 +102,7 @@ router.get('/:id/pdf', async (req, res) => {
           include: {
             fatura: {
               include: {
-                contaSnc: { select: { codigo: true } },
+                contaSnc: { select: { codigo: true, nome: true } },
                 entidade: { select: { nome: true, nif: true } },
               },
             },
@@ -113,7 +113,7 @@ router.get('/:id/pdf', async (req, res) => {
           include: {
             receita: {
               include: {
-                contaSnc: { select: { codigo: true } },
+                contaSnc: { select: { codigo: true, nome: true } },
                 entidade: { select: { nome: true, nif: true } },
               },
             },
@@ -142,7 +142,7 @@ router.get('/:id/pdf', async (req, res) => {
     doc.pipe(res);
 
     // === Cabeçalho ===
-    const logo = await getLogoBuffer();
+    const logo = await getWhiteLogoBuffer() || await getLogoBuffer();
     doc.rect(40, 30, 515, 70).fill('#4f46e5');
     if (logo) try { doc.image(logo, 50, 38, { height: 54 }); } catch {}
     doc.fillColor('#ffffff').fontSize(10).font('Helvetica').text(tipo.toUpperCase(), 200, 40, { width: 345, align: 'right', characterSpacing: 2 });
@@ -221,9 +221,9 @@ router.get('/:id/pdf', async (req, res) => {
       drawDetailTable(doc, {
         columns: [
           { header: 'Data',       key: 'data',       width: 56 },
-          { header: 'Descrição',  key: 'titulo',     width: 160 },
-          { header: 'Financiador',key: 'entidade',   width: 125 },
-          { header: 'SNC',        key: 'snc',        width: 40 },
+          { header: 'Descrição',  key: 'titulo',     width: 130 },
+          { header: 'Financiador',key: 'entidade',   width: 100 },
+          { header: 'Conta SNC',  key: 'snc',        width: 95 },
           { header: 'Estado',     key: 'estado',     width: 60 },
           { header: 'Valor',      key: 'valor',      width: 74, align: 'right' },
         ],
@@ -232,7 +232,7 @@ router.get('/:id/pdf', async (req, res) => {
           data: fmtDate(r.data),
           titulo: r.titulo || '-',
           entidade: r.entidade?.nome || r.financiador || '-',
-          snc: r.contaSnc?.codigo || '—',
+          snc: r.contaSnc ? `${r.contaSnc.codigo} — ${r.contaSnc.nome}` : '—',
           estado: r.estado || '-',
           valor: fmt(toNum(r.valorEvento)),
         })),
@@ -249,11 +249,11 @@ router.get('/:id/pdf', async (req, res) => {
       drawDetailTable(doc, {
         columns: [
           { header: 'Data',       key: 'data',       width: 56 },
-          { header: 'Nº doc.',    key: 'numero',     width: 70 },
-          { header: 'Descrição',  key: 'titulo',     width: 115 },
-          { header: 'Fornecedor', key: 'entidade',   width: 110 },
-          { header: 'SNC',        key: 'snc',        width: 40 },
-          { header: 'Estado',     key: 'estado',     width: 50 },
+          { header: 'Nº doc.',    key: 'numero',     width: 60 },
+          { header: 'Descrição',  key: 'titulo',     width: 95 },
+          { header: 'Fornecedor', key: 'entidade',   width: 95 },
+          { header: 'Conta SNC',  key: 'snc',        width: 95 },
+          { header: 'Estado',     key: 'estado',     width: 40 },
           { header: 'Valor',      key: 'valor',      width: 74, align: 'right' },
         ],
         zebra: true,
@@ -262,7 +262,7 @@ router.get('/:id/pdf', async (req, res) => {
           numero: f.numero || '-',
           titulo: f.titulo || '-',
           entidade: f.entidade?.nome || f.fornecedor || '-',
-          snc: f.contaSnc?.codigo || '—',
+          snc: f.contaSnc ? `${f.contaSnc.codigo} — ${f.contaSnc.nome}` : '—',
           estado: f.estado || '-',
           valor: fmt(toNum(f.valorEvento)),
         })),
