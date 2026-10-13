@@ -4,6 +4,10 @@ import { syncMovimentoParaReceita, syncMovimentoParaFatura } from '../services/m
 import { logAudit } from '../services/audit';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
+import upload from '../middleware/upload';
+import { uploadBufferToDrive } from '../services/googleDrive';
+
+const RECEITAS_FOLDER_ID = process.env.GDRIVE_RECEITAS_FOLDER_ID || '';
 
 const router = Router();
 
@@ -330,6 +334,126 @@ router.post('/refund', async (req: Request, res: Response) => {
       req,
     });
     return res.status(500).json({ ok: false, error: 'Erro interno ao processar devolução' });
+  }
+});
+
+// --- GET /integrations/younglink/events ---
+// Lista de processos/eventos em curso para a Young-Link popular dropdowns
+router.get('/events', async (_req: Request, res: Response) => {
+  try {
+    const eventos = await prisma.evento.findMany({
+      where: { estado: 'Em curso' },
+      select: {
+        id: true,
+        nome: true,
+        tipo: true,
+        numeroProcesso: true,
+        data_inicio: true,
+        data_fim: true,
+        departamento: true,
+        contaSncReceitaId: true,
+      },
+      orderBy: { nome: 'asc' },
+    });
+
+    return res.json({
+      ok: true,
+      events: eventos.map(e => ({
+        id: e.id,
+        name: e.nome,
+        type: e.tipo,
+        projectKey: e.numeroProcesso,
+        startDate: e.data_inicio,
+        endDate: e.data_fim,
+        department: e.departamento,
+        defaultContaSncId: e.contaSncReceitaId,
+      })),
+    });
+  } catch (err: any) {
+    console.error('[Integração YL] Erro events:', err);
+    return res.status(500).json({ ok: false, error: 'Erro ao listar eventos' });
+  }
+});
+
+// --- POST /integrations/younglink/invoice-attachment ---
+// Anexar fatura Moloni (PDF) a uma receita existente via externalId
+router.post('/invoice-attachment', upload.single('file'), async (req: Request, res: Response) => {
+  try {
+    const { externalId } = req.body;
+
+    if (!externalId) {
+      return res.status(400).json({ ok: false, error: 'externalId é obrigatório' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ ok: false, error: 'Ficheiro (file) é obrigatório' });
+    }
+
+    const receita = await prisma.receita.findUnique({
+      where: { externalId },
+    });
+    if (!receita) {
+      return res.status(404).json({ ok: false, error: `Receita com externalId "${externalId}" não encontrada` });
+    }
+
+    if (!RECEITAS_FOLDER_ID) {
+      return res.status(500).json({ ok: false, error: 'Pasta do Google Drive não configurada (GDRIVE_RECEITAS_FOLDER_ID)' });
+    }
+
+    const driveFile = await uploadBufferToDrive({
+      buffer: req.file.buffer,
+      filename: req.file.originalname || `fatura-${externalId}.pdf`,
+      mimeType: req.file.mimetype || 'application/pdf',
+      folderId: RECEITAS_FOLDER_ID,
+    });
+
+    const anexoData = {
+      driveFileId: driveFile.id,
+      driveWebViewLink: driveFile.webViewLink,
+      originalName: req.file.originalname,
+      mimeType: req.file.mimetype,
+      size: req.file.size,
+      uploadedAt: new Date().toISOString(),
+      source: 'YOUNGLINK_MOLONI',
+    };
+
+    await prisma.receita.update({
+      where: { id: receita.id },
+      data: { anexo: anexoData },
+    });
+
+    await logAudit({
+      action: 'UPDATE',
+      entity: 'receita',
+      entityId: String(receita.id),
+      details: {
+        source: 'YOUNGLINK',
+        type: 'INVOICE_ATTACHMENT',
+        externalId,
+        driveFileId: driveFile.id,
+        filename: req.file.originalname,
+      },
+      req,
+    });
+
+    return res.status(200).json({
+      ok: true,
+      receitaId: receita.id,
+      externalId,
+      anexo: {
+        driveFileId: driveFile.id,
+        driveWebViewLink: driveFile.webViewLink,
+        filename: req.file.originalname,
+      },
+    });
+  } catch (err: any) {
+    console.error('[Integração YL] Erro invoice-attachment:', err);
+    await logAudit({
+      action: 'ERROR',
+      entity: 'integracao-younglink',
+      details: { error: err.message, externalId: req.body?.externalId },
+      req,
+    });
+    return res.status(500).json({ ok: false, error: 'Erro ao anexar fatura' });
   }
 });
 
