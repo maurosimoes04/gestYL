@@ -130,12 +130,51 @@ router.post('/revenue', async (req: Request, res: Response) => {
     // Normalizar estado
     const estado = 'Recebido';
 
+    // Resolver ou criar Entidade a partir dos dados do cliente
+    let entidadeId: number | null = body.entidadeId ? Number(body.entidadeId) : null;
+    if (!entidadeId && body.customer) {
+      const c = body.customer;
+      let entidade = null;
+
+      // Procurar por NIF (mais fiável)
+      if (c.nif) {
+        entidade = await prisma.entidade.findUnique({ where: { nif: c.nif } });
+      }
+      // Procurar por email se não encontrou por NIF
+      if (!entidade && c.email) {
+        entidade = await prisma.entidade.findFirst({ where: { email: c.email } });
+      }
+      // Procurar por nome exato como último recurso
+      if (!entidade && c.name) {
+        entidade = await prisma.entidade.findFirst({ where: { nome: c.name } });
+      }
+
+      if (entidade) {
+        entidadeId = entidade.id;
+        // Garantir que tem tipo "cliente"
+        if (!entidade.tipos.includes('cliente')) {
+          await prisma.entidade.update({
+            where: { id: entidade.id },
+            data: { tipos: [...entidade.tipos, 'cliente'] },
+          });
+        }
+      } else if (c.name) {
+        // Criar nova entidade do tipo cliente
+        const nova = await prisma.entidade.create({
+          data: {
+            nome: c.name,
+            nif: c.nif || null,
+            email: c.email || null,
+            telefone: c.phone || null,
+            tipos: ['cliente'],
+          },
+        });
+        entidadeId = nova.id;
+      }
+    }
+
     // Construir observações com dados do cliente e itens
     const obsLines: string[] = [];
-    if (body.customer) {
-      const c = body.customer;
-      obsLines.push(`Cliente: ${c.name || '—'}${c.email ? ' (' + c.email + ')' : ''}${c.nif ? ' NIF: ' + c.nif : ''}`);
-    }
     if (body.paymentMethod) {
       obsLines.push(`Pagamento: ${body.paymentMethod}`);
     }
@@ -160,7 +199,7 @@ router.post('/revenue', async (req: Request, res: Response) => {
           estado,
           financiador: body.financiador || 'Young-Link',
           contaSncId: body.contaSncId ? Number(body.contaSncId) : null,
-          entidadeId: body.entidadeId ? Number(body.entidadeId) : null,
+          entidadeId,
           observacoes: obsLines.length > 0 ? obsLines.join('\n') : null,
           externalId: body.externalId,
           origem: body.source || 'YOUNGLINK',
@@ -205,6 +244,7 @@ router.post('/revenue', async (req: Request, res: Response) => {
       externalId: body.externalId,
       receitaId: result.id,
       movimentoId: movimento?.id || null,
+      entidadeId,
       eventoId,
     });
   } catch (err: any) {
