@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../config/prisma';
-import { syncMovimentoParaReceita } from '../services/movimentoSync';
+import { syncMovimentoParaReceita, syncMovimentoParaFatura } from '../services/movimentoSync';
 import { logAudit } from '../services/audit';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
@@ -219,6 +219,7 @@ router.post('/revenue', async (req: Request, res: Response) => {
 });
 
 // --- POST /integrations/younglink/refund ---
+// Devoluções criam uma DESPESA (Fatura), não uma receita negativa.
 router.post('/refund', async (req: Request, res: Response) => {
   try {
     const body = req.body;
@@ -233,9 +234,9 @@ router.post('/refund', async (req: Request, res: Response) => {
       return res.status(400).json({ ok: false, error: 'originalExternalId é obrigatório' });
     }
 
-    // Idempotência
-    const existing = await prisma.receita.findUnique({
-      where: { externalId: body.externalId },
+    // Idempotência via campo numero da Fatura
+    const existing = await prisma.fatura.findFirst({
+      where: { numero: body.externalId },
       include: { movimento: { select: { id: true } } },
     });
     if (existing) {
@@ -243,7 +244,7 @@ router.post('/refund', async (req: Request, res: Response) => {
         ok: true,
         created: false,
         externalId: body.externalId,
-        receitaId: existing.id,
+        faturaId: existing.id,
         movimentoId: existing.movimento?.id || null,
       });
     }
@@ -260,8 +261,8 @@ router.post('/refund', async (req: Request, res: Response) => {
     const dataDevolucao = new Date(body.refundedAt || new Date());
     const eventoId = original.receitaEventos[0]?.eventoId || null;
 
-    const obsLines = [
-      `Devolução referente a: ${body.originalExternalId}`,
+    const descLines = [
+      `Devolução referente a receita: ${body.originalExternalId}`,
       body.reason ? `Motivo: ${body.reason}` : null,
       body.items ? `Itens devolvidos: ${JSON.stringify(body.items)}` : null,
     ].filter(Boolean).join('\n');
@@ -269,44 +270,37 @@ router.post('/refund', async (req: Request, res: Response) => {
     const contaMovimento = PAYMENT_METHOD_MAP[body.paymentMethod?.toUpperCase() || ''] || 'Banco';
 
     const result = await prisma.$transaction(async (tx) => {
-      const receita = await tx.receita.create({
+      const fatura = await tx.fatura.create({
         data: {
           titulo: body.title || `Devolução de bilhete — ${body.originalExternalId}`,
-          valor: -Math.abs(body.amount),
+          valor: Math.abs(body.amount),
           data: dataDevolucao,
-          categoria: 'Devoluções de bilhetes',
-          estado: 'Processado',
-          financiador: 'Young-Link',
+          departamento: 'Young-Link',
+          tipo: 'Nota de crédito',
+          numero: body.externalId,
+          estado: 'Paga',
+          descricao: descLines,
+          fornecedor: 'Young-Link',
           contaSncId: original.contaSncId,
-          observacoes: obsLines,
-          externalId: body.externalId,
-          origem: body.source || 'YOUNGLINK',
-          receitaEventos: eventoId ? {
-            create: [{ eventoId, valor: -Math.abs(body.amount) }],
+          faturaEventos: eventoId ? {
+            create: [{ eventoId, valor: Math.abs(body.amount) }],
           } : undefined,
         },
       });
-      return receita;
+      return fatura;
     });
 
-    // Criar movimento de saída para o estorno
-    await prisma.movimento.create({
-      data: {
-        tipo: 'saida',
-        conta: contaMovimento,
-        valor: Math.abs(body.amount),
-        data: dataDevolucao,
-        referencia: body.externalId,
-        descricao: result.titulo,
-        receitaId: result.id,
-      },
-    });
+    // Sincronizar movimento de saída
+    await syncMovimentoParaFatura(
+      { id: result.id, valor: result.valor, data: dataDevolucao, estado: 'Paga', titulo: result.titulo },
+      contaMovimento,
+    );
 
-    const movimento = await prisma.movimento.findUnique({ where: { receitaId: result.id } });
+    const movimento = await prisma.movimento.findUnique({ where: { faturaId: result.id } });
 
     await logAudit({
       action: 'CREATE',
-      entity: 'receita',
+      entity: 'fatura',
       entityId: String(result.id),
       details: {
         source: 'YOUNGLINK',
@@ -323,7 +317,7 @@ router.post('/refund', async (req: Request, res: Response) => {
       ok: true,
       created: true,
       externalId: body.externalId,
-      receitaId: result.id,
+      faturaId: result.id,
       movimentoId: movimento?.id || null,
       eventoId,
     });
