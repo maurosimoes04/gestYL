@@ -144,7 +144,7 @@ router.get('/:id/pdf', async (req, res) => {
     // === Cabeçalho ===
     const logo = await getWhiteLogoBuffer() || await getLogoBuffer();
     doc.rect(40, 30, 515, 70).fill('#4f46e5');
-    if (logo) try { doc.image(logo, 50, 38, { height: 54 }); } catch {}
+    if (logo) try { doc.image(logo, 48, 32, { height: 66 }); } catch {}
     doc.fillColor('#ffffff').fontSize(10).font('Helvetica').text(tipo.toUpperCase(), 200, 40, { width: 345, align: 'right', characterSpacing: 2 });
     doc.fontSize(17).font('Helvetica-Bold').text(eventoData.nome, 200, 54, { width: 345, align: 'right' });
     const dataInicio = eventoData.data_inicio ? fmtDate(eventoData.data_inicio) : '';

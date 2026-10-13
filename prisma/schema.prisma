@@ -314,6 +314,8 @@ model Receita {
   // SNC + Entidade (nullable até migração dos registos antigos ficar completa)
   contaSncId   Int?
   entidadeId   Int?
+  origem       String?
+  externalId   String?  @unique
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

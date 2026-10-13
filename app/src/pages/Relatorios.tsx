@@ -2,7 +2,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Input';
-import { BarChart3, Sparkles, FileSpreadsheet, Download } from 'lucide-react';
+import { BarChart3, Sparkles, FileSpreadsheet, Download, Users } from 'lucide-react';
 import { useState } from 'react';
 import { openProtected } from '@/lib/download';
 import { useToast } from '@/contexts/ToastContext';
@@ -59,6 +59,15 @@ export function RelatoriosPage() {
             <Button icon={<Download className="w-4 h-4" />} loading={loading === 'fin'}
                     onClick={() => abrirPdf(`/relatorios/pdf?periodo=anual&ano=${anoFin}&tipo=ambos`, 'fin', `Relatório Financeiro ${anoFin}`)}>PDF</Button>
           </div>
+        </ReportCard>
+
+        <ReportCard
+          icon={<Users className="w-6 h-6" />}
+          title="Relatório de RH"
+          description="Dossiê completo de recursos humanos: pessoas internas, subsídios, receitas/despesas por apoio e estado dos documentos obrigatórios."
+        >
+          <Button icon={<Download className="w-4 h-4" />} loading={loading === 'rh'}
+                  onClick={() => abrirPdf('/relatorios/rh/pdf', 'rh', 'Relatório RH')}>PDF</Button>
         </ReportCard>
 
         <ReportCard

@@ -28,11 +28,11 @@ const fmtDate = (d: string | Date) => new Date(d).toLocaleDateString('pt-PT');
 const toNum = (v: any) => Number(v) || 0;
 
 function drawHeader(doc: InstanceType<PDFDocumentType>, titulo: string, periodoLabel: string, whiteLogo: Buffer | null) {
-  doc.rect(40, 30, 515, 60).fill('#4f46e5');
-  if (whiteLogo) try { doc.image(whiteLogo, 50, 34, { height: 52 }); } catch {}
-  doc.fillColor('#ffffff').fontSize(14).font('Helvetica-Bold').text(titulo, 200, 45, { width: 345, align: 'right' });
-  doc.fontSize(10).font('Helvetica').text(periodoLabel, 200, 65, { width: 345, align: 'right' });
-  doc.y = 115;
+  doc.rect(40, 30, 515, 70).fill('#4f46e5');
+  if (whiteLogo) try { doc.image(whiteLogo, 48, 32, { height: 66 }); } catch {}
+  doc.fillColor('#ffffff').fontSize(14).font('Helvetica-Bold').text(titulo, 220, 48, { width: 325, align: 'right' });
+  doc.fontSize(10).font('Helvetica').text(periodoLabel, 220, 70, { width: 325, align: 'right' });
+  doc.y = 120;
   doc.fillColor('#0a0a0a').strokeColor('#0a0a0a');
 }
 
@@ -51,8 +51,8 @@ function drawCover(doc: InstanceType<PDFDocumentType>, titulo: string, subtitulo
   doc.restore();
 
   // 3. Logo branco sem fundo, diretamente sobre o índigo
-  const logoW = 280, logoH = 100;
-  const logoX = (w - logoW) / 2, logoY = h / 2 - logoH - 50;
+  const logoW = 380, logoH = 140;
+  const logoX = (w - logoW) / 2, logoY = h / 2 - logoH - 40;
   if (whiteLogo) {
     try {
       doc.image(whiteLogo, logoX, logoY, { fit: [logoW, logoH], align: 'center', valign: 'center' });
@@ -547,10 +547,10 @@ router.get('/balancete-snc/pdf', async (req, res) => {
     // === Cabeçalho ===
     const logo = await getWhiteLogoBuffer();
     doc.rect(40, 30, 515, 70).fill('#4f46e5');
-    if (logo) try { doc.image(logo, 50, 38, { height: 54 }); } catch {}
-    doc.fillColor('#ffffff').fontSize(10).font('Helvetica').text('BALANCETE', 200, 40, { width: 345, align: 'right', characterSpacing: 3 });
-    doc.fontSize(17).font('Helvetica-Bold').text('Balancete por Conta SNC', 200, 54, { width: 345, align: 'right' });
-    doc.fontSize(10).font('Helvetica').text(label, 200, 78, { width: 345, align: 'right' });
+    if (logo) try { doc.image(logo, 48, 32, { height: 66 }); } catch {}
+    doc.fillColor('#ffffff').fontSize(10).font('Helvetica').text('BALANCETE', 220, 42, { width: 325, align: 'right', characterSpacing: 3 });
+    doc.fontSize(17).font('Helvetica-Bold').text('Balancete por Conta SNC', 220, 56, { width: 325, align: 'right' });
+    doc.fontSize(10).font('Helvetica').text(label, 220, 80, { width: 325, align: 'right' });
     doc.fillColor('#0a0a0a').strokeColor('#0a0a0a');
 
     // === Agrupamentos ===
@@ -1103,6 +1103,170 @@ router.post('/anual/pdf', async (req, res) => {
   } catch (err) {
     console.error('Erro ao gerar PDF do relatório anual:', (err as any).message || err);
     if (!res.headersSent) res.status(500).json({ error: 'Erro ao gerar o relatório' });
+  }
+});
+
+// GET /relatorios/rh/pdf — Relatório de Recursos Humanos
+router.get('/rh/pdf', async (_req, res) => {
+  try {
+    const { default: PDFDocument } = await import('pdfkit');
+    const whiteLogo = await getWhiteLogoBuffer();
+    const pessoaIdFilter = _req.query.pessoaId ? Number(_req.query.pessoaId) : null;
+
+    const pessoas = await prisma.entidade.findMany({
+      where: { tipos: { has: 'pessoa-interna' }, ...(pessoaIdFilter ? { id: pessoaIdFilter } : {}) },
+      orderBy: { nome: 'asc' },
+    });
+    const subsidios = await prisma.evento.findMany({
+      where: { tipo: 'Subsídio', ...(pessoaIdFilter ? { pessoaId: pessoaIdFilter } : {}) },
+      include: {
+        pessoa: { select: { id: true, nome: true } },
+        entidadeFinanciadora: { select: { nome: true } },
+        faturaEventos: { select: { valor: true } },
+        receitaEventos: { select: { valor: true } },
+      },
+    });
+    const documentos = await prisma.documento.findMany({
+      where: pessoaIdFilter ? { entidadeId: pessoaIdFilter } : {},
+      include: { processo: { select: { id: true, nome: true } } },
+    });
+
+    const pessoaNome = pessoaIdFilter && pessoas.length > 0 ? pessoas[0].nome : null;
+    const doc = new PDFDocument({ margin: 40, bufferPages: true });
+    res.header('Content-Type', 'application/pdf');
+    res.attachment(pessoaNome ? `rh-${pessoaNome.toLowerCase().replace(/\s+/g, '-')}.pdf` : 'relatorio-rh.pdf');
+    doc.pipe(res);
+
+    // --- Capa ---
+    const tituloRH = pessoaNome ? `Dossiê — ${pessoaNome}` : 'Relatório de Recursos Humanos';
+    drawCover(doc, tituloRH, `${pessoas.length} pessoa(s) · ${subsidios.length} subsídio(s)`, whiteLogo);
+    doc.addPage();
+
+    // --- Resumo geral ---
+    drawHeader(doc, tituloRH, `Gerado em ${fmtDate(new Date())}`, whiteLogo);
+    doc.moveDown(0.5);
+
+    const totalDocs = documentos.length;
+    const docsAnexados = documentos.filter(d => d.estado === 'Enviado').length;
+    const docsPendentes = documentos.filter(d => d.estado === 'Pendente').length;
+    const docsVencidos = documentos.filter(d => {
+      if (!d.dataLimite) return false;
+      return new Date(d.dataLimite) < new Date() && d.estado !== 'Enviado';
+    }).length;
+
+    doc.fontSize(14).font('Helvetica-Bold').fillColor('#0f172a').text('Resumo Geral');
+    doc.moveDown(0.4);
+    drawTable(doc, [
+      { cells: ['Pessoas internas', String(pessoas.length)], fill: '#f8fafc', bold: true },
+      { cells: ['Subsídios ativos', String(subsidios.filter(s => s.estado === 'Em curso').length)], fill: '#ffffff' },
+      { cells: ['Total de documentos', String(totalDocs)], fill: '#f8fafc' },
+      { cells: ['Documentos enviados / completos', String(docsAnexados)], fill: '#dcfce7', color: '#166534' },
+      { cells: ['Documentos pendentes', String(docsPendentes)], fill: '#fef9c3', color: '#854d0e' },
+      { cells: ['Documentos vencidos', String(docsVencidos)], fill: docsVencidos > 0 ? '#fee2e2' : '#f8fafc', color: docsVencidos > 0 ? '#991b1b' : '#0a0a0a' },
+    ]);
+    doc.moveDown(0.5);
+
+    // --- Vinculos ---
+    const vinculos: Record<string, number> = {};
+    pessoas.forEach(p => { const v = p.tipoVinculo || 'Sem vínculo'; vinculos[v] = (vinculos[v] || 0) + 1; });
+    if (Object.keys(vinculos).length > 0) {
+      doc.fontSize(14).font('Helvetica-Bold').fillColor('#0f172a').text('Por tipo de vínculo');
+      doc.moveDown(0.4);
+      drawTable(doc, Object.entries(vinculos).sort((a, b) => b[1] - a[1]).map(([v, n], i) => ({
+        cells: [v, String(n)] as [string, string],
+        fill: i % 2 === 0 ? '#f8fafc' : '#ffffff',
+      })));
+      doc.moveDown(0.5);
+    }
+
+    // --- Detalhe por pessoa ---
+    for (const pessoa of pessoas) {
+      if (doc.y > doc.page.height - 200) doc.addPage();
+      if (doc.y <= 40) drawHeader(doc, 'Relatório de Recursos Humanos', `Gerado em ${fmtDate(new Date())}`, whiteLogo);
+
+      // Nome / função
+      doc.fontSize(13).font('Helvetica-Bold').fillColor('#4f46e5').text(pessoa.nome);
+      doc.moveDown(0.1);
+      const infoLine: string[] = [];
+      if (pessoa.funcao) infoLine.push(pessoa.funcao);
+      if (pessoa.tipoVinculo) infoLine.push(pessoa.tipoVinculo);
+      if (pessoa.nif) infoLine.push(`NIF: ${pessoa.nif}`);
+      if (pessoa.niss) infoLine.push(`NISS: ${pessoa.niss}`);
+      if (pessoa.bolsaBase) infoLine.push(`Bolsa líq.: ${fmt(Number(pessoa.bolsaBase))}`);
+      if (pessoa.dataNascimento) infoLine.push(`Nasc.: ${fmtDate(pessoa.dataNascimento)}`);
+      if (infoLine.length) doc.fontSize(9).font('Helvetica').fillColor('#64748b').text(infoLine.join('  ·  '));
+      doc.moveDown(0.3);
+
+      // Subsídios desta pessoa
+      const pessoaSubs = subsidios.filter(s => s.pessoaId === pessoa.id);
+      if (pessoaSubs.length > 0) {
+        const subRows: Row[] = [];
+        for (const s of pessoaSubs) {
+          const totalRec = s.receitaEventos.reduce((acc, re) => acc + toNum(re.valor), 0);
+          const totalDesp = s.faturaEventos.reduce((acc, fe) => acc + toNum(fe.valor), 0);
+          subRows.push({
+            cells: [
+              `${s.nome}${s.entidadeFinanciadora ? ` (${s.entidadeFinanciadora.nome})` : ''}${s.numeroProcesso ? ` · nº ${s.numeroProcesso}` : ''}`,
+              `▲ ${fmt(totalRec)}  ▼ ${fmt(totalDesp)}`,
+            ],
+            fill: '#eef2ff',
+            bold: false,
+          });
+          if (s.valorAprovado) {
+            subRows.push({
+              cells: [`  Aprovado: ${fmt(toNum(s.valorAprovado))}  ·  Estado: ${s.estado}`, `Saldo: ${fmt(totalRec - totalDesp)}`],
+              fill: '#ffffff',
+              small: true,
+              indent: 1,
+            });
+          }
+        }
+        drawTable(doc, subRows);
+      }
+
+      // Documentos desta pessoa
+      const pessoaDocs = documentos.filter(d => d.entidadeId === pessoa.id);
+      if (pessoaDocs.length > 0) {
+        const docRows: Row[] = pessoaDocs.map((d, i) => {
+          const vencido = d.dataLimite && new Date(d.dataLimite) < new Date() && d.estado !== 'Enviado';
+          return {
+            cells: [
+              `${d.tipo}${d.processo ? ` (${d.processo.nome})` : ''}${d.dataLimite ? ` · Prazo: ${fmtDate(d.dataLimite)}` : ''}`,
+              d.estado,
+            ],
+            fill: vencido ? '#fee2e2' : i % 2 === 0 ? '#f8fafc' : '#ffffff',
+            color: vencido ? '#991b1b' : d.estado === 'Enviado' ? '#166534' : '#0a0a0a',
+          };
+        });
+        drawTable(doc, docRows);
+      } else {
+        doc.fontSize(9).font('Helvetica').fillColor('#94a3b8').text('Sem documentos.');
+      }
+      doc.moveDown(0.8);
+      doc.fillColor('#0a0a0a');
+    }
+
+    // --- Subsídios sem pessoa associada ---
+    const subsSemPessoa = subsidios.filter(s => !s.pessoaId);
+    if (subsSemPessoa.length > 0) {
+      if (doc.y > doc.page.height - 150) doc.addPage();
+      if (doc.y <= 40) drawHeader(doc, 'Relatório de Recursos Humanos', `Gerado em ${fmtDate(new Date())}`, whiteLogo);
+      doc.fontSize(14).font('Helvetica-Bold').fillColor('#991b1b').text('Subsídios sem pessoa associada');
+      doc.moveDown(0.4);
+      drawTable(doc, subsSemPessoa.map((s, i) => ({
+        cells: [s.nome + (s.numeroProcesso ? ` · nº ${s.numeroProcesso}` : ''), s.estado] as [string, string],
+        fill: i % 2 === 0 ? '#fee2e2' : '#fff1f2',
+        color: '#991b1b',
+      })));
+    }
+
+    // --- Números de página ---
+    drawPageNumbers(doc);
+
+    doc.end();
+  } catch (err) {
+    console.error('Erro ao gerar PDF de RH:', (err as any).message || err);
+    if (!res.headersSent) res.status(500).json({ error: 'Erro ao gerar relatório de RH' });
   }
 });
 

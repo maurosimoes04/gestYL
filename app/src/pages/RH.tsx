@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Paperclip, Pencil, Trash2, AlertTriangle, ChevronDown, ChevronRight, User, FileText, Briefcase, Search, FolderPlus, LinkIcon, UserPlus } from 'lucide-react';
+import { Plus, Paperclip, Pencil, Trash2, AlertTriangle, ChevronDown, ChevronRight, User, FileText, Briefcase, Search, FolderPlus, LinkIcon, UserPlus, Download } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -217,13 +217,19 @@ export function RHPage() {
                 {/* Corpo expandido */}
                 {isExpanded && (
                   <div className="border-t border-line-soft px-5 py-4 bg-surface-page/50">
-                    {/* Info pessoal */}
-                    <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-ink-soft mb-4">
-                      {pessoa.nif && <span>NIF: <span className="font-mono text-ink">{pessoa.nif}</span></span>}
-                      {pessoa.niss && <span>NISS: <span className="font-mono text-ink">{pessoa.niss}</span></span>}
-                      {pessoa.dataNascimento && <span>Nascimento: <span className="text-ink">{fmtData(pessoa.dataNascimento)}</span></span>}
-                      {pessoa.email && <span>Email: <span className="text-ink">{pessoa.email}</span></span>}
-                      {pessoa.telefone && <span>Tel: <span className="text-ink">{pessoa.telefone}</span></span>}
+                    {/* Info pessoal + ações */}
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-ink-soft">
+                        {pessoa.nif && <span>NIF: <span className="font-mono text-ink">{pessoa.nif}</span></span>}
+                        {pessoa.niss && <span>NISS: <span className="font-mono text-ink">{pessoa.niss}</span></span>}
+                        {pessoa.dataNascimento && <span>Nascimento: <span className="text-ink">{fmtData(pessoa.dataNascimento)}</span></span>}
+                        {pessoa.email && <span>Email: <span className="text-ink">{pessoa.email}</span></span>}
+                        {pessoa.telefone && <span>Tel: <span className="text-ink">{pessoa.telefone}</span></span>}
+                      </div>
+                      <Button size="sm" variant="ghost" icon={<Download className="w-3.5 h-3.5" />}
+                        onClick={() => promise(openProtected(`/relatorios/rh/pdf?pessoaId=${pessoa.id}`), { loading: 'A gerar dossiê…', success: 'PDF aberto', error: (e) => e?.message || 'Erro' })}>
+                        PDF
+                      </Button>
                     </div>
 
                     {/* Subsídios/Apoios */}

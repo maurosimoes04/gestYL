@@ -117,6 +117,12 @@ app.use('/auth/forgot-password', authLimiter);
 app.use('/auth/reset-password', authLimiter);
 app.use('/auth', authRoutes);
 
+// Integração Young-Link (auth própria via API key, antes do requireAuth)
+bootLog('App: carregar integração Young-Link');
+const integracaoYounglinkRoutes = require('./routes/integracaoYounglink').default;
+app.use('/integrations/younglink', integracaoYounglinkRoutes);
+bootLog('App: integração Young-Link carregada');
+
 // Rotas protegidas
 bootLog('App: carregar fatura routes');
 const faturaRoutes = require('./routes/fatura').default;
