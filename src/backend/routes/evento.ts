@@ -60,11 +60,11 @@ router.get('/:id/details', async (req, res) => {
       where: { id },
       include: {
         faturaEventos: {
-          include: { fatura: true },
+          include: { fatura: { include: { contaSnc: { select: { codigo: true, nome: true } } } } },
           orderBy: { fatura: { data: 'desc' } },
         },
         receitaEventos: {
-          include: { receita: true },
+          include: { receita: { include: { contaSnc: { select: { codigo: true, nome: true } } } } },
           orderBy: { receita: { data: 'desc' } },
         },
       },
