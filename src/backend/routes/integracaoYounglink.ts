@@ -96,6 +96,7 @@ router.post('/revenue', async (req: Request, res: Response) => {
 
     // Resolver o evento/processo
     let eventoId: number | null = null;
+    let eventoData: any = null;
     if (body.eventoId) {
       eventoId = Number(body.eventoId);
     } else if (body.projectKey) {
@@ -106,21 +107,27 @@ router.post('/revenue', async (req: Request, res: Response) => {
         return res.status(400).json({ ok: false, error: `Processo com projectKey "${body.projectKey}" não encontrado` });
       }
       eventoId = evento.id;
+      eventoData = evento;
     }
 
-    // Validar que o evento existe
-    if (eventoId) {
-      const evento = await prisma.evento.findUnique({ where: { id: eventoId } });
-      if (!evento) {
+    // Validar que o evento existe e guardar dados
+    if (eventoId && !eventoData) {
+      eventoData = await prisma.evento.findUnique({ where: { id: eventoId } });
+      if (!eventoData) {
         return res.status(400).json({ ok: false, error: `Evento #${eventoId} não encontrado` });
       }
     }
 
-    // Validar contaSncId se fornecido
-    if (body.contaSncId) {
-      const conta = await prisma.contaSNC.findUnique({ where: { id: Number(body.contaSncId) } });
+    // Resolver contaSncId: payload > evento > null
+    let contaSncId: number | null = body.contaSncId ? Number(body.contaSncId) : null;
+    if (!contaSncId && eventoData?.contaSncReceitaId) {
+      contaSncId = eventoData.contaSncReceitaId;
+    }
+
+    if (contaSncId) {
+      const conta = await prisma.contaSNC.findUnique({ where: { id: contaSncId } });
       if (!conta) {
-        return res.status(400).json({ ok: false, error: `Conta SNC #${body.contaSncId} não encontrada` });
+        return res.status(400).json({ ok: false, error: `Conta SNC #${contaSncId} não encontrada` });
       }
     }
 
@@ -198,7 +205,7 @@ router.post('/revenue', async (req: Request, res: Response) => {
           categoria: body.categoria || 'Bilhetes',
           estado,
           financiador: body.financiador || 'Young-Link',
-          contaSncId: body.contaSncId ? Number(body.contaSncId) : null,
+          contaSncId,
           entidadeId,
           observacoes: obsLines.length > 0 ? obsLines.join('\n') : null,
           externalId: body.externalId,
