@@ -86,6 +86,36 @@ pontoPublicRouter.get('/status/:entidadeId', async (req, res) => {
   return res.json({ estado: 'completo', horaEntrada: registo.horaEntrada, horaSaida: registo.horaSaida });
 });
 
+// Alterar PIN (autenticado pelo PIN atual)
+pontoPublicRouter.post('/alterar-pin', async (req, res) => {
+  const { entidadeId, pinAtual, pinNovo } = req.body || {};
+  if (!entidadeId || !pinAtual || !pinNovo) {
+    return res.status(400).json({ error: 'entidadeId, pinAtual e pinNovo são obrigatórios' });
+  }
+
+  const pinNovoStr = String(pinNovo).slice(0, 4);
+  if (!/^\d{4}$/.test(pinNovoStr)) {
+    return res.status(400).json({ error: 'O novo PIN deve ter exactamente 4 dígitos' });
+  }
+
+  const pessoa = await prisma.entidade.findFirst({
+    where: { id: entidadeId, ativo: true, tipos: { hasSome: ['pessoa-interna'] } },
+    select: { id: true, nome: true, pin: true },
+  });
+
+  if (!pessoa || !pessoa.pin) {
+    return res.status(404).json({ error: 'Pessoa não encontrada' });
+  }
+
+  const pinAtualStr = String(pinAtual).slice(0, 4);
+  if (pinAtualStr.length !== pessoa.pin.length || !crypto.timingSafeEqual(Buffer.from(pinAtualStr), Buffer.from(pessoa.pin))) {
+    return res.status(401).json({ error: 'PIN atual incorreto' });
+  }
+
+  await prisma.entidade.update({ where: { id: pessoa.id }, data: { pin: pinNovoStr } });
+  return res.json({ ok: true, message: 'PIN alterado com sucesso' });
+});
+
 // Router protegido (admin — consulta e gestão)
 const router = express.Router();
 

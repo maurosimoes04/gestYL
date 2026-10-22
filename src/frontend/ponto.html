@@ -80,6 +80,19 @@
     .resultado-tipo { font-size: 1.4rem; font-weight: 700; margin-bottom: 8px; }
     .resultado-hora { font-size: 2rem; font-weight: 300; color: #4f46e5; margin-bottom: 4px; }
     .resultado-nome { font-size: 1.1rem; color: #64748b; }
+    .resultado-actions { margin-top: 24px; display: flex; gap: 12px; justify-content: center; }
+    .btn-alterar-pin {
+      background: none; border: 1px solid #e2e8f0; border-radius: 8px;
+      padding: 10px 20px; color: #64748b; font-size: 0.9rem; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-alterar-pin:active { background: #f1f5f9; }
+
+    /* Alterar PIN */
+    #view-alterar-pin { display: none; text-align: center; }
+    #view-alterar-pin h2 { font-size: 1.1rem; color: #64748b; margin-bottom: 8px; }
+    .alterar-pin-label { font-size: 0.95rem; color: #4f46e5; font-weight: 600; margin-bottom: 16px; }
+    .pin-success { color: #16a34a; font-size: 0.9rem; margin-top: 10px; min-height: 1.4em; }
 
     .pin-error { color: #ef4444; font-size: 0.9rem; margin-top: 10px; min-height: 1.4em; }
     .loading { text-align: center; padding: 40px; color: #94a3b8; }
@@ -121,6 +134,25 @@
       <div class="resultado-tipo" id="res-tipo"></div>
       <div class="resultado-hora" id="res-hora"></div>
       <div class="resultado-nome" id="res-nome"></div>
+      <div class="resultado-actions">
+        <button class="btn-alterar-pin" onclick="iniciarAlterarPin()">Alterar PIN</button>
+      </div>
+    </div>
+
+    <div id="view-alterar-pin">
+      <h2 id="alterar-pin-titulo">Novo PIN</h2>
+      <div class="pin-pessoa" id="alterar-pin-pessoa"></div>
+      <div class="alterar-pin-label" id="alterar-pin-label">Introduza o novo PIN</div>
+      <div class="pin-dots">
+        <div class="pin-dot" id="ndot0"></div>
+        <div class="pin-dot" id="ndot1"></div>
+        <div class="pin-dot" id="ndot2"></div>
+        <div class="pin-dot" id="ndot3"></div>
+      </div>
+      <div class="pin-pad" id="new-pin-pad"></div>
+      <div class="pin-error" id="alterar-pin-error"></div>
+      <div class="pin-success" id="alterar-pin-success"></div>
+      <div class="pin-cancel" onclick="voltarLista()">Cancelar</div>
     </div>
   </div>
 
@@ -129,6 +161,11 @@
     let pessoas = [];
     let selectedPessoa = null;
     let pinDigits = [];
+    let resultadoTimeout = null;
+    let authenticatedPin = '';
+    let newPinDigits = [];
+    let newPinStep = 'novo'; // 'novo' ou 'confirmar'
+    let newPinFirst = '';
 
     // Relógio
     function updateClock() {
@@ -235,6 +272,7 @@
           document.getElementById('pin-error').textContent = data.error || 'Erro';
           return;
         }
+        authenticatedPin = pin;
         showResultado(data);
       } catch (e) {
         pinDigits = [];
@@ -258,17 +296,112 @@
       document.getElementById('res-hora').textContent = hora;
       document.getElementById('res-nome').textContent = data.nome;
       showView('resultado');
-      setTimeout(() => { showView('lista'); loadPessoas(); }, 3000);
+      resultadoTimeout = setTimeout(() => { showView('lista'); loadPessoas(); }, 5000);
     }
 
     function voltarLista() {
+      if (resultadoTimeout) { clearTimeout(resultadoTimeout); resultadoTimeout = null; }
+      authenticatedPin = '';
       showView('lista');
+    }
+
+    function iniciarAlterarPin() {
+      if (resultadoTimeout) { clearTimeout(resultadoTimeout); resultadoTimeout = null; }
+      newPinDigits = [];
+      newPinStep = 'novo';
+      newPinFirst = '';
+      document.getElementById('alterar-pin-pessoa').textContent = selectedPessoa.nome;
+      document.getElementById('alterar-pin-label').textContent = 'Introduza o novo PIN';
+      document.getElementById('alterar-pin-error').textContent = '';
+      document.getElementById('alterar-pin-success').textContent = '';
+      updateNewDots();
+      showView('alterar-pin');
+      buildNewPinPad();
+    }
+
+    function buildNewPinPad() {
+      const pad = document.getElementById('new-pin-pad');
+      pad.innerHTML = '';
+      for (let i = 1; i <= 9; i++) {
+        pad.innerHTML += '<div class="pin-key" onclick="pressNewKey(\'' + i + '\')">' + i + '</div>';
+      }
+      pad.innerHTML += '<div class="pin-key back" onclick="pressNewKey(\'back\')">&#9003;</div>';
+      pad.innerHTML += '<div class="pin-key" onclick="pressNewKey(\'0\')">0</div>';
+      pad.innerHTML += '<div class="pin-key empty"></div>';
+    }
+
+    function pressNewKey(key) {
+      if (key === 'back') {
+        newPinDigits.pop();
+        document.getElementById('alterar-pin-error').textContent = '';
+      } else if (newPinDigits.length < 4) {
+        newPinDigits.push(key);
+      }
+      updateNewDots();
+      if (newPinDigits.length === 4) {
+        if (newPinStep === 'novo') {
+          newPinFirst = newPinDigits.join('');
+          newPinStep = 'confirmar';
+          newPinDigits = [];
+          updateNewDots();
+          document.getElementById('alterar-pin-label').textContent = 'Confirme o novo PIN';
+          document.getElementById('alterar-pin-error').textContent = '';
+        } else {
+          const confirmPin = newPinDigits.join('');
+          if (confirmPin !== newPinFirst) {
+            newPinDigits = [];
+            newPinStep = 'novo';
+            newPinFirst = '';
+            updateNewDots();
+            document.getElementById('alterar-pin-label').textContent = 'Introduza o novo PIN';
+            document.getElementById('alterar-pin-error').textContent = 'PINs não coincidem. Tente novamente.';
+          } else {
+            submitNewPin(confirmPin);
+          }
+        }
+      }
+    }
+
+    function updateNewDots() {
+      for (let i = 0; i < 4; i++) {
+        document.getElementById('ndot' + i).classList.toggle('filled', i < newPinDigits.length);
+      }
+    }
+
+    async function submitNewPin(pinNovo) {
+      try {
+        const res = await fetch(API + '/alterar-pin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entidadeId: selectedPessoa.id, pinAtual: authenticatedPin, pinNovo }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          newPinDigits = [];
+          newPinStep = 'novo';
+          newPinFirst = '';
+          updateNewDots();
+          document.getElementById('alterar-pin-label').textContent = 'Introduza o novo PIN';
+          document.getElementById('alterar-pin-error').textContent = data.error || 'Erro';
+          return;
+        }
+        authenticatedPin = pinNovo;
+        document.getElementById('alterar-pin-error').textContent = '';
+        document.getElementById('alterar-pin-success').textContent = 'PIN alterado com sucesso!';
+        document.getElementById('alterar-pin-label').textContent = '';
+        setTimeout(() => { voltarLista(); loadPessoas(); }, 2000);
+      } catch (e) {
+        newPinDigits = [];
+        updateNewDots();
+        document.getElementById('alterar-pin-error').textContent = 'Erro de ligação';
+      }
     }
 
     function showView(name) {
       document.getElementById('view-lista').style.display = name === 'lista' ? 'block' : 'none';
       document.getElementById('view-pin').style.display = name === 'pin' ? 'block' : 'none';
       document.getElementById('view-resultado').style.display = name === 'resultado' ? 'block' : 'none';
+      document.getElementById('view-alterar-pin').style.display = name === 'alterar-pin' ? 'block' : 'none';
     }
 
     loadPessoas();
