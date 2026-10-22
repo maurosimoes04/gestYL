@@ -104,6 +104,13 @@ app.get('/item/:codigo', (_req, res) => {
 });
 app.use('/item-info', inventarioPublicRouter);
 
+// Relógio de ponto (público — autenticado por PIN)
+const { pontoPublicRouter } = require('./routes/ponto');
+app.get('/ponto', (_req, res) => {
+  res.sendFile(path.join(frontendPath, 'ponto.html'));
+});
+app.use('/ponto/api', pontoPublicRouter);
+
 // Rotas públicas de autenticação (com rate limiting)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -172,6 +179,8 @@ app.use('/contas-snc', auditRoutes('contaSnc'), contaSncRoutes);
 app.use('/entidades', auditRoutes('entidade'), entidadeRoutes);
 app.use('/documentos', auditRoutes('documento'), documentoRoutes);
 app.use('/ia-snc', auditRoutes('sncIa'), sncIaRoutes);
+const pontoRoutes = require('./routes/ponto').default;
+app.use('/ponto/registos', auditRoutes('ponto'), pontoRoutes);
 
 // Error handler global — captura erros de multer e outros middlewares
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

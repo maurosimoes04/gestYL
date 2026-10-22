@@ -67,11 +67,14 @@ model Entidade {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  receitas   Receita[]
-  faturas    Fatura[]
-  processos  Evento[]    @relation("ProcessoEntidade")
-  subsidios  Evento[]    @relation("ProcessoPessoa")
-  documentos Documento[]
+  pin           String?   @db.VarChar(4)                       // PIN 4 dígitos para relógio de ponto
+
+  receitas      Receita[]
+  faturas       Fatura[]
+  processos     Evento[]    @relation("ProcessoEntidade")
+  subsidios     Evento[]    @relation("ProcessoPessoa")
+  documentos    Documento[]
+  registosPonto RegistoPonto[]
 
   @@index([nome])
   @@index([ativo])
@@ -102,6 +105,24 @@ model Documento {
   @@index([estado])
   @@index([dataLimite])
   @@map("documentos")
+}
+
+/// Registo diário de ponto (entrada/saída) para pessoas internas.
+model RegistoPonto {
+  id            Int       @id @default(autoincrement())
+  entidadeId    Int
+  data          DateTime  @db.Date
+  horaEntrada   DateTime?
+  horaSaida     DateTime?
+  observacoes   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  entidade Entidade @relation(fields: [entidadeId], references: [id], onDelete: Cascade)
+
+  @@unique([entidadeId, data])
+  @@index([data])
+  @@map("registos_ponto")
 }
 
 model Profile {

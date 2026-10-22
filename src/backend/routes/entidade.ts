@@ -11,7 +11,7 @@ import { prisma } from '../config/prisma';
 const router = express.Router();
 
 const ALLOWED = ['nome', 'nif', 'tipos', 'email', 'telefone', 'morada', 'iban', 'ativo', 'notas',
-                 'niss', 'tipoVinculo', 'funcao', 'bolsaBase', 'dataNascimento', 'verificado'];
+                 'niss', 'tipoVinculo', 'funcao', 'bolsaBase', 'dataNascimento', 'verificado', 'pin'];
 
 function sanitize(body: any) {
   const payload: any = {};

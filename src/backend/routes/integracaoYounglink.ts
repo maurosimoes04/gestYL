@@ -174,6 +174,7 @@ router.post('/revenue', async (req: Request, res: Response) => {
             email: c.email || null,
             telefone: c.phone || null,
             tipos: ['cliente'],
+            verificado: true,
           },
         });
         entidadeId = nova.id;

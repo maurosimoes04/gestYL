@@ -28,6 +28,7 @@ export interface Entidade {
   funcao?: string | null;
   bolsaBase?: number | null;
   dataNascimento?: string | null;
+  pin?: string | null;
   ativo: boolean;
   verificado: boolean;
   notas?: string | null;

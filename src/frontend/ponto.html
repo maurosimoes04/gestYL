@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Ponto — Young-Link</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8fafc;
+      color: #1e293b;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: #4f46e5;
+      color: white;
+      padding: 20px;
+      text-align: center;
+    }
+    header h1 { font-size: 1.4rem; font-weight: 700; }
+    header .clock { font-size: 2.5rem; font-weight: 300; margin-top: 8px; font-variant-numeric: tabular-nums; }
+    header .date { font-size: 0.95rem; opacity: 0.85; margin-top: 4px; }
+
+    .container { flex: 1; padding: 16px; max-width: 500px; margin: 0 auto; width: 100%; }
+
+    /* Lista de pessoas */
+    #view-lista h2 { font-size: 1.1rem; color: #64748b; margin-bottom: 12px; text-align: center; }
+    .pessoa-list { display: flex; flex-direction: column; gap: 8px; }
+    .pessoa-btn {
+      display: flex; align-items: center; gap: 14px;
+      background: white; border: 1px solid #e2e8f0; border-radius: 12px;
+      padding: 16px; cursor: pointer; transition: all 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .pessoa-btn:active { transform: scale(0.98); background: #f1f5f9; }
+    .pessoa-avatar {
+      width: 48px; height: 48px; border-radius: 50%;
+      background: #4f46e5; color: white;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 1.1rem; flex-shrink: 0;
+    }
+    .pessoa-info { flex: 1; text-align: left; }
+    .pessoa-nome { font-weight: 600; font-size: 1.05rem; }
+    .pessoa-funcao { font-size: 0.85rem; color: #94a3b8; }
+    .pessoa-status { font-size: 0.75rem; padding: 4px 10px; border-radius: 20px; font-weight: 600; }
+    .status-sem { background: #f1f5f9; color: #94a3b8; }
+    .status-entrada { background: #dcfce7; color: #16a34a; }
+    .status-completo { background: #dbeafe; color: #2563eb; }
+
+    /* PIN */
+    #view-pin { display: none; text-align: center; }
+    #view-pin h2 { font-size: 1.1rem; color: #64748b; margin-bottom: 8px; }
+    .pin-pessoa { font-size: 1.3rem; font-weight: 700; color: #4f46e5; margin-bottom: 20px; }
+    .pin-dots { display: flex; gap: 12px; justify-content: center; margin-bottom: 24px; }
+    .pin-dot {
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 2px solid #cbd5e1; transition: all 0.15s;
+    }
+    .pin-dot.filled { background: #4f46e5; border-color: #4f46e5; }
+    .pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 280px; margin: 0 auto; }
+    .pin-key {
+      height: 64px; border-radius: 12px; border: 1px solid #e2e8f0;
+      background: white; font-size: 1.5rem; font-weight: 600; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      -webkit-tap-highlight-color: transparent; transition: all 0.1s;
+    }
+    .pin-key:active { background: #f1f5f9; transform: scale(0.95); }
+    .pin-key.back { font-size: 1.2rem; color: #94a3b8; }
+    .pin-key.empty { border: none; background: none; cursor: default; }
+    .pin-cancel { margin-top: 20px; color: #94a3b8; font-size: 0.95rem; cursor: pointer; padding: 10px; }
+
+    /* Resultado */
+    #view-resultado { display: none; text-align: center; padding-top: 40px; }
+    .resultado-icon { font-size: 4rem; margin-bottom: 16px; }
+    .resultado-tipo { font-size: 1.4rem; font-weight: 700; margin-bottom: 8px; }
+    .resultado-hora { font-size: 2rem; font-weight: 300; color: #4f46e5; margin-bottom: 4px; }
+    .resultado-nome { font-size: 1.1rem; color: #64748b; }
+
+    .pin-error { color: #ef4444; font-size: 0.9rem; margin-top: 10px; min-height: 1.4em; }
+    .loading { text-align: center; padding: 40px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Young-Link</h1>
+    <div class="clock" id="clock">--:--</div>
+    <div class="date" id="date"></div>
+  </header>
+
+  <div class="container">
+    <div id="view-lista">
+      <h2>Marcar ponto</h2>
+      <div class="pessoa-list" id="pessoa-list">
+        <div class="loading">A carregar...</div>
+      </div>
+    </div>
+
+    <div id="view-pin">
+      <h2>Introduza o PIN</h2>
+      <div class="pin-pessoa" id="pin-pessoa"></div>
+      <div class="pin-dots">
+        <div class="pin-dot" id="dot0"></div>
+        <div class="pin-dot" id="dot1"></div>
+        <div class="pin-dot" id="dot2"></div>
+        <div class="pin-dot" id="dot3"></div>
+      </div>
+      <div class="pin-pad" id="pin-pad"></div>
+      <div class="pin-error" id="pin-error"></div>
+      <div class="pin-cancel" onclick="voltarLista()">Cancelar</div>
+    </div>
+
+    <div id="view-resultado">
+      <div class="resultado-icon" id="res-icon"></div>
+      <div class="resultado-tipo" id="res-tipo"></div>
+      <div class="resultado-hora" id="res-hora"></div>
+      <div class="resultado-nome" id="res-nome"></div>
+    </div>
+  </div>
+
+  <script>
+    const API = '/ponto/api';
+    let pessoas = [];
+    let selectedPessoa = null;
+    let pinDigits = [];
+
+    // Relógio
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('clock').textContent = now.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+      document.getElementById('date').textContent = now.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    }
+    updateClock();
+    setInterval(updateClock, 10000);
+
+    // Carregar pessoas
+    async function loadPessoas() {
+      try {
+        const res = await fetch(API + '/pessoas');
+        pessoas = await res.json();
+        renderLista();
+      } catch (e) {
+        document.getElementById('pessoa-list').innerHTML = '<div class="loading">Erro ao carregar</div>';
+      }
+    }
+
+    async function renderLista() {
+      const list = document.getElementById('pessoa-list');
+      if (!pessoas.length) {
+        list.innerHTML = '<div class="loading">Nenhuma pessoa com PIN configurado</div>';
+        return;
+      }
+
+      // Buscar status de todos
+      const statuses = await Promise.all(pessoas.map(p =>
+        fetch(API + '/status/' + p.id).then(r => r.json()).catch(() => ({ estado: 'sem-registo' }))
+      ));
+
+      list.innerHTML = pessoas.map((p, i) => {
+        const s = statuses[i];
+        const initials = p.nome.split(' ').filter(w => w.length > 0).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+        let statusHtml = '<span class="pessoa-status status-sem">Sem registo</span>';
+        if (s.estado === 'entrada') {
+          const h = new Date(s.horaEntrada).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+          statusHtml = '<span class="pessoa-status status-entrada">Entrada ' + h + '</span>';
+        } else if (s.estado === 'completo') {
+          statusHtml = '<span class="pessoa-status status-completo">Completo</span>';
+        }
+        return '<div class="pessoa-btn" onclick="selectPessoa(' + i + ')">' +
+          '<div class="pessoa-avatar">' + initials + '</div>' +
+          '<div class="pessoa-info"><div class="pessoa-nome">' + p.nome + '</div>' +
+          (p.funcao ? '<div class="pessoa-funcao">' + p.funcao + '</div>' : '') +
+          '</div>' + statusHtml + '</div>';
+      }).join('');
+    }
+
+    function selectPessoa(index) {
+      selectedPessoa = pessoas[index];
+      pinDigits = [];
+      updateDots();
+      document.getElementById('pin-pessoa').textContent = selectedPessoa.nome;
+      document.getElementById('pin-error').textContent = '';
+      showView('pin');
+      buildPinPad();
+    }
+
+    function buildPinPad() {
+      const pad = document.getElementById('pin-pad');
+      pad.innerHTML = '';
+      for (let i = 1; i <= 9; i++) {
+        pad.innerHTML += '<div class="pin-key" onclick="pressKey(\'' + i + '\')">' + i + '</div>';
+      }
+      pad.innerHTML += '<div class="pin-key back" onclick="pressKey(\'back\')">&#9003;</div>';
+      pad.innerHTML += '<div class="pin-key" onclick="pressKey(\'0\')">0</div>';
+      pad.innerHTML += '<div class="pin-key empty"></div>';
+    }
+
+    function pressKey(key) {
+      if (key === 'back') {
+        pinDigits.pop();
+        document.getElementById('pin-error').textContent = '';
+      } else if (pinDigits.length < 4) {
+        pinDigits.push(key);
+      }
+      updateDots();
+      if (pinDigits.length === 4) {
+        submitPin();
+      }
+    }
+
+    function updateDots() {
+      for (let i = 0; i < 4; i++) {
+        document.getElementById('dot' + i).classList.toggle('filled', i < pinDigits.length);
+      }
+    }
+
+    async function submitPin() {
+      const pin = pinDigits.join('');
+      try {
+        const res = await fetch(API + '/marcar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entidadeId: selectedPessoa.id, pin }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          pinDigits = [];
+          updateDots();
+          document.getElementById('pin-error').textContent = data.error || 'Erro';
+          return;
+        }
+        showResultado(data);
+      } catch (e) {
+        pinDigits = [];
+        updateDots();
+        document.getElementById('pin-error').textContent = 'Erro de ligação';
+      }
+    }
+
+    function showResultado(data) {
+      const hora = new Date(data.hora || new Date()).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+      if (data.tipo === 'entrada') {
+        document.getElementById('res-icon').textContent = '☀️';
+        document.getElementById('res-tipo').textContent = 'Entrada registada';
+      } else if (data.tipo === 'saida') {
+        document.getElementById('res-icon').textContent = '🌙';
+        document.getElementById('res-tipo').textContent = 'Saída registada';
+      } else {
+        document.getElementById('res-icon').textContent = '✅';
+        document.getElementById('res-tipo').textContent = 'Já registado hoje';
+      }
+      document.getElementById('res-hora').textContent = hora;
+      document.getElementById('res-nome').textContent = data.nome;
+      showView('resultado');
+      setTimeout(() => { showView('lista'); loadPessoas(); }, 3000);
+    }
+
+    function voltarLista() {
+      showView('lista');
+    }
+
+    function showView(name) {
+      document.getElementById('view-lista').style.display = name === 'lista' ? 'block' : 'none';
+      document.getElementById('view-pin').style.display = name === 'pin' ? 'block' : 'none';
+      document.getElementById('view-resultado').style.display = name === 'resultado' ? 'block' : 'none';
+    }
+
+    loadPessoas();
+    // Refresh a cada 60s
+    setInterval(loadPessoas, 60000);
+  </script>
+</body>
+</html>
