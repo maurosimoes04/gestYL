@@ -126,7 +126,7 @@ export function RHPage() {
       const mes = now.getMonth() + 1;
       const ano = now.getFullYear();
       try {
-        const registos = await apiGet<any[]>(`/ponto?entidadeId=${pessoaId}&mes=${mes}&ano=${ano}`);
+        const registos = await apiGet<any[]>(`/ponto/registos?entidadeId=${pessoaId}&mes=${mes}&ano=${ano}`);
         setAssiduidade(prev => ({ ...prev, [pessoaId]: registos }));
       } catch { setAssiduidade(prev => ({ ...prev, [pessoaId]: null })); }
     }
@@ -346,7 +346,7 @@ export function RHPage() {
                       {(() => {
                         const registos = assiduidade[pessoa.id];
                         if (registos === undefined) return <p className="text-xs text-ink-soft italic py-1">A carregar...</p>;
-                        if (!registos || registos.length === 0) return <p className="text-xs text-ink-soft italic py-1">Sem registos este mês.</p>;
+                        if (!registos || !Array.isArray(registos) || registos.length === 0) return <p className="text-xs text-ink-soft italic py-1">Sem registos este mês.</p>;
                         const totalMin = registos.reduce((acc, r) => {
                           if (r.horaEntrada && r.horaSaida) return acc + Math.round((new Date(r.horaSaida).getTime() - new Date(r.horaEntrada).getTime()) / 60000);
                           return acc;
