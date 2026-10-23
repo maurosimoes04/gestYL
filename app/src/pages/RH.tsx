@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Paperclip, Pencil, Trash2, AlertTriangle, ChevronDown, ChevronRight, User, FileText, Briefcase, Search, FolderPlus, LinkIcon, UserPlus, Download } from 'lucide-react';
+import { Plus, Paperclip, Pencil, Trash2, AlertTriangle, ChevronDown, ChevronRight, User, FileText, Briefcase, Search, FolderPlus, LinkIcon, UserPlus, Download, Clock } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -38,6 +38,7 @@ export function RHPage() {
   const [prefilledEntidade, setPrefilledEntidade] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [subsidioResumos, setSubsidioResumos] = useState<Record<number, { totalDespesas: number; totalReceitas: number; saldo: number } | null>>({});
+  const [assiduidade, setAssiduidade] = useState<Record<number, any[] | null>>({});
   const [q, setQ] = useState('');
   const readonly = role === 'fiscal';
 
@@ -119,6 +120,15 @@ export function RHPage() {
         const det = await apiGet<{ resumo: { totalDespesas: number; totalReceitas: number; saldo: number } }>(`/eventos/${s.id}/details`);
         setSubsidioResumos(prev => ({ ...prev, [s.id]: det.resumo }));
       } catch { setSubsidioResumos(prev => ({ ...prev, [s.id]: null })); }
+    }
+    if (assiduidade[pessoaId] === undefined) {
+      const now = new Date();
+      const mes = now.getMonth() + 1;
+      const ano = now.getFullYear();
+      try {
+        const registos = await apiGet<any[]>(`/ponto?entidadeId=${pessoaId}&mes=${mes}&ano=${ano}`);
+        setAssiduidade(prev => ({ ...prev, [pessoaId]: registos }));
+      } catch { setAssiduidade(prev => ({ ...prev, [pessoaId]: null })); }
     }
   }
 
@@ -276,7 +286,7 @@ export function RHPage() {
                     )}
 
                     {/* Documentos */}
-                    <div className="mb-3">
+                    <div className="mb-4">
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="text-xs font-semibold text-ink-soft uppercase tracking-wider flex items-center gap-1.5">
                           <FileText className="w-3.5 h-3.5" /> Documentos ({pessoaDocs.length})
@@ -326,6 +336,49 @@ export function RHPage() {
                           ))}
                         </div>
                       )}
+                    </div>
+
+                    {/* Assiduidade */}
+                    <div className="mb-3">
+                      <h4 className="text-xs font-semibold text-ink-soft uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5" /> Assiduidade — {new Date().toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' })}
+                      </h4>
+                      {(() => {
+                        const registos = assiduidade[pessoa.id];
+                        if (registos === undefined) return <p className="text-xs text-ink-soft italic py-1">A carregar...</p>;
+                        if (!registos || registos.length === 0) return <p className="text-xs text-ink-soft italic py-1">Sem registos este mês.</p>;
+                        const totalMin = registos.reduce((acc, r) => {
+                          if (r.horaEntrada && r.horaSaida) return acc + Math.round((new Date(r.horaSaida).getTime() - new Date(r.horaEntrada).getTime()) / 60000);
+                          return acc;
+                        }, 0);
+                        return (
+                          <div className="space-y-1">
+                            <div className="grid grid-cols-[auto_1fr_1fr_auto] gap-x-4 gap-y-1 text-xs">
+                              <span className="font-semibold text-ink-soft">Dia</span>
+                              <span className="font-semibold text-ink-soft">Entrada</span>
+                              <span className="font-semibold text-ink-soft">Saída</span>
+                              <span className="font-semibold text-ink-soft">Horas</span>
+                              {registos.map((r: any) => {
+                                const d = new Date(r.data);
+                                const ent = r.horaEntrada ? new Date(r.horaEntrada).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) : '--:--';
+                                const sai = r.horaSaida ? new Date(r.horaSaida).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) : '--:--';
+                                const mins = r.horaEntrada && r.horaSaida ? Math.round((new Date(r.horaSaida).getTime() - new Date(r.horaEntrada).getTime()) / 60000) : 0;
+                                const horas = mins > 0 ? `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}` : '';
+                                return [
+                                  <span key={`d${r.id}`} className="text-ink font-medium">{d.toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: '2-digit' })}</span>,
+                                  <span key={`e${r.id}`} className="text-ink font-mono">{ent}</span>,
+                                  <span key={`s${r.id}`} className="text-ink font-mono">{sai}</span>,
+                                  <span key={`h${r.id}`} className="text-ink font-mono">{horas}</span>,
+                                ];
+                              })}
+                            </div>
+                            <div className="flex gap-4 text-xs font-semibold border-t border-line-soft pt-1.5 mt-1.5">
+                              <span className="text-ink">{registos.length} dia(s)</span>
+                              <span className="text-brand font-mono">{Math.floor(totalMin / 60)}h{String(totalMin % 60).padStart(2, '0')}</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 )}

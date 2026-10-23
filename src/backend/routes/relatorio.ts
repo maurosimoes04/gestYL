@@ -1106,10 +1106,11 @@ router.post('/anual/pdf', async (req, res) => {
   }
 });
 
-// GET /relatorios/rh/pdf — Relatório de Recursos Humanos
+// GET /relatorios/rh/pdf — Relatório de Recursos Humanos (dossiê completo com anexos)
 router.get('/rh/pdf', async (_req, res) => {
   try {
     const { default: PDFDocument } = await import('pdfkit');
+    const { PDFDocument: PDFLib, rgb, StandardFonts } = await import('pdf-lib');
     const whiteLogo = await getWhiteLogoBuffer();
     const pessoaIdFilter = _req.query.pessoaId ? Number(_req.query.pessoaId) : null;
 
@@ -1131,139 +1132,232 @@ router.get('/rh/pdf', async (_req, res) => {
       include: { processo: { select: { id: true, nome: true } } },
     });
 
+    // Buscar registos de ponto do mês atual para cada pessoa
+    const now = new Date();
+    const mesAtual = now.getMonth();
+    const anoAtual = now.getFullYear();
+    const startMes = new Date(anoAtual, mesAtual, 1);
+    const endMes = new Date(anoAtual, mesAtual + 1, 0);
+    const registosPonto = await prisma.registoPonto.findMany({
+      where: {
+        data: { gte: startMes, lte: endMes },
+        ...(pessoaIdFilter ? { entidadeId: pessoaIdFilter } : {}),
+      },
+      orderBy: { data: 'asc' },
+    });
+
     const pessoaNome = pessoaIdFilter && pessoas.length > 0 ? pessoas[0].nome : null;
-    const doc = new PDFDocument({ margin: 40, bufferPages: true });
-    res.header('Content-Type', 'application/pdf');
-    res.attachment(pessoaNome ? `rh-${pessoaNome.toLowerCase().replace(/\s+/g, '-')}.pdf` : 'relatorio-rh.pdf');
-    doc.pipe(res);
 
-    // --- Capa ---
-    const tituloRH = pessoaNome ? `Dossiê — ${pessoaNome}` : 'Relatório de Recursos Humanos';
-    drawCover(doc, tituloRH, `${pessoas.length} pessoa(s) · ${subsidios.length} subsídio(s)`, whiteLogo);
-    doc.addPage();
+    // --- Gerar dossiê principal com PDFKit → buffer ---
+    const dossieBuffer: Buffer = await new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 40, bufferPages: true });
+      const chunks: Buffer[] = [];
+      doc.on('data', (c: Buffer) => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
 
-    // --- Resumo geral ---
-    drawHeader(doc, tituloRH, `Gerado em ${fmtDate(new Date())}`, whiteLogo);
-    doc.moveDown(0.5);
+      const tituloRH = pessoaNome ? `Dossiê — ${pessoaNome}` : 'Relatório de Recursos Humanos';
+      drawCover(doc, tituloRH, `${pessoas.length} pessoa(s) · ${subsidios.length} subsídio(s)`, whiteLogo);
+      doc.addPage();
 
-    const totalDocs = documentos.length;
-    const docsAnexados = documentos.filter(d => d.estado === 'Enviado').length;
-    const docsPendentes = documentos.filter(d => d.estado === 'Pendente').length;
-    const docsVencidos = documentos.filter(d => {
-      if (!d.dataLimite) return false;
-      return new Date(d.dataLimite) < new Date() && d.estado !== 'Enviado';
-    }).length;
-
-    doc.fontSize(14).font('Helvetica-Bold').fillColor('#0f172a').text('Resumo Geral');
-    doc.moveDown(0.4);
-    drawTable(doc, [
-      { cells: ['Pessoas internas', String(pessoas.length)], fill: '#f8fafc', bold: true },
-      { cells: ['Subsídios ativos', String(subsidios.filter(s => s.estado === 'Em curso').length)], fill: '#ffffff' },
-      { cells: ['Total de documentos', String(totalDocs)], fill: '#f8fafc' },
-      { cells: ['Documentos enviados / completos', String(docsAnexados)], fill: '#dcfce7', color: '#166534' },
-      { cells: ['Documentos pendentes', String(docsPendentes)], fill: '#fef9c3', color: '#854d0e' },
-      { cells: ['Documentos vencidos', String(docsVencidos)], fill: docsVencidos > 0 ? '#fee2e2' : '#f8fafc', color: docsVencidos > 0 ? '#991b1b' : '#0a0a0a' },
-    ]);
-    doc.moveDown(0.5);
-
-    // --- Vinculos ---
-    const vinculos: Record<string, number> = {};
-    pessoas.forEach(p => { const v = p.tipoVinculo || 'Sem vínculo'; vinculos[v] = (vinculos[v] || 0) + 1; });
-    if (Object.keys(vinculos).length > 0) {
-      doc.fontSize(14).font('Helvetica-Bold').fillColor('#0f172a').text('Por tipo de vínculo');
-      doc.moveDown(0.4);
-      drawTable(doc, Object.entries(vinculos).sort((a, b) => b[1] - a[1]).map(([v, n], i) => ({
-        cells: [v, String(n)] as [string, string],
-        fill: i % 2 === 0 ? '#f8fafc' : '#ffffff',
-      })));
+      drawHeader(doc, tituloRH, `Gerado em ${fmtDate(new Date())}`, whiteLogo);
       doc.moveDown(0.5);
-    }
 
-    // --- Detalhe por pessoa ---
-    for (const pessoa of pessoas) {
-      if (doc.y > doc.page.height - 200) doc.addPage();
-      if (doc.y <= 40) drawHeader(doc, 'Relatório de Recursos Humanos', `Gerado em ${fmtDate(new Date())}`, whiteLogo);
+      const totalDocs = documentos.length;
+      const docsAnexados = documentos.filter(d => d.estado === 'Enviado').length;
+      const docsPendentes = documentos.filter(d => d.estado === 'Pendente').length;
+      const docsVencidos = documentos.filter(d => {
+        if (!d.dataLimite) return false;
+        return new Date(d.dataLimite) < new Date() && d.estado !== 'Enviado';
+      }).length;
 
-      // Nome / função
-      doc.fontSize(13).font('Helvetica-Bold').fillColor('#4f46e5').text(pessoa.nome);
-      doc.moveDown(0.1);
-      const infoLine: string[] = [];
-      if (pessoa.funcao) infoLine.push(pessoa.funcao);
-      if (pessoa.tipoVinculo) infoLine.push(pessoa.tipoVinculo);
-      if (pessoa.nif) infoLine.push(`NIF: ${pessoa.nif}`);
-      if (pessoa.niss) infoLine.push(`NISS: ${pessoa.niss}`);
-      if (pessoa.bolsaBase) infoLine.push(`Bolsa líq.: ${fmt(Number(pessoa.bolsaBase))}`);
-      if (pessoa.dataNascimento) infoLine.push(`Nasc.: ${fmtDate(pessoa.dataNascimento)}`);
-      if (infoLine.length) doc.fontSize(9).font('Helvetica').fillColor('#64748b').text(infoLine.join('  ·  '));
-      doc.moveDown(0.3);
-
-      // Subsídios desta pessoa
-      const pessoaSubs = subsidios.filter(s => s.pessoaId === pessoa.id);
-      if (pessoaSubs.length > 0) {
-        const subRows: Row[] = [];
-        for (const s of pessoaSubs) {
-          const totalRec = s.receitaEventos.reduce((acc, re) => acc + toNum(re.valor), 0);
-          const totalDesp = s.faturaEventos.reduce((acc, fe) => acc + toNum(fe.valor), 0);
-          subRows.push({
-            cells: [
-              `${s.nome}${s.entidadeFinanciadora ? ` (${s.entidadeFinanciadora.nome})` : ''}${s.numeroProcesso ? ` · nº ${s.numeroProcesso}` : ''}`,
-              `▲ ${fmt(totalRec)}  ▼ ${fmt(totalDesp)}`,
-            ],
-            fill: '#eef2ff',
-            bold: false,
-          });
-          if (s.valorAprovado) {
-            subRows.push({
-              cells: [`  Aprovado: ${fmt(toNum(s.valorAprovado))}  ·  Estado: ${s.estado}`, `Saldo: ${fmt(totalRec - totalDesp)}`],
-              fill: '#ffffff',
-              small: true,
-              indent: 1,
-            });
-          }
-        }
-        drawTable(doc, subRows);
-      }
-
-      // Documentos desta pessoa
-      const pessoaDocs = documentos.filter(d => d.entidadeId === pessoa.id);
-      if (pessoaDocs.length > 0) {
-        const docRows: Row[] = pessoaDocs.map((d, i) => {
-          const vencido = d.dataLimite && new Date(d.dataLimite) < new Date() && d.estado !== 'Enviado';
-          return {
-            cells: [
-              `${d.tipo}${d.processo ? ` (${d.processo.nome})` : ''}${d.dataLimite ? ` · Prazo: ${fmtDate(d.dataLimite)}` : ''}`,
-              d.estado,
-            ],
-            fill: vencido ? '#fee2e2' : i % 2 === 0 ? '#f8fafc' : '#ffffff',
-            color: vencido ? '#991b1b' : d.estado === 'Enviado' ? '#166534' : '#0a0a0a',
-          };
-        });
-        drawTable(doc, docRows);
-      } else {
-        doc.fontSize(9).font('Helvetica').fillColor('#94a3b8').text('Sem documentos.');
-      }
-      doc.moveDown(0.8);
-      doc.fillColor('#0a0a0a');
-    }
-
-    // --- Subsídios sem pessoa associada ---
-    const subsSemPessoa = subsidios.filter(s => !s.pessoaId);
-    if (subsSemPessoa.length > 0) {
-      if (doc.y > doc.page.height - 150) doc.addPage();
-      if (doc.y <= 40) drawHeader(doc, 'Relatório de Recursos Humanos', `Gerado em ${fmtDate(new Date())}`, whiteLogo);
-      doc.fontSize(14).font('Helvetica-Bold').fillColor('#991b1b').text('Subsídios sem pessoa associada');
+      doc.fontSize(14).font('Helvetica-Bold').fillColor('#0f172a').text('Resumo Geral');
       doc.moveDown(0.4);
-      drawTable(doc, subsSemPessoa.map((s, i) => ({
-        cells: [s.nome + (s.numeroProcesso ? ` · nº ${s.numeroProcesso}` : ''), s.estado] as [string, string],
-        fill: i % 2 === 0 ? '#fee2e2' : '#fff1f2',
-        color: '#991b1b',
-      })));
+      drawTable(doc, [
+        { cells: ['Pessoas internas', String(pessoas.length)], fill: '#f8fafc', bold: true },
+        { cells: ['Subsídios ativos', String(subsidios.filter(s => s.estado === 'Em curso').length)], fill: '#ffffff' },
+        { cells: ['Total de documentos', String(totalDocs)], fill: '#f8fafc' },
+        { cells: ['Documentos enviados / completos', String(docsAnexados)], fill: '#dcfce7', color: '#166534' },
+        { cells: ['Documentos pendentes', String(docsPendentes)], fill: '#fef9c3', color: '#854d0e' },
+        { cells: ['Documentos vencidos', String(docsVencidos)], fill: docsVencidos > 0 ? '#fee2e2' : '#f8fafc', color: docsVencidos > 0 ? '#991b1b' : '#0a0a0a' },
+      ]);
+      doc.moveDown(0.8);
+
+      // --- Detalhe por pessoa ---
+      for (const pessoa of pessoas) {
+        if (doc.y > doc.page.height - 200) doc.addPage();
+        if (doc.y <= 40) drawHeader(doc, tituloRH, `Gerado em ${fmtDate(new Date())}`, whiteLogo);
+
+        doc.fontSize(13).font('Helvetica-Bold').fillColor('#4f46e5').text(pessoa.nome);
+        doc.moveDown(0.1);
+        const infoLine: string[] = [];
+        if (pessoa.funcao) infoLine.push(pessoa.funcao);
+        if (pessoa.tipoVinculo) infoLine.push(pessoa.tipoVinculo);
+        if (pessoa.nif) infoLine.push(`NIF: ${pessoa.nif}`);
+        if (pessoa.niss) infoLine.push(`NISS: ${pessoa.niss}`);
+        if (pessoa.bolsaBase) infoLine.push(`Bolsa liq.: ${fmt(Number(pessoa.bolsaBase))}`);
+        if (infoLine.length) doc.fontSize(9).font('Helvetica').fillColor('#64748b').text(infoLine.join('  ·  '));
+        doc.moveDown(0.3);
+
+        // Subsídios
+        const pessoaSubs = subsidios.filter(s => s.pessoaId === pessoa.id);
+        if (pessoaSubs.length > 0) {
+          const subRows: Row[] = [];
+          for (const s of pessoaSubs) {
+            const totalRec = s.receitaEventos.reduce((acc, re) => acc + toNum(re.valor), 0);
+            const totalDesp = s.faturaEventos.reduce((acc, fe) => acc + toNum(fe.valor), 0);
+            subRows.push({
+              cells: [
+                `${s.nome}${s.entidadeFinanciadora ? ` (${s.entidadeFinanciadora.nome})` : ''}${s.numeroProcesso ? ` · n. ${s.numeroProcesso}` : ''}`,
+                `Rec: ${fmt(totalRec)}  Desp: ${fmt(totalDesp)}`,
+              ],
+              fill: '#eef2ff',
+            });
+            if (s.valorAprovado) {
+              subRows.push({
+                cells: [`  Aprovado: ${fmt(toNum(s.valorAprovado))}  ·  Estado: ${s.estado}`, `Saldo: ${fmt(totalRec - totalDesp)}`],
+                fill: '#ffffff',
+                small: true,
+                indent: 1,
+              });
+            }
+          }
+          drawTable(doc, subRows);
+        }
+
+        // Documentos
+        const pessoaDocs = documentos.filter(d => d.entidadeId === pessoa.id);
+        if (pessoaDocs.length > 0) {
+          drawTable(doc, pessoaDocs.map((d, i) => {
+            const vencido = d.dataLimite && new Date(d.dataLimite) < new Date() && d.estado !== 'Enviado';
+            const anexoMark = (d.anexo as any)?.driveFileId ? ' [anexo]' : '';
+            return {
+              cells: [
+                `${d.tipo}${d.processo ? ` (${d.processo.nome})` : ''}${d.dataLimite ? ` · Prazo: ${fmtDate(d.dataLimite)}` : ''}${anexoMark}`,
+                d.estado,
+              ],
+              fill: vencido ? '#fee2e2' : i % 2 === 0 ? '#f8fafc' : '#ffffff',
+              color: vencido ? '#991b1b' : d.estado === 'Enviado' ? '#166534' : '#0a0a0a',
+            };
+          }));
+        } else {
+          doc.fontSize(9).font('Helvetica').fillColor('#94a3b8').text('Sem documentos.');
+        }
+
+        // Mapa de assiduidade do mês atual
+        const pessoaRegistos = registosPonto.filter(r => r.entidadeId === pessoa.id);
+        if (pessoaRegistos.length > 0) {
+          doc.moveDown(0.4);
+          if (doc.y > doc.page.height - 120) doc.addPage();
+          const nomeMes = startMes.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+          doc.fontSize(11).font('Helvetica-Bold').fillColor('#0f172a').text(`Assiduidade — ${nomeMes}`);
+          doc.moveDown(0.3);
+
+          let totalMin = 0;
+          const pontoRows: Row[] = pessoaRegistos.map((r, i) => {
+            const dia = new Date(r.data).toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: '2-digit' });
+            const ent = r.horaEntrada ? new Date(r.horaEntrada).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Lisbon' }) : '--:--';
+            const sai = r.horaSaida ? new Date(r.horaSaida).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Lisbon' }) : '--:--';
+            let horas = '';
+            if (r.horaEntrada && r.horaSaida) {
+              const mins = Math.round((new Date(r.horaSaida).getTime() - new Date(r.horaEntrada).getTime()) / 60000);
+              totalMin += mins;
+              horas = `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}`;
+            }
+            return {
+              cells: [`${dia}   Entrada: ${ent}   Saida: ${sai}`, horas] as [string, string],
+              fill: i % 2 === 0 ? '#f0f9ff' : '#ffffff',
+            };
+          });
+          pontoRows.push({
+            cells: [`Total: ${pessoaRegistos.length} dia(s)`, `${Math.floor(totalMin / 60)}h${String(totalMin % 60).padStart(2, '0')}`],
+            fill: '#dbeafe',
+            bold: true,
+          });
+          drawTable(doc, pontoRows);
+        }
+
+        doc.moveDown(0.8);
+        doc.fillColor('#0a0a0a');
+      }
+
+      // Subsídios sem pessoa
+      const subsSemPessoa = subsidios.filter(s => !s.pessoaId);
+      if (subsSemPessoa.length > 0) {
+        if (doc.y > doc.page.height - 150) doc.addPage();
+        if (doc.y <= 40) drawHeader(doc, tituloRH, `Gerado em ${fmtDate(new Date())}`, whiteLogo);
+        doc.fontSize(14).font('Helvetica-Bold').fillColor('#991b1b').text('Subsidios sem pessoa associada');
+        doc.moveDown(0.4);
+        drawTable(doc, subsSemPessoa.map((s, i) => ({
+          cells: [s.nome + (s.numeroProcesso ? ` · n. ${s.numeroProcesso}` : ''), s.estado] as [string, string],
+          fill: i % 2 === 0 ? '#fee2e2' : '#fff1f2',
+          color: '#991b1b',
+        })));
+      }
+
+      drawPageNumbers(doc);
+      doc.end();
+    });
+
+    // --- Fundir anexos com pdf-lib ---
+    const docsComAnexo = documentos.filter(d => (d.anexo as any)?.driveFileId);
+    if (docsComAnexo.length === 0) {
+      res.header('Content-Type', 'application/pdf');
+      res.attachment(pessoaNome ? `dossie-${pessoaNome.toLowerCase().replace(/\s+/g, '-')}.pdf` : 'relatorio-rh.pdf');
+      res.send(dossieBuffer);
+      return;
     }
 
-    // --- Números de página ---
-    drawPageNumbers(doc);
+    const merged = await PDFLib.load(dossieBuffer);
+    const helvetica = await merged.embedFont(StandardFonts.Helvetica);
+    const helveticaBold = await merged.embedFont(StandardFonts.HelveticaBold);
 
-    doc.end();
+    const { streamFromDrive } = await import('../services/googleDrive');
+    for (const d of docsComAnexo) {
+      const anexo = d.anexo as any;
+      try {
+        const stream = await streamFromDrive(anexo.driveFileId);
+        const chunks: Buffer[] = [];
+        for await (const chunk of stream) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        const fileBuffer = Buffer.concat(chunks);
+        const mime = (anexo.mimeType || '').toLowerCase();
+
+        // Página separadora
+        const sepPage = merged.addPage([595.28, 841.89]);
+        sepPage.drawRectangle({ x: 0, y: 0, width: 595.28, height: 841.89, color: rgb(0.31, 0.27, 0.90) });
+        const label = `${d.tipo}${(d as any).processo ? ` (${(d as any).processo.nome})` : ''}`;
+        const labelW = helveticaBold.widthOfTextAtSize(label, 18);
+        sepPage.drawText(label, { x: (595.28 - labelW) / 2, y: 460, size: 18, font: helveticaBold, color: rgb(1, 1, 1) });
+        const sub = anexo.originalName || 'Documento anexo';
+        const subW = helvetica.widthOfTextAtSize(sub, 12);
+        sepPage.drawText(sub, { x: (595.28 - subW) / 2, y: 430, size: 12, font: helvetica, color: rgb(0.85, 0.82, 1) });
+
+        if (mime === 'application/pdf') {
+          try {
+            const extPdf = await PDFLib.load(fileBuffer, { ignoreEncryption: true });
+            const pages = await merged.copyPages(extPdf, extPdf.getPageIndices());
+            pages.forEach(p => merged.addPage(p));
+          } catch { /* PDF protegido ou corrompido — saltar */ }
+        } else if (mime.startsWith('image/')) {
+          const imgPage = merged.addPage([595.28, 841.89]);
+          let img;
+          if (mime === 'image/png') img = await merged.embedPng(fileBuffer);
+          else img = await merged.embedJpg(fileBuffer);
+          const { width: iw, height: ih } = img.scale(1);
+          const maxW = 515, maxH = 760;
+          const scale = Math.min(maxW / iw, maxH / ih, 1);
+          const sw = iw * scale, sh = ih * scale;
+          imgPage.drawImage(img, { x: (595.28 - sw) / 2, y: (841.89 - sh) / 2, width: sw, height: sh });
+        }
+      } catch (err) {
+        console.error(`Erro ao anexar ${anexo.originalName}:`, (err as any).message || err);
+      }
+    }
+
+    const finalPdf = await merged.save();
+    res.header('Content-Type', 'application/pdf');
+    res.attachment(pessoaNome ? `dossie-${pessoaNome.toLowerCase().replace(/\s+/g, '-')}.pdf` : 'relatorio-rh.pdf');
+    res.send(Buffer.from(finalPdf));
   } catch (err) {
     console.error('Erro ao gerar PDF de RH:', (err as any).message || err);
     if (!res.headersSent) res.status(500).json({ error: 'Erro ao gerar relatório de RH' });
