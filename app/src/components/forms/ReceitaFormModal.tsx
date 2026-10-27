@@ -1,4 +1,4 @@
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea } from '@/components/ui/Input';
@@ -12,6 +12,7 @@ import { apiPost, apiPut } from '@/lib/api';
 import { openProtected } from '@/lib/download';
 import { useToast } from '@/contexts/ToastContext';
 import { useCatalogos } from '@/hooks/useCatalogos';
+import { useFormDraft } from '@/hooks/useFormDraft';
 import type { Receita } from '@/lib/types';
 
 interface Props {
@@ -24,9 +25,13 @@ export function ReceitaFormModal({ receita, onClose, onSaved }: Props) {
   const { toast, promise } = useToast();
   const { contas, entidades } = useCatalogos();
   const [saving, setSaving] = useState(false);
+  const isNew = !receita;
+  const draft = useFormDraft<Record<string, any>>('receita', isNew);
+  const draftData = isNew ? draft.load() : null;
 
   // Para registos antigos sem entidadeId, tentamos matchar por nome do financiador
   const entidadeIdInicial = (() => {
+    if (draftData?.entidadeId) return draftData.entidadeId as number;
     if (receita?.entidadeId) return receita.entidadeId;
     if (receita?.financiador) {
       const nome = receita.financiador.trim().toLowerCase();
@@ -36,16 +41,20 @@ export function ReceitaFormModal({ receita, onClose, onSaved }: Props) {
     return null;
   })();
 
-  const [titulo, setTitulo] = useState(receita?.titulo || '');
-  const [contaSncId, setContaSncId] = useState<number | ''>(receita?.contaSncId || '');
+  const [titulo, setTitulo] = useState(draftData?.titulo || receita?.titulo || '');
+  const [contaSncId, setContaSncId] = useState<number | ''>(draftData?.contaSncId || receita?.contaSncId || '');
   const [entidadeId, setEntidadeId] = useState<number | null>(entidadeIdInicial);
-  const [valor, setValor] = useState(receita?.valor ? String(receita.valor) : '');
-  const [data, setData] = useState(receita?.data ? String(receita.data).slice(0, 10) : new Date().toISOString().slice(0, 10));
-  const [estado, setEstado] = useState(receita?.estado || 'Previsto');
-  const [observacoes, setObservacoes] = useState(receita?.observacoes || '');
-  const [eventoId, setEventoId] = useState<number | null>(receita?.receitaEventos?.[0]?.eventoId ?? null);
+  const [valor, setValor] = useState(draftData?.valor || (receita?.valor ? String(receita.valor) : ''));
+  const [data, setData] = useState(draftData?.data || (receita?.data ? String(receita.data).slice(0, 10) : new Date().toISOString().slice(0, 10)));
+  const [estado, setEstado] = useState(draftData?.estado || receita?.estado || 'Previsto');
+  const [observacoes, setObservacoes] = useState(draftData?.observacoes || receita?.observacoes || '');
+  const [eventoId, setEventoId] = useState<number | null>(draftData?.eventoId ?? receita?.receitaEventos?.[0]?.eventoId ?? null);
   const [anexo, setAnexo] = useState<File | null>(null);
   const [removerAnexo, setRemoverAnexo] = useState(false);
+
+  useEffect(() => {
+    draft.save({ titulo, contaSncId, entidadeId, valor, data, estado, observacoes, eventoId });
+  }, [titulo, contaSncId, entidadeId, valor, data, estado, observacoes, eventoId]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -79,6 +88,7 @@ export function ReceitaFormModal({ receita, onClose, onSaved }: Props) {
     try {
       if (receita) await apiPut(`/receitas/${receita.id}`, fd);
       else await apiPost('/receitas', fd);
+      draft.clear();
       toast(receita ? 'Receita atualizada' : 'Receita criada', 'success');
       onSaved();
     } catch (e: any) {

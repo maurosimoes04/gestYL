@@ -13,6 +13,7 @@ import { apiPost, apiPut } from '@/lib/api';
 import { openProtected } from '@/lib/download';
 import { useToast } from '@/contexts/ToastContext';
 import { useCatalogos } from '@/hooks/useCatalogos';
+import { useFormDraft } from '@/hooks/useFormDraft';
 import type { Fatura } from '@/lib/types';
 
 interface Props {
@@ -25,9 +26,13 @@ export function FaturaFormModal({ fatura, onClose, onSaved }: Props) {
   const { toast, promise } = useToast();
   const { departamentos, entidades } = useCatalogos();
   const [saving, setSaving] = useState(false);
+  const isNew = !fatura;
+  const draft = useFormDraft<Record<string, any>>('despesa', isNew);
+  const draftData = isNew ? draft.load() : null;
 
   // Para registos antigos sem entidadeId, tentamos matchar por NIF ou nome do fornecedor
   const entidadeIdInicial = (() => {
+    if (draftData?.entidadeId) return draftData.entidadeId as number;
     if (fatura?.entidadeId) return fatura.entidadeId;
     if (fatura?.fornecedorNif) {
       const match = entidades.find(e => e.nif && e.nif.replace(/\s+/g, '').toUpperCase() === fatura.fornecedorNif!.replace(/\s+/g, '').toUpperCase());
@@ -41,18 +46,19 @@ export function FaturaFormModal({ fatura, onClose, onSaved }: Props) {
     return null;
   })();
 
-  const [titulo, setTitulo] = useState(fatura?.titulo || '');
-  const [tipo, setTipo] = useState(fatura?.tipo || 'Fatura');
-  const [numero, setNumero] = useState(fatura?.numero || '');
-  const [departamento, setDepartamento] = useState(fatura?.departamento || '');
-  const [contaSncId, setContaSncId] = useState<number | ''>(fatura?.contaSncId || '');
+  const [titulo, setTitulo] = useState(draftData?.titulo || fatura?.titulo || '');
+  const [tipo, setTipo] = useState(draftData?.tipo || fatura?.tipo || 'Fatura');
+  const [numero, setNumero] = useState(draftData?.numero || fatura?.numero || '');
+  const [departamento, setDepartamento] = useState(draftData?.departamento || fatura?.departamento || '');
+  const [contaSncId, setContaSncId] = useState<number | ''>(draftData?.contaSncId || fatura?.contaSncId || '');
   const [entidadeId, setEntidadeId] = useState<number | null>(entidadeIdInicial);
-  const [valor, setValor] = useState(fatura?.valor ? String(fatura.valor) : '');
-  const [data, setData] = useState(fatura?.data ? String(fatura.data).slice(0, 10) : new Date().toISOString().slice(0, 10));
-  const [dataVencimento, setDataVencimento] = useState(fatura?.dataVencimento ? String(fatura.dataVencimento).slice(0, 10) : '');
-  const [estado, setEstado] = useState(fatura?.estado || 'Pendente');
-  const [descricao, setDescricao] = useState(fatura?.descricao || '');
+  const [valor, setValor] = useState(draftData?.valor || (fatura?.valor ? String(fatura.valor) : ''));
+  const [data, setData] = useState(draftData?.data || (fatura?.data ? String(fatura.data).slice(0, 10) : new Date().toISOString().slice(0, 10)));
+  const [dataVencimento, setDataVencimento] = useState(draftData?.dataVencimento || (fatura?.dataVencimento ? String(fatura.dataVencimento).slice(0, 10) : ''));
+  const [estado, setEstado] = useState(draftData?.estado || fatura?.estado || 'Pendente');
+  const [descricao, setDescricao] = useState(draftData?.descricao || fatura?.descricao || '');
   const [processoRows, setProcessoRows] = useState<{ eventoId: number | null; valor: string }[]>(() => {
+    if (draftData?.processoRows) return draftData.processoRows as any[];
     const fes = fatura?.faturaEventos ?? [];
     if (fes.length > 0) return fes.map(fe => ({ eventoId: fe.eventoId, valor: String(fe.valor) }));
     return [{ eventoId: null, valor: '' }];
@@ -61,6 +67,10 @@ export function FaturaFormModal({ fatura, onClose, onSaved }: Props) {
   const [removerAnexo, setRemoverAnexo] = useState(false);
   const [comprovativo, setComprovativo] = useState<File | null>(null);
   const [removerComprovativo, setRemoverComprovativo] = useState(false);
+
+  useEffect(() => {
+    draft.save({ titulo, tipo, numero, departamento, contaSncId, entidadeId, valor, data, dataVencimento, estado, descricao, processoRows });
+  }, [titulo, tipo, numero, departamento, contaSncId, entidadeId, valor, data, dataVencimento, estado, descricao, processoRows]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -95,6 +105,7 @@ export function FaturaFormModal({ fatura, onClose, onSaved }: Props) {
     try {
       if (fatura) await apiPut(`/faturas/${fatura.id}`, fd);
       else await apiPost('/faturas', fd);
+      draft.clear();
       toast(fatura ? 'Despesa atualizada' : 'Despesa criada', 'success');
       onSaved();
     } catch (e: any) {
