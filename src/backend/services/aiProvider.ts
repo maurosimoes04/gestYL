@@ -138,6 +138,14 @@ export async function aiGenerate(
   return { text: null, provider: null };
 }
 
+export function extractJSON(raw: string): string {
+  const fenced = raw.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
+  if (fenced) return fenced[1].trim();
+  const braces = raw.match(/\{[\s\S]*\}/);
+  if (braces) return braces[0];
+  return raw.trim();
+}
+
 export function getActiveProvider(): 'claude' | 'gemini' | 'none' {
   if (process.env.ANTHROPIC_API_KEY && !claudeExhausted) return 'claude';
   if (process.env.GEMINI_API_KEY) return 'gemini';

@@ -1,5 +1,5 @@
 import { prisma } from '../config/prisma';
-import { aiGenerate } from './aiProvider';
+import { aiGenerate, extractJSON } from './aiProvider';
 
 export type TipoRegisto = 'fatura' | 'receita';
 
@@ -96,7 +96,7 @@ REGRAS CRÍTICAS:
     if (!text) throw new SugestaoSncError('Nenhum provider IA disponível', 'network');
 
     console.log(`[SNC-IA] Resposta via ${provider}`);
-    const parsed = JSON.parse(text) as SugestaoSNC;
+    const parsed = JSON.parse(extractJSON(text)) as SugestaoSNC;
 
     if (parsed.codigo && !contas.find(c => c.codigo === parsed.codigo)) {
       parsed.avisos = [...(parsed.avisos || []), `código ${parsed.codigo} não existe no plano — ignorado`];

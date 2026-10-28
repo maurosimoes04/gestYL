@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
-import { aiGenerate } from './aiProvider';
+import { aiGenerate, extractJSON } from './aiProvider';
 
 type TipoDocumentoIA = 'fatura' | 'receita';
 
@@ -94,7 +94,7 @@ export async function gerarNarrativaRelatorio(
       return null;
     }
     console.log(`[Relatório-IA] Resposta via ${provider}`);
-    return JSON.parse(text) as NarrativaRelatorio;
+    return JSON.parse(extractJSON(text)) as NarrativaRelatorio;
   } catch (err: any) {
     console.error('Relatório IA: falha ao gerar narrativa', err.message || err);
     return null;
@@ -120,7 +120,7 @@ export async function extrairCamposDocumento(buffer: Buffer, mimeType: string): 
       return null;
     }
     console.log(`[Análise-IA] Resposta via ${provider}`);
-    return JSON.parse(text) as CamposExtraidos;
+    return JSON.parse(extractJSON(text)) as CamposExtraidos;
   } catch (err: any) {
     console.error('Análise IA: falha ao extrair campos', err.message || err);
     return null;

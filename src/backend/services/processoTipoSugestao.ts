@@ -1,5 +1,5 @@
 import { prisma } from '../config/prisma';
-import { aiGenerate } from './aiProvider';
+import { aiGenerate, extractJSON } from './aiProvider';
 
 const TIPOS_PROCESSO = ['Evento', 'Projeto Anual', 'Investimento', 'Subsídio'] as const;
 type TipoProcesso = typeof TIPOS_PROCESSO[number];
@@ -86,7 +86,7 @@ Devolve este JSON:
     if (!text) throw new SugestaoTipoError('Nenhum provider IA disponível', 'network');
 
     console.log(`[Tipo-IA] Resposta via ${provider}`);
-    const parsed = JSON.parse(text) as SugestaoTipo;
+    const parsed = JSON.parse(extractJSON(text)) as SugestaoTipo;
     if (!TIPOS_PROCESSO.includes(parsed.tipo as any)) {
       parsed.tipo = 'Evento';
       parsed.confianca = 0;
