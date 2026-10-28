@@ -23,6 +23,7 @@ const { sharePublicRouter, sharePrivateRouter } = require('./routes/share');
 bootLog('App: share routes carregadas');
 
 const app = express();
+app.set('trust proxy', 1);
 
 const allowedOrigins = [
   process.env.APP_URL,

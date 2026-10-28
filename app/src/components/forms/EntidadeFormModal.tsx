@@ -33,6 +33,7 @@ export function EntidadeFormModal({ entidade, onClose, onSaved }: Props) {
   const [niss, setNiss] = useState(entidade?.niss || '');
   const [tipoVinculo, setTipoVinculo] = useState(entidade?.tipoVinculo || '');
   const [funcao, setFuncao] = useState(entidade?.funcao || '');
+  const [dataNascimento, setDataNascimento] = useState(entidade?.dataNascimento?.slice(0, 10) || '');
   const [bolsaBase, setBolsaBase] = useState(entidade?.bolsaBase ? String(entidade.bolsaBase) : '');
   const [subsidioRefeicaoDia, setSubsidioRefeicaoDia] = useState(entidade?.subsidioRefeicaoDia ? String(entidade.subsidioRefeicaoDia) : '');
   const [pin, setPin] = useState(entidade?.pin || '');
@@ -51,7 +52,7 @@ export function EntidadeFormModal({ entidade, onClose, onSaved }: Props) {
     const payload = {
       nome, nif: nif || null, tipos,
       email: email || null, telefone: telefone || null, morada: morada || null, iban: iban || null,
-      niss: niss || null, tipoVinculo: tipoVinculo || null, funcao: funcao || null,
+      niss: niss || null, dataNascimento: dataNascimento || null, tipoVinculo: tipoVinculo || null, funcao: funcao || null,
       bolsaBase: bolsaBase ? parseFloat(bolsaBase) : null,
       subsidioRefeicaoDia: subsidioRefeicaoDia ? parseFloat(subsidioRefeicaoDia) : null,
       pin: pin || null,
@@ -115,6 +116,7 @@ export function EntidadeFormModal({ entidade, onClose, onSaved }: Props) {
           <FormSection title="Dados RH (pessoa interna)" accent>
             <FormGrid cols={3}>
               <FormField label="NISS"><Input value={niss} onChange={e => setNiss(e.target.value)} /></FormField>
+              <FormField label="Data de nascimento"><Input type="date" value={dataNascimento} onChange={e => setDataNascimento(e.target.value)} /></FormField>
               <FormField label="Tipo de vínculo">
                 <Select value={tipoVinculo} onChange={e => setTipoVinculo(e.target.value)}>
                   <option value="">—</option>

@@ -1131,6 +1131,11 @@ router.get('/rh/pdf', async (_req, res) => {
       where: pessoaIdFilter ? { entidadeId: pessoaIdFilter } : {},
       include: { processo: { select: { id: true, nome: true } } },
     });
+    const recibos = await prisma.reciboBolsa.findMany({
+      where: pessoaIdFilter ? { entidadeId: pessoaIdFilter } : {},
+      include: { processo: { select: { id: true, nome: true } } },
+      orderBy: { periodoInicio: 'desc' },
+    });
 
     // Buscar registos de ponto do mês atual para cada pessoa
     const now = new Date();
@@ -1242,6 +1247,60 @@ router.get('/rh/pdf', async (_req, res) => {
           }));
         } else {
           doc.fontSize(9).font('Helvetica').fillColor('#94a3b8').text('Sem documentos.');
+        }
+
+        // Recibos de bolsa
+        const pessoaRecibos = recibos.filter(r => r.entidadeId === pessoa.id);
+        if (pessoaRecibos.length > 0) {
+          doc.moveDown(0.4);
+          if (doc.y > doc.page.height - 150) doc.addPage();
+          doc.fontSize(11).font('Helvetica-Bold').fillColor('#0f172a').text('Recibos de Bolsa');
+          doc.moveDown(0.3);
+
+          const reciboRows: Row[] = [];
+          // Cabeçalho
+          reciboRows.push({
+            cells: ['Recibo / Período', 'Bruto | TSU trab. 11% | Sub.ref. | Líquido | TSU patr. 23,75% | Custo ent.'],
+            fill: '#e0e7ff',
+            bold: true,
+            small: true,
+          });
+
+          let sumBruto = 0, sumTSUTrab = 0, sumTSUPat = 0, sumSubRef = 0, sumLiq = 0, sumCusto = 0;
+          for (let i = 0; i < pessoaRecibos.length; i++) {
+            const r = pessoaRecibos[i];
+            const bruto = Number(r.bolsaBruta);
+            const tsuTrab = Number(r.valorTSUTrabalhador);
+            const tsuPat = Number(r.valorTSUPatronal);
+            const subRef = Number(r.subsidioRefeicao);
+            const liq = Number(r.totalLiquido);
+            const custo = Number(r.custoEntidade);
+            sumBruto += bruto; sumTSUTrab += tsuTrab; sumTSUPat += tsuPat;
+            sumSubRef += subRef; sumLiq += liq; sumCusto += custo;
+
+            const periodo = `${fmtDate(r.periodoInicio)} a ${fmtDate(r.periodoFim)}`;
+            const proc = r.processo ? ` · ${r.processo.nome}` : '';
+            reciboRows.push({
+              cells: [
+                `Nº ${r.numeroRecibo} — ${periodo} (${r.diasUteis}d)${proc}  [${r.estado}]`,
+                `${fmt(bruto)} | -${fmt(tsuTrab)} | +${fmt(subRef)} | ${fmt(liq)} | ${fmt(tsuPat)} | ${fmt(custo)}`,
+              ],
+              fill: i % 2 === 0 ? '#f0fdf4' : '#ffffff',
+              color: r.estado === 'Pago' ? '#166534' : '#0a0a0a',
+              small: true,
+            });
+          }
+          // Totais
+          reciboRows.push({
+            cells: [
+              `Total: ${pessoaRecibos.length} recibo(s)`,
+              `${fmt(sumBruto)} | -${fmt(sumTSUTrab)} | +${fmt(sumSubRef)} | ${fmt(sumLiq)} | ${fmt(sumTSUPat)} | ${fmt(sumCusto)}`,
+            ],
+            fill: '#dcfce7',
+            bold: true,
+            small: true,
+          });
+          drawTable(doc, reciboRows);
         }
 
         // Mapa de assiduidade do mês atual
