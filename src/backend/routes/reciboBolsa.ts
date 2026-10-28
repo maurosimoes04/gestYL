@@ -7,16 +7,23 @@ const router = Router();
 const TSU_PATRONAL = 0.2375;
 const TSU_TRABALHADOR = 0.11;
 
-function calcRecibo(bolsaMensal: number, diasFaltas: number, diasUteis: number, subsidioRefeicaoDia: number, taxaPatronal = TSU_PATRONAL, taxaTrab = TSU_TRABALHADOR) {
-  const descontoFaltas = +(bolsaMensal / 30 * diasFaltas).toFixed(2);
-  const bolsaBruta = +(bolsaMensal - descontoFaltas).toFixed(2);
+function diasCorridos(inicio: Date, fim: Date): number {
+  const ms = fim.getTime() - inicio.getTime();
+  return Math.round(ms / 86400000) + 1;
+}
+
+function calcRecibo(bolsaMensal: number, diasPeriodo: number, diasFaltas: number, diasUteis: number, subsidioRefeicaoDia: number, taxaPatronal = TSU_PATRONAL, taxaTrab = TSU_TRABALHADOR) {
+  const valorDia = +(bolsaMensal / 30).toFixed(4);
+  const bolsaProporcional = +(valorDia * diasPeriodo).toFixed(2);
+  const descontoFaltas = +(valorDia * diasFaltas).toFixed(2);
+  const bolsaBruta = +(bolsaProporcional - descontoFaltas).toFixed(2);
   const valorTSUPatronal = +(bolsaBruta * taxaPatronal).toFixed(2);
   const valorTSUTrabalhador = +(bolsaBruta * taxaTrab).toFixed(2);
   const subsidioRefeicao = +(subsidioRefeicaoDia * diasUteis).toFixed(2);
   const totalBruto = +(bolsaBruta + subsidioRefeicao).toFixed(2);
   const totalLiquido = +(bolsaBruta - valorTSUTrabalhador + subsidioRefeicao).toFixed(2);
   const custoEntidade = +(bolsaBruta + valorTSUPatronal + subsidioRefeicao).toFixed(2);
-  return { descontoFaltas, bolsaBruta, valorTSUPatronal, valorTSUTrabalhador, subsidioRefeicao, totalBruto, totalLiquido, custoEntidade };
+  return { bolsaProporcional, descontoFaltas, bolsaBruta, valorTSUPatronal, valorTSUTrabalhador, subsidioRefeicao, totalBruto, totalLiquido, custoEntidade };
 }
 
 const reciboIncludes = {
@@ -107,8 +114,9 @@ router.post('/', async (req: Request, res: Response) => {
   const subsidioRefeicaoDia = Number(b.subsidioRefeicaoDia) || 0;
   const taxaPatronal = Number(b.taxaTSUPatronal) || TSU_PATRONAL;
   const taxaTrab = Number(b.taxaTSUTrabalhador) || TSU_TRABALHADOR;
+  const diasPeriodo = diasCorridos(new Date(b.periodoInicio), new Date(b.periodoFim));
 
-  const calc = calcRecibo(bolsaMensal, diasFaltas, diasUteis, subsidioRefeicaoDia, taxaPatronal, taxaTrab);
+  const calc = calcRecibo(bolsaMensal, diasPeriodo, diasFaltas, diasUteis, subsidioRefeicaoDia, taxaPatronal, taxaTrab);
 
   const entidade = await prisma.entidade.findUnique({ where: { id: Number(b.entidadeId) }, select: { nome: true } });
   const faturaId = await syncDespesa(0, calc, b, entidade?.nome || '', null);
@@ -164,7 +172,8 @@ router.put('/:id', async (req: Request, res: Response) => {
     const subsidioRefeicaoDia = Number(b.subsidioRefeicaoDia) || 0;
     const taxaPatronal = Number(b.taxaTSUPatronal) || TSU_PATRONAL;
     const taxaTrab = Number(b.taxaTSUTrabalhador) || TSU_TRABALHADOR;
-    const calc = calcRecibo(bolsaMensal, diasFaltas, diasUteis, subsidioRefeicaoDia, taxaPatronal, taxaTrab);
+    const diasPeriodo = diasCorridos(new Date(b.periodoInicio), new Date(b.periodoFim));
+    const calc = calcRecibo(bolsaMensal, diasPeriodo, diasFaltas, diasUteis, subsidioRefeicaoDia, taxaPatronal, taxaTrab);
     Object.assign(data, {
       bolsaMensal, diasFaltas, diasUteis,
       descontoFaltas: calc.descontoFaltas, bolsaBruta: calc.bolsaBruta,
@@ -285,13 +294,20 @@ router.get('/:id/pdf', async (req: Request, res: Response) => {
     ty += 20;
   };
 
+  const dp = diasCorridos(recibo.periodoInicio, recibo.periodoFim);
+  const mesCheio = dp >= 28;
   row('Bolsa mensal (contrato)', formatEur(recibo.bolsaMensal));
+
+  if (!mesCheio) {
+    const bolsaProp = +(Number(recibo.bolsaMensal) / 30 * dp).toFixed(2);
+    row(`Proporcional ${dp} dias (${formatEur(Number(recibo.bolsaMensal) / 30)}/dia × ${dp}d)`, formatEur(bolsaProp));
+  }
 
   if (Number(recibo.descontoFaltas) > 0) {
     row(`Desconto faltas (${recibo.diasFaltas}d × ${formatEur(Number(recibo.bolsaMensal) / 30)}/dia)`, `- ${formatEur(recibo.descontoFaltas)}`);
   }
 
-  row(`Bolsa bruta (${recibo.diasUteis} dias úteis trabalhados)`, formatEur(recibo.bolsaBruta), true);
+  row(`Bolsa bruta`, formatEur(recibo.bolsaBruta), true);
 
   const taxaTrab = Number(recibo.taxaTSUTrabalhador) * 100;
   row(`Retenção TSU trabalhador (${taxaTrab.toFixed(2)}%)`, `- ${formatEur(recibo.valorTSUTrabalhador)}`);

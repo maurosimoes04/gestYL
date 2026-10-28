@@ -167,8 +167,15 @@ function ReciboBolsaFormModal({ entidadeId, processos, editing, onClose, onSaved
   const mensal = Number(bolsaMensal) || 0;
   const subRef = Number(subRefDia) || 0;
 
-  const descontoFaltas = +(mensal / 30 * faltas).toFixed(2);
-  const bolsaBruta = +(mensal - descontoFaltas).toFixed(2);
+  // Dias corridos do período (para bolsa proporcional)
+  const diasPeriodo = periodoInicio && periodoFim
+    ? Math.round((new Date(periodoFim).getTime() - new Date(periodoInicio).getTime()) / 86400000) + 1
+    : 30;
+  const mesCheio = diasPeriodo >= 28;
+  const valorDia = +(mensal / 30).toFixed(4);
+  const bolsaProporcional = +(valorDia * diasPeriodo).toFixed(2);
+  const descontoFaltas = +(valorDia * faltas).toFixed(2);
+  const bolsaBruta = +(bolsaProporcional - descontoFaltas).toFixed(2);
   const valorTSUPatronal = +(bolsaBruta * TSU_PATRONAL).toFixed(2);
   const valorTSUTrabalhador = +(bolsaBruta * TSU_TRABALHADOR).toFixed(2);
   const subsidioRefeicao = +(subRef * dias).toFixed(2);
@@ -314,9 +321,16 @@ function ReciboBolsaFormModal({ entidadeId, processos, editing, onClose, onSaved
             <span className="text-ink-soft">Bolsa mensal (contrato)</span>
             <span className="text-right font-mono">{fmtEuro(mensal)}</span>
 
+            {!mesCheio && (
+              <>
+                <span className="text-ink-soft">Proporcional {diasPeriodo} dias ({fmtEuro(valorDia)}/dia × {diasPeriodo}d)</span>
+                <span className="text-right font-mono">{fmtEuro(bolsaProporcional)}</span>
+              </>
+            )}
+
             {faltas > 0 && (
               <>
-                <span className="text-ink-soft">Desconto faltas ({faltas}d × {fmtEuro(mensal / 30)}/dia)</span>
+                <span className="text-ink-soft">Desconto faltas ({faltas}d × {fmtEuro(valorDia)}/dia)</span>
                 <span className="text-right font-mono text-red-600">- {fmtEuro(descontoFaltas)}</span>
               </>
             )}
