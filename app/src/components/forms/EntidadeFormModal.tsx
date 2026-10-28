@@ -34,6 +34,7 @@ export function EntidadeFormModal({ entidade, onClose, onSaved }: Props) {
   const [tipoVinculo, setTipoVinculo] = useState(entidade?.tipoVinculo || '');
   const [funcao, setFuncao] = useState(entidade?.funcao || '');
   const [bolsaBase, setBolsaBase] = useState(entidade?.bolsaBase ? String(entidade.bolsaBase) : '');
+  const [subsidioRefeicaoDia, setSubsidioRefeicaoDia] = useState(entidade?.subsidioRefeicaoDia ? String(entidade.subsidioRefeicaoDia) : '');
   const [pin, setPin] = useState(entidade?.pin || '');
   const [notas, setNotas] = useState(entidade?.notas || '');
   const [verificado, setVerificado] = useState(entidade?.verificado || false);
@@ -51,7 +52,9 @@ export function EntidadeFormModal({ entidade, onClose, onSaved }: Props) {
       nome, nif: nif || null, tipos,
       email: email || null, telefone: telefone || null, morada: morada || null, iban: iban || null,
       niss: niss || null, tipoVinculo: tipoVinculo || null, funcao: funcao || null,
-      bolsaBase: bolsaBase ? parseFloat(bolsaBase) : null, pin: pin || null,
+      bolsaBase: bolsaBase ? parseFloat(bolsaBase) : null,
+      subsidioRefeicaoDia: subsidioRefeicaoDia ? parseFloat(subsidioRefeicaoDia) : null,
+      pin: pin || null,
       notas: notas || null, verificado,
     };
 
@@ -124,7 +127,8 @@ export function EntidadeFormModal({ entidade, onClose, onSaved }: Props) {
                 </Select>
               </FormField>
               <FormField label="Função"><Input value={funcao} onChange={e => setFuncao(e.target.value)} /></FormField>
-              <FormField label="Bolsa base (€)"><Input type="number" step="0.01" value={bolsaBase} onChange={e => setBolsaBase(e.target.value)} /></FormField>
+              <FormField label="Bolsa diária (€)" hint="Valor bruto por dia útil"><Input type="number" step="0.01" value={bolsaBase} onChange={e => setBolsaBase(e.target.value)} /></FormField>
+              <FormField label="Sub. refeição / dia (€)" hint="Isento de TSU/IRS"><Input type="number" step="0.01" value={subsidioRefeicaoDia} onChange={e => setSubsidioRefeicaoDia(e.target.value)} /></FormField>
               <FormField label="PIN ponto (4 dígitos)"><Input type="text" inputMode="numeric" maxLength={4} pattern="[0-9]{4}" placeholder="ex: 1234" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))} /></FormField>
             </FormGrid>
           </FormSection>

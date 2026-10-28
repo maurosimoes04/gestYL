@@ -4,6 +4,20 @@ import PDFDocument from 'pdfkit';
 
 const router = Router();
 
+const TSU_PATRONAL = 0.2375;
+const TSU_TRABALHADOR = 0.11;
+
+function calcRecibo(diasUteis: number, bolsaDiaria: number, subsidioRefeicaoDia: number, taxaPatronal = TSU_PATRONAL, taxaTrab = TSU_TRABALHADOR) {
+  const bolsaBruta = +(bolsaDiaria * diasUteis).toFixed(2);
+  const valorTSUPatronal = +(bolsaBruta * taxaPatronal).toFixed(2);
+  const valorTSUTrabalhador = +(bolsaBruta * taxaTrab).toFixed(2);
+  const subsidioRefeicao = +(subsidioRefeicaoDia * diasUteis).toFixed(2);
+  const totalBruto = +(bolsaBruta + subsidioRefeicao).toFixed(2);
+  const totalLiquido = +(bolsaBruta - valorTSUTrabalhador + subsidioRefeicao).toFixed(2);
+  const custoEntidade = +(bolsaBruta + valorTSUPatronal + subsidioRefeicao).toFixed(2);
+  return { bolsaBruta, valorTSUPatronal, valorTSUTrabalhador, subsidioRefeicao, totalBruto, totalLiquido, custoEntidade };
+}
+
 // GET /recibos-bolsa?entidadeId=&processoId=
 router.get('/', async (req: Request, res: Response) => {
   const where: any = {};
@@ -29,19 +43,29 @@ router.get('/next-number', async (_req: Request, res: Response) => {
   res.json({ numero: `${seq}/${ano}` });
 });
 
+// GET /recibos-bolsa/defaults/:entidadeId — buscar valores pré-definidos da entidade
+router.get('/defaults/:entidadeId', async (req: Request, res: Response) => {
+  const ent = await prisma.entidade.findUnique({
+    where: { id: Number(req.params.entidadeId) },
+    select: { bolsaBase: true, subsidioRefeicaoDia: true },
+  });
+  if (!ent) return res.status(404).json({ error: 'Entidade não encontrada' });
+  res.json({
+    bolsaDiaria: ent.bolsaBase ? Number(ent.bolsaBase) : null,
+    subsidioRefeicaoDia: ent.subsidioRefeicaoDia ? Number(ent.subsidioRefeicaoDia) : null,
+  });
+});
+
 // POST /recibos-bolsa
 router.post('/', async (req: Request, res: Response) => {
   const b = req.body;
   const diasUteis = Number(b.diasUteis);
   const bolsaDiaria = Number(b.bolsaDiaria);
   const subsidioRefeicaoDia = Number(b.subsidioRefeicaoDia) || 0;
-  const taxaTSU = Number(b.taxaTSU) || 0.2375;
+  const taxaPatronal = Number(b.taxaTSUPatronal) || TSU_PATRONAL;
+  const taxaTrab = Number(b.taxaTSUTrabalhador) || TSU_TRABALHADOR;
 
-  const bolsaBruta = +(bolsaDiaria * diasUteis).toFixed(2);
-  const valorTSU = +(bolsaBruta * taxaTSU).toFixed(2);
-  const subsidioRefeicao = +(subsidioRefeicaoDia * diasUteis).toFixed(2);
-  const totalBruto = +(bolsaBruta + subsidioRefeicao).toFixed(2);
-  const totalLiquido = +(totalBruto - valorTSU).toFixed(2);
+  const calc = calcRecibo(diasUteis, bolsaDiaria, subsidioRefeicaoDia, taxaPatronal, taxaTrab);
 
   const recibo = await prisma.reciboBolsa.create({
     data: {
@@ -50,15 +74,16 @@ router.post('/', async (req: Request, res: Response) => {
       processoId: b.processoId ? Number(b.processoId) : null,
       periodoInicio: new Date(b.periodoInicio),
       periodoFim: new Date(b.periodoFim),
-      diasUteis,
-      bolsaDiaria,
-      bolsaBruta,
-      taxaTSU,
-      valorTSU,
-      subsidioRefeicaoDia,
-      subsidioRefeicao,
-      totalBruto,
-      totalLiquido,
+      diasUteis, bolsaDiaria,
+      bolsaBruta: calc.bolsaBruta,
+      taxaTSUPatronal: taxaPatronal,
+      valorTSUPatronal: calc.valorTSUPatronal,
+      taxaTSUTrabalhador: taxaTrab,
+      valorTSUTrabalhador: calc.valorTSUTrabalhador,
+      subsidioRefeicaoDia, subsidioRefeicao: calc.subsidioRefeicao,
+      totalBruto: calc.totalBruto,
+      totalLiquido: calc.totalLiquido,
+      custoEntidade: calc.custoEntidade,
       observacoes: b.observacoes || null,
       estado: b.estado || 'Rascunho',
       dataEmissao: b.dataEmissao ? new Date(b.dataEmissao) : null,
@@ -84,17 +109,16 @@ router.put('/:id', async (req: Request, res: Response) => {
     const diasUteis = Number(b.diasUteis);
     const bolsaDiaria = Number(b.bolsaDiaria);
     const subsidioRefeicaoDia = Number(b.subsidioRefeicaoDia) || 0;
-    const taxaTSU = Number(b.taxaTSU) || 0.2375;
-    const bolsaBruta = +(bolsaDiaria * diasUteis).toFixed(2);
-    const valorTSU = +(bolsaBruta * taxaTSU).toFixed(2);
-    const subsidioRefeicao = +(subsidioRefeicaoDia * diasUteis).toFixed(2);
+    const taxaPatronal = Number(b.taxaTSUPatronal) || TSU_PATRONAL;
+    const taxaTrab = Number(b.taxaTSUTrabalhador) || TSU_TRABALHADOR;
+    const calc = calcRecibo(diasUteis, bolsaDiaria, subsidioRefeicaoDia, taxaPatronal, taxaTrab);
     Object.assign(data, {
-      diasUteis, bolsaDiaria, bolsaBruta, taxaTSU, valorTSU,
-      subsidioRefeicaoDia, subsidioRefeicao,
-      totalBruto: +(bolsaBruta + subsidioRefeicao).toFixed(2),
-      totalLiquido: +(bolsaBruta + subsidioRefeicao - valorTSU).toFixed(2),
-      periodoInicio: new Date(b.periodoInicio),
-      periodoFim: new Date(b.periodoFim),
+      diasUteis, bolsaDiaria, bolsaBruta: calc.bolsaBruta,
+      taxaTSUPatronal: taxaPatronal, valorTSUPatronal: calc.valorTSUPatronal,
+      taxaTSUTrabalhador: taxaTrab, valorTSUTrabalhador: calc.valorTSUTrabalhador,
+      subsidioRefeicaoDia, subsidioRefeicao: calc.subsidioRefeicao,
+      totalBruto: calc.totalBruto, totalLiquido: calc.totalLiquido, custoEntidade: calc.custoEntidade,
+      periodoInicio: new Date(b.periodoInicio), periodoFim: new Date(b.periodoFim),
     });
   }
 
@@ -148,7 +172,6 @@ router.get('/:id/pdf', async (req: Request, res: Response) => {
   doc.fillColor('#000000');
 
   // Dados do estagiário
-  const y1 = doc.y;
   doc.fontSize(10).font('Helvetica-Bold').text('DADOS DO ESTAGIÁRIO', 50);
   doc.moveDown(0.3);
   doc.font('Helvetica').fontSize(9);
@@ -188,25 +211,34 @@ router.get('/:id/pdf', async (req: Request, res: Response) => {
     ty += 20;
   };
 
+  // Bolsa bruta
   row(`Bolsa diária (${formatEur(recibo.bolsaDiaria)} × ${recibo.diasUteis} dias)`, formatEur(recibo.bolsaBruta));
+
+  // TSU trabalhador (desconto)
+  const taxaTrab = Number(recibo.taxaTSUTrabalhador) * 100;
+  row(`Retenção TSU trabalhador (${taxaTrab.toFixed(2)}%)`, `- ${formatEur(recibo.valorTSUTrabalhador)}`);
+
+  // Subsídio refeição
   if (Number(recibo.subsidioRefeicao) > 0) {
     row(`Subsídio de refeição (${formatEur(recibo.subsidioRefeicaoDia)} × ${recibo.diasUteis} dias) — isento TSU/IRS`, formatEur(recibo.subsidioRefeicao));
   }
 
-  ty += 4;
-  doc.rect(tableX, ty, tableW, 20).fill('#f9fafb');
-  doc.fillColor('#000000');
-  row('TOTAL BRUTO', formatEur(recibo.totalBruto), true);
-
-  ty += 2;
-  row(`TSU entidade (${(Number(recibo.taxaTSU) * 100).toFixed(2)}% sobre bolsa)`, `- ${formatEur(recibo.valorTSU)}`);
-
+  // Líquido
   ty += 4;
   doc.rect(tableX, ty, tableW, 24).fill(INDIGO);
   doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(11);
   doc.text('LÍQUIDO A RECEBER', colDesc + 8, ty + 6);
   doc.text(formatEur(recibo.totalLiquido), colVal, ty + 6, { width: 137, align: 'right' });
   ty += 30;
+
+  // Encargos patronais (info)
+  doc.fillColor('#000000');
+  ty += 8;
+  doc.rect(tableX, ty, tableW, 20).fill('#fef9c3');
+  doc.fillColor('#92400e').font('Helvetica').fontSize(8);
+  const taxaPat = Number(recibo.taxaTSUPatronal) * 100;
+  doc.text(`Encargo patronal: TSU ${taxaPat.toFixed(2)}% = ${formatEur(recibo.valorTSUPatronal)}  ·  Custo total entidade: ${formatEur(recibo.custoEntidade)}`, colDesc + 8, ty + 5, { width: tableW - 16 });
+  ty += 26;
 
   doc.fillColor('#000000');
 

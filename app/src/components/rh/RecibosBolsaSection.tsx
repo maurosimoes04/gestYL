@@ -12,14 +12,14 @@ import type { Processo, ReciboBolsa } from '@/lib/types';
 
 interface Props {
   entidadeId: number;
-  subsidioRefeicaoDia?: number | null;
   processos: Processo[];
   readonly?: boolean;
 }
 
-const TSU_DEFAULT = 0.2375;
+const TSU_PATRONAL = 0.2375;
+const TSU_TRABALHADOR = 0.11;
 
-export function RecibosBolsaSection({ entidadeId, subsidioRefeicaoDia: subRefDia, processos, readonly }: Props) {
+export function RecibosBolsaSection({ entidadeId, processos, readonly }: Props) {
   const { toast, promise } = useToast();
   const [recibos, setRecibos] = useState<ReciboBolsa[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,10 +71,11 @@ export function RecibosBolsaSection({ entidadeId, subsidioRefeicaoDia: subRefDia
                   Nº {r.numeroRecibo}
                   <span className="text-ink-soft font-normal"> — {fmtData(r.periodoInicio)} a {fmtData(r.periodoFim)}</span>
                 </div>
-                <div className="text-xs text-ink-soft flex gap-3 mt-0.5">
-                  <span>{r.diasUteis} dias úteis</span>
+                <div className="text-xs text-ink-soft flex flex-wrap gap-3 mt-0.5">
+                  <span>{r.diasUteis} dias</span>
                   <span className="font-mono">Bolsa: {fmtEuro(r.bolsaBruta)}</span>
-                  {Number(r.subsidioRefeicao) > 0 && <span className="font-mono">Sub. ref.: {fmtEuro(r.subsidioRefeicao)}</span>}
+                  <span className="font-mono text-red-600">TSU trab.: -{fmtEuro(r.valorTSUTrabalhador)}</span>
+                  {Number(r.subsidioRefeicao) > 0 && <span className="font-mono">Sub.ref.: +{fmtEuro(r.subsidioRefeicao)}</span>}
                   <span className="font-mono font-semibold text-brand">Líq.: {fmtEuro(r.totalLiquido)}</span>
                 </div>
               </div>
@@ -100,7 +101,6 @@ export function RecibosBolsaSection({ entidadeId, subsidioRefeicaoDia: subRefDia
       {showForm && (
         <ReciboBolsaFormModal
           entidadeId={entidadeId}
-          subsidioRefeicaoDia={subRefDia}
           processos={processos}
           editing={editing}
           onClose={() => { setShowForm(false); setEditing(null); }}
@@ -111,9 +111,8 @@ export function RecibosBolsaSection({ entidadeId, subsidioRefeicaoDia: subRefDia
   );
 }
 
-function ReciboBolsaFormModal({ entidadeId, subsidioRefeicaoDia, processos, editing, onClose, onSaved }: {
+function ReciboBolsaFormModal({ entidadeId, processos, editing, onClose, onSaved }: {
   entidadeId: number;
-  subsidioRefeicaoDia?: number | null;
   processos: Processo[];
   editing: ReciboBolsa | null;
   onClose: () => void;
@@ -128,27 +127,36 @@ function ReciboBolsaFormModal({ entidadeId, subsidioRefeicaoDia, processos, edit
   const [periodoFim, setPeriodoFim] = useState(editing?.periodoFim?.slice(0, 10) || '');
   const [diasUteis, setDiasUteis] = useState(editing?.diasUteis?.toString() || '');
   const [bolsaDiaria, setBolsaDiaria] = useState(editing ? String(Number(editing.bolsaDiaria)) : '');
-  const [taxaTSU, setTaxaTSU] = useState(editing ? String(Number(editing.taxaTSU)) : String(TSU_DEFAULT));
-  const [subRefDia, setSubRefDia] = useState(editing ? String(Number(editing.subsidioRefeicaoDia)) : String(subsidioRefeicaoDia || 0));
+  const [subRefDia, setSubRefDia] = useState(editing ? String(Number(editing.subsidioRefeicaoDia)) : '');
   const [observacoes, setObservacoes] = useState(editing?.observacoes || '');
   const [estado, setEstado] = useState<'Rascunho' | 'Emitido' | 'Pago'>(editing?.estado || 'Rascunho');
   const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (isNew && !numeroRecibo) {
+    if (isNew) {
       apiGet<{ numero: string }>('/recibos-bolsa/next-number').then(r => setNumeroRecibo(r.numero)).catch(() => {});
+      apiGet<{ bolsaDiaria: number | null; subsidioRefeicaoDia: number | null }>(`/recibos-bolsa/defaults/${entidadeId}`).then(d => {
+        if (d.bolsaDiaria && !bolsaDiaria) setBolsaDiaria(String(d.bolsaDiaria));
+        if (d.subsidioRefeicaoDia && !subRefDia) setSubRefDia(String(d.subsidioRefeicaoDia));
+        setLoaded(true);
+      }).catch(() => setLoaded(true));
+    } else {
+      setLoaded(true);
     }
   }, []);
 
   const dias = Number(diasUteis) || 0;
   const bolsa = Number(bolsaDiaria) || 0;
-  const tsu = Number(taxaTSU) || TSU_DEFAULT;
   const subRef = Number(subRefDia) || 0;
+
   const bolsaBruta = +(bolsa * dias).toFixed(2);
-  const valorTSU = +(bolsaBruta * tsu).toFixed(2);
+  const valorTSUPatronal = +(bolsaBruta * TSU_PATRONAL).toFixed(2);
+  const valorTSUTrabalhador = +(bolsaBruta * TSU_TRABALHADOR).toFixed(2);
   const subsidioRefeicao = +(subRef * dias).toFixed(2);
   const totalBruto = +(bolsaBruta + subsidioRefeicao).toFixed(2);
-  const totalLiquido = +(totalBruto - valorTSU).toFixed(2);
+  const totalLiquido = +(bolsaBruta - valorTSUTrabalhador + subsidioRefeicao).toFixed(2);
+  const custoEntidade = +(bolsaBruta + valorTSUPatronal + subsidioRefeicao).toFixed(2);
 
   async function submit() {
     if (!numeroRecibo || !periodoInicio || !periodoFim || !diasUteis || !bolsaDiaria) {
@@ -162,7 +170,8 @@ function ReciboBolsaFormModal({ entidadeId, subsidioRefeicaoDia, processos, edit
         processoId: processoId || null,
         periodoInicio, periodoFim,
         diasUteis: Number(diasUteis), bolsaDiaria: Number(bolsaDiaria),
-        taxaTSU: tsu, subsidioRefeicaoDia: subRef,
+        taxaTSUPatronal: TSU_PATRONAL, taxaTSUTrabalhador: TSU_TRABALHADOR,
+        subsidioRefeicaoDia: subRef,
         observacoes: observacoes || null, estado,
         dataEmissao: estado !== 'Rascunho' ? new Date().toISOString() : null,
         dataPagamento: estado === 'Pago' ? new Date().toISOString() : null,
@@ -212,16 +221,12 @@ function ReciboBolsaFormModal({ entidadeId, subsidioRefeicaoDia, processos, edit
           <Input type="number" min="0" value={diasUteis} onChange={e => setDiasUteis(e.target.value)} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-ink-soft mb-1">Bolsa diária (€) *</label>
+          <label className="block text-xs font-medium text-ink-soft mb-1">Bolsa diária (€) * {!loaded && <span className="text-ink-soft italic">a carregar...</span>}</label>
           <Input type="number" step="0.01" min="0" value={bolsaDiaria} onChange={e => setBolsaDiaria(e.target.value)} />
         </div>
         <div>
           <label className="block text-xs font-medium text-ink-soft mb-1">Sub. refeição / dia (€)</label>
           <Input type="number" step="0.01" min="0" value={subRefDia} onChange={e => setSubRefDia(e.target.value)} />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-ink-soft mb-1">Taxa TSU</label>
-          <Input type="number" step="0.0001" min="0" max="1" value={taxaTSU} onChange={e => setTaxaTSU(e.target.value)} />
         </div>
         <div>
           <label className="block text-xs font-medium text-ink-soft mb-1">Estado</label>
@@ -238,29 +243,38 @@ function ReciboBolsaFormModal({ entidadeId, subsidioRefeicaoDia, processos, edit
       </div>
 
       {/* Resumo de cálculos */}
-      <div className="mt-5 bg-surface-page border border-line rounded-lg p-4">
-        <h5 className="text-xs font-semibold text-ink-soft uppercase tracking-wider mb-3">Resumo</h5>
-        <div className="grid grid-cols-2 gap-y-2 gap-x-8 text-sm">
-          <span className="text-ink-soft">Bolsa bruta ({fmtEuro(bolsa)} × {dias} dias)</span>
-          <span className="text-right font-mono">{fmtEuro(bolsaBruta)}</span>
+      {dias > 0 && bolsa > 0 && (
+        <div className="mt-5 bg-surface-page border border-line rounded-lg p-4">
+          <h5 className="text-xs font-semibold text-ink-soft uppercase tracking-wider mb-3">Cálculo automático</h5>
+          <div className="grid grid-cols-2 gap-y-2 gap-x-8 text-sm">
+            <span className="text-ink-soft">Bolsa bruta ({fmtEuro(bolsa)} × {dias} dias)</span>
+            <span className="text-right font-mono">{fmtEuro(bolsaBruta)}</span>
 
-          {subsidioRefeicao > 0 && (
-            <>
-              <span className="text-ink-soft">Sub. refeição ({fmtEuro(subRef)} × {dias} dias) <span className="text-[0.65rem]">isento TSU</span></span>
-              <span className="text-right font-mono">{fmtEuro(subsidioRefeicao)}</span>
-            </>
-          )}
+            <span className="text-ink-soft">TSU trabalhador ({(TSU_TRABALHADOR * 100).toFixed(0)}% retida)</span>
+            <span className="text-right font-mono text-red-600">- {fmtEuro(valorTSUTrabalhador)}</span>
 
-          <span className="text-ink-soft font-semibold">Total bruto</span>
-          <span className="text-right font-mono font-semibold">{fmtEuro(totalBruto)}</span>
+            {subsidioRefeicao > 0 && (
+              <>
+                <span className="text-ink-soft">Sub. refeição ({fmtEuro(subRef)} × {dias} dias) <span className="text-[0.65rem] text-green-700">isento</span></span>
+                <span className="text-right font-mono text-green-700">+ {fmtEuro(subsidioRefeicao)}</span>
+              </>
+            )}
 
-          <span className="text-ink-soft">TSU ({(tsu * 100).toFixed(2)}% sobre bolsa)</span>
-          <span className="text-right font-mono text-red-600">-{fmtEuro(valorTSU)}</span>
+            <div className="col-span-2 border-t border-line my-1" />
 
-          <span className="text-ink font-bold text-base">Líquido a receber</span>
-          <span className="text-right font-mono font-bold text-base text-brand">{fmtEuro(totalLiquido)}</span>
+            <span className="text-ink font-bold text-base">Líquido a receber</span>
+            <span className="text-right font-mono font-bold text-base text-brand">{fmtEuro(totalLiquido)}</span>
+
+            <div className="col-span-2 border-t border-line-soft my-1" />
+
+            <span className="text-ink-soft text-xs">TSU patronal ({(TSU_PATRONAL * 100).toFixed(2)}%)</span>
+            <span className="text-right font-mono text-xs text-ink-soft">{fmtEuro(valorTSUPatronal)}</span>
+
+            <span className="text-ink-soft text-xs font-semibold">Custo total entidade</span>
+            <span className="text-right font-mono text-xs font-semibold text-ink">{fmtEuro(custoEntidade)}</span>
+          </div>
         </div>
-      </div>
+      )}
     </Modal>
   );
 }

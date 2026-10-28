@@ -430,17 +430,22 @@ model ReciboBolsa {
   periodoInicio       DateTime @db.Date                          // ex: 21/10/2026
   periodoFim          DateTime @db.Date                          // ex: 31/10/2026
   diasUteis           Int                                        // dias trabalhados no período
-  // Bolsa (sujeita a TSU empregador 23.75%)
+  // Bolsa (sujeita a TSU)
   bolsaDiaria         Decimal  @db.Decimal(10, 2)
   bolsaBruta          Decimal  @db.Decimal(10, 2)                // bolsaDiaria × diasUteis
-  taxaTSU             Decimal  @db.Decimal(5, 4) @default(0.2375)
-  valorTSU            Decimal  @db.Decimal(10, 2)                // bolsaBruta × taxaTSU
+  // TSU patronal (paga pela entidade empregadora à Seg. Social)
+  taxaTSUPatronal     Decimal  @db.Decimal(5, 4) @default(0.2375)
+  valorTSUPatronal    Decimal  @db.Decimal(10, 2) @default(0)    // bolsaBruta × 23.75%
+  // TSU trabalhador (retida ao estagiário)
+  taxaTSUTrabalhador  Decimal  @db.Decimal(5, 4) @default(0.11)
+  valorTSUTrabalhador Decimal  @db.Decimal(10, 2) @default(0)    // bolsaBruta × 11%
   // Subsídio de refeição (isento TSU/IRS)
   subsidioRefeicaoDia Decimal  @db.Decimal(10, 2) @default(0)
   subsidioRefeicao    Decimal  @db.Decimal(10, 2) @default(0)    // subsidioRefeicaoDia × diasUteis
   // Totais
   totalBruto          Decimal  @db.Decimal(10, 2)                // bolsaBruta + subsidioRefeicao
-  totalLiquido        Decimal  @db.Decimal(10, 2)                // totalBruto - valorTSU
+  totalLiquido        Decimal  @db.Decimal(10, 2)                // bolsaBruta - valorTSUTrabalhador + subsidioRefeicao
+  custoEntidade       Decimal  @db.Decimal(10, 2) @default(0)    // bolsaBruta + valorTSUPatronal + subsidioRefeicao
   observacoes         String?
   estado              String   @default("Rascunho")              // "Rascunho" | "Emitido" | "Pago"
   dataEmissao         DateTime? @db.Date

@@ -314,7 +314,7 @@ export function RHPage() {
                                 </div>
                                 <div className="text-xs text-ink-soft flex gap-3 mt-0.5">
                                   {d.processo && <span>Processo: {d.processo.nome}</span>}
-                                  {d.dataLimite && <span>Prazo: {fmtData(d.dataLimite)} ({fmtDias(d._dias ?? null)})</span>}
+                                  {d.dataLimite && <span>Prazo: {fmtData(d.dataLimite)} ({d.estado === 'Enviado' ? 'entregue' : fmtDias(d._dias ?? null)})</span>}
                                 </div>
                               </div>
                               <Badge variant={estadoVariant(d.estado)}>{d.estado}</Badge>
@@ -343,7 +343,6 @@ export function RHPage() {
                     {pessoaSubsidios.length > 0 && (
                       <RecibosBolsaSection
                         entidadeId={pessoa.id}
-                        subsidioRefeicaoDia={pessoa.subsidioRefeicaoDia}
                         processos={pessoaSubsidios}
                         readonly={readonly}
                       />

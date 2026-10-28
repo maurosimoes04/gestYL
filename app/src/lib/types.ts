@@ -132,12 +132,15 @@ export interface ReciboBolsa {
   diasUteis: number;
   bolsaDiaria: number | string;
   bolsaBruta: number | string;
-  taxaTSU: number | string;
-  valorTSU: number | string;
+  taxaTSUPatronal: number | string;
+  valorTSUPatronal: number | string;
+  taxaTSUTrabalhador: number | string;
+  valorTSUTrabalhador: number | string;
   subsidioRefeicaoDia: number | string;
   subsidioRefeicao: number | string;
   totalBruto: number | string;
   totalLiquido: number | string;
+  custoEntidade: number | string;
   observacoes?: string | null;
   estado: 'Rascunho' | 'Emitido' | 'Pago';
   dataEmissao?: string | null;
