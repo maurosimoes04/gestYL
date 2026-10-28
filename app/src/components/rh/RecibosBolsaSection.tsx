@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, FileText, Trash2, Pencil, ExternalLink } from 'lucide-react';
+import { Plus, FileText, Trash2, Pencil, ExternalLink, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
@@ -34,8 +34,8 @@ export function RecibosBolsaSection({ entidadeId, processos, readonly }: Props) 
   useEffect(() => { reload(); }, [entidadeId]);
 
   async function remover(r: ReciboBolsa) {
-    if (!confirm(`Eliminar recibo ${r.numeroRecibo}?`)) return;
-    try { await apiDel(`/recibos-bolsa/${r.id}`); toast('Recibo eliminado', 'success'); reload(); }
+    if (!confirm(`Eliminar recibo ${r.numeroRecibo}? A despesa associada também será eliminada.`)) return;
+    try { await apiDel(`/recibos-bolsa/${r.id}`); toast('Recibo e despesa eliminados', 'success'); reload(); }
     catch (e: any) { toast(e.message || 'Erro', 'error'); }
   }
 
@@ -79,6 +79,13 @@ export function RecibosBolsaSection({ entidadeId, processos, readonly }: Props) 
                   {Number(r.subsidioRefeicao) > 0 && <span className="font-mono">Sub.ref.: +{fmtEuro(r.subsidioRefeicao)}</span>}
                   <span className="font-mono font-semibold text-brand">Líq.: {fmtEuro(r.totalLiquido)}</span>
                 </div>
+                {r.reciboProcessos && r.reciboProcessos.length > 0 && (
+                  <div className="text-[0.65rem] text-ink-soft mt-0.5 flex flex-wrap gap-1">
+                    {r.reciboProcessos.map(rp => (
+                      <span key={rp.eventoId} className="bg-surface-alt px-1.5 py-0.5 rounded">{rp.evento?.nome} ({fmtEuro(rp.valor)})</span>
+                    ))}
+                  </div>
+                )}
               </div>
               <Badge variant={estadoVariant(r.estado)}>{r.estado}</Badge>
               <button type="button"
@@ -112,6 +119,8 @@ export function RecibosBolsaSection({ entidadeId, processos, readonly }: Props) 
   );
 }
 
+interface ProcessoLink { processoId: number; valor: number; }
+
 function ReciboBolsaFormModal({ entidadeId, processos, editing, onClose, onSaved }: {
   entidadeId: number;
   processos: Processo[];
@@ -123,7 +132,6 @@ function ReciboBolsaFormModal({ entidadeId, processos, editing, onClose, onSaved
   const isNew = !editing;
 
   const [numeroRecibo, setNumeroRecibo] = useState(editing?.numeroRecibo || '');
-  const [processoId, setProcessoId] = useState(editing?.processoId?.toString() || '');
   const [periodoInicio, setPeriodoInicio] = useState(editing?.periodoInicio?.slice(0, 10) || '');
   const [periodoFim, setPeriodoFim] = useState(editing?.periodoFim?.slice(0, 10) || '');
   const [diasUteis, setDiasUteis] = useState(editing?.diasUteis?.toString() || '');
@@ -134,6 +142,12 @@ function ReciboBolsaFormModal({ entidadeId, processos, editing, onClose, onSaved
   const [estado, setEstado] = useState<'Rascunho' | 'Emitido' | 'Pago'>(editing?.estado || 'Rascunho');
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
+
+  // Multi-processo
+  const [linkedProcessos, setLinkedProcessos] = useState<ProcessoLink[]>(
+    editing?.reciboProcessos?.map(rp => ({ processoId: rp.eventoId, valor: Number(rp.valor) })) || []
+  );
+  const [addProcessoId, setAddProcessoId] = useState('');
 
   useEffect(() => {
     if (isNew) {
@@ -158,9 +172,25 @@ function ReciboBolsaFormModal({ entidadeId, processos, editing, onClose, onSaved
   const valorTSUPatronal = +(bolsaBruta * TSU_PATRONAL).toFixed(2);
   const valorTSUTrabalhador = +(bolsaBruta * TSU_TRABALHADOR).toFixed(2);
   const subsidioRefeicao = +(subRef * dias).toFixed(2);
-  const totalBruto = +(bolsaBruta + subsidioRefeicao).toFixed(2);
   const totalLiquido = +(bolsaBruta - valorTSUTrabalhador + subsidioRefeicao).toFixed(2);
   const custoEntidade = +(bolsaBruta + valorTSUPatronal + subsidioRefeicao).toFixed(2);
+
+  function addProcesso() {
+    const pid = Number(addProcessoId);
+    if (!pid || linkedProcessos.some(p => p.processoId === pid)) return;
+    setLinkedProcessos([...linkedProcessos, { processoId: pid, valor: custoEntidade }]);
+    setAddProcessoId('');
+  }
+
+  function removeProcesso(pid: number) {
+    setLinkedProcessos(linkedProcessos.filter(p => p.processoId !== pid));
+  }
+
+  function updateProcessoValor(pid: number, val: number) {
+    setLinkedProcessos(linkedProcessos.map(p => p.processoId === pid ? { ...p, valor: val } : p));
+  }
+
+  const availableProcessos = processos.filter(p => !linkedProcessos.some(lp => lp.processoId === p.id));
 
   async function submit() {
     if (!numeroRecibo || !periodoInicio || !periodoFim || !diasUteis || !bolsaMensal) {
@@ -171,7 +201,7 @@ function ReciboBolsaFormModal({ entidadeId, processos, editing, onClose, onSaved
     try {
       const body = {
         numeroRecibo, entidadeId,
-        processoId: processoId || null,
+        processos: linkedProcessos,
         periodoInicio, periodoFim,
         diasUteis: Number(diasUteis), diasFaltas: faltas,
         bolsaMensal: mensal,
@@ -183,7 +213,7 @@ function ReciboBolsaFormModal({ entidadeId, processos, editing, onClose, onSaved
       };
       if (isNew) {
         await apiPost('/recibos-bolsa', body);
-        toast('Recibo criado', 'success');
+        toast('Recibo criado (despesa gerada automaticamente)', 'success');
       } else {
         await apiPut(`/recibos-bolsa/${editing!.id}`, body);
         toast('Recibo atualizado', 'success');
@@ -207,10 +237,11 @@ function ReciboBolsaFormModal({ entidadeId, processos, editing, onClose, onSaved
           <Input value={numeroRecibo} onChange={e => setNumeroRecibo(e.target.value)} placeholder="1/2026" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-ink-soft mb-1">Processo / Apoio</label>
-          <Select value={processoId} onChange={e => setProcessoId(e.target.value)}>
-            <option value="">— Nenhum —</option>
-            {processos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+          <label className="block text-xs font-medium text-ink-soft mb-1">Estado</label>
+          <Select value={estado} onChange={e => setEstado(e.target.value as 'Rascunho' | 'Emitido' | 'Pago')}>
+            <option value="Rascunho">Rascunho</option>
+            <option value="Emitido">Emitido</option>
+            <option value="Pago">Pago</option>
           </Select>
         </div>
         <div>
@@ -237,18 +268,42 @@ function ReciboBolsaFormModal({ entidadeId, processos, editing, onClose, onSaved
           <label className="block text-xs font-medium text-ink-soft mb-1">Sub. refeição / dia (€)</label>
           <Input type="number" step="0.01" min="0" value={subRefDia} onChange={e => setSubRefDia(e.target.value)} />
         </div>
-        <div>
-          <label className="block text-xs font-medium text-ink-soft mb-1">Estado</label>
-          <Select value={estado} onChange={e => setEstado(e.target.value as 'Rascunho' | 'Emitido' | 'Pago')}>
-            <option value="Rascunho">Rascunho</option>
-            <option value="Emitido">Emitido</option>
-            <option value="Pago">Pago</option>
-          </Select>
-        </div>
-        <div>
+        <div className="sm:col-span-2">
           <label className="block text-xs font-medium text-ink-soft mb-1">Observações</label>
           <Input value={observacoes} onChange={e => setObservacoes(e.target.value)} placeholder="(opcional)" />
         </div>
+      </div>
+
+      {/* Processos / Apoios */}
+      <div className="mt-4">
+        <label className="block text-xs font-semibold text-ink-soft uppercase tracking-wider mb-2">Processos / Apoios</label>
+        {linkedProcessos.length > 0 && (
+          <div className="flex flex-col gap-1.5 mb-2">
+            {linkedProcessos.map(lp => {
+              const proc = processos.find(p => p.id === lp.processoId);
+              return (
+                <div key={lp.processoId} className="flex items-center gap-2 bg-surface-alt rounded px-2 py-1.5">
+                  <span className="text-sm text-ink flex-1 truncate">{proc?.nome || `#${lp.processoId}`}</span>
+                  <Input type="number" step="0.01" min="0" className="w-28 text-right text-sm"
+                    value={lp.valor} onChange={e => updateProcessoValor(lp.processoId, Number(e.target.value))} />
+                  <span className="text-xs text-ink-soft">€</span>
+                  <button onClick={() => removeProcesso(lp.processoId)} className="p-0.5 text-ink-soft hover:text-bad-ink rounded">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {availableProcessos.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Select value={addProcessoId} onChange={e => setAddProcessoId(e.target.value)} className="flex-1">
+              <option value="">— Adicionar processo —</option>
+              {availableProcessos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+            </Select>
+            <Button size="sm" variant="subtle" onClick={addProcesso} disabled={!addProcessoId}>Adicionar</Button>
+          </div>
+        )}
       </div>
 
       {/* Resumo de cálculos */}
@@ -289,7 +344,7 @@ function ReciboBolsaFormModal({ entidadeId, processos, editing, onClose, onSaved
             <span className="text-ink-soft text-xs">TSU patronal ({(TSU_PATRONAL * 100).toFixed(2)}%)</span>
             <span className="text-right font-mono text-xs text-ink-soft">{fmtEuro(valorTSUPatronal)}</span>
 
-            <span className="text-ink-soft text-xs font-semibold">Custo total entidade</span>
+            <span className="text-ink-soft text-xs font-semibold">Custo total entidade (= despesa)</span>
             <span className="text-right font-mono text-xs font-semibold text-ink">{fmtEuro(custoEntidade)}</span>
           </div>
         </div>

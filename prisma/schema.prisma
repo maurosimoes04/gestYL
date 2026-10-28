@@ -166,10 +166,10 @@ model Evento {
 
   faturaEventos          FaturaEvento[]
   receitaEventos         ReceitaEvento[]
+  reciboBolsaEventos     ReciboBolsaEvento[]
   shares                 EventoShare[]
   documentos             Documento[]
   stockMovimentos        StockMovimento[]
-  recibosBolsa           ReciboBolsa[]
   pessoa                 Entidade? @relation("ProcessoPessoa", fields: [pessoaId], references: [id], onDelete: SetNull)
   entidadeFinanciadora   Entidade? @relation("ProcessoEntidade", fields: [entidadeFinanciadoraId], references: [id], onDelete: SetNull)
   contaSncReceita        ContaSNC? @relation("ProcessoContaReceita", fields: [contaSncReceitaId], references: [id], onDelete: SetNull)
@@ -217,6 +217,7 @@ model Fatura {
   stockMovimentos StockMovimento[]
   faturaEventos FaturaEvento[]
   movimento     Movimento?
+  reciboBolsa   ReciboBolsa?
 
   @@index([departamento])
   @@index([estado])
@@ -426,7 +427,7 @@ model ReciboBolsa {
   id                  Int      @id @default(autoincrement())
   numeroRecibo        String   @unique                           // "1/2026", "2/2026"
   entidadeId          Int
-  processoId          Int?                                       // subsídio/estágio IEFP
+  faturaId            Int?     @unique                           // despesa auto-criada (custo entidade)
   periodoInicio       DateTime @db.Date                          // ex: 01/11/2026
   periodoFim          DateTime @db.Date                          // ex: 30/11/2026
   diasUteis           Int                                        // dias úteis trabalhados no período
@@ -455,12 +456,27 @@ model ReciboBolsa {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  entidade Entidade @relation(fields: [entidadeId], references: [id], onDelete: Cascade)
-  processo Evento?  @relation(fields: [processoId], references: [id], onDelete: SetNull)
+  entidade            Entidade @relation(fields: [entidadeId], references: [id], onDelete: Cascade)
+  fatura              Fatura?  @relation(fields: [faturaId], references: [id], onDelete: SetNull)
+  reciboProcessos     ReciboBolsaEvento[]
 
   @@index([entidadeId])
-  @@index([processoId])
   @@index([periodoInicio])
   @@index([estado])
   @@map("recibos_bolsa")
+}
+
+/// Ligação N:N entre ReciboBolsa e Processo (igual a FaturaEvento).
+model ReciboBolsaEvento {
+  id            Int     @id @default(autoincrement())
+  reciboBolsaId Int
+  eventoId      Int
+  valor         Decimal @db.Decimal(10, 2)
+
+  reciboBolsa ReciboBolsa @relation(fields: [reciboBolsaId], references: [id], onDelete: Cascade)
+  evento      Evento      @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+
+  @@unique([reciboBolsaId, eventoId])
+  @@index([eventoId])
+  @@map("recibo_bolsa_eventos")
 }

@@ -1133,7 +1133,7 @@ router.get('/rh/pdf', async (_req, res) => {
     });
     const recibos = await prisma.reciboBolsa.findMany({
       where: pessoaIdFilter ? { entidadeId: pessoaIdFilter } : {},
-      include: { processo: { select: { id: true, nome: true } } },
+      include: { reciboProcessos: { include: { evento: { select: { id: true, nome: true } } } } },
       orderBy: { periodoInicio: 'desc' },
     });
 
@@ -1279,7 +1279,8 @@ router.get('/rh/pdf', async (_req, res) => {
             sumSubRef += subRef; sumLiq += liq; sumCusto += custo;
 
             const periodo = `${fmtDate(r.periodoInicio)} a ${fmtDate(r.periodoFim)}`;
-            const proc = r.processo ? ` · ${r.processo.nome}` : '';
+            const procNames = (r as any).reciboProcessos?.map((rp: any) => rp.evento?.nome).filter(Boolean).join(', ');
+            const proc = procNames ? ` · ${procNames}` : '';
             reciboRows.push({
               cells: [
                 `Nº ${r.numeroRecibo} — ${periodo} (${r.diasUteis}d)${proc}  [${r.estado}]`,

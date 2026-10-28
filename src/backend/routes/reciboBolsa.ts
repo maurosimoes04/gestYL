@@ -19,15 +19,21 @@ function calcRecibo(bolsaMensal: number, diasFaltas: number, diasUteis: number, 
   return { descontoFaltas, bolsaBruta, valorTSUPatronal, valorTSUTrabalhador, subsidioRefeicao, totalBruto, totalLiquido, custoEntidade };
 }
 
+const reciboIncludes = {
+  entidade: { select: { id: true, nome: true, nif: true, niss: true, funcao: true } },
+  fatura: { select: { id: true, titulo: true } },
+  reciboProcessos: { include: { evento: { select: { id: true, nome: true } } } },
+};
+
 // GET /recibos-bolsa?entidadeId=&processoId=
 router.get('/', async (req: Request, res: Response) => {
   const where: any = {};
   if (req.query.entidadeId) where.entidadeId = Number(req.query.entidadeId);
-  if (req.query.processoId) where.processoId = Number(req.query.processoId);
+  if (req.query.processoId) where.reciboProcessos = { some: { eventoId: Number(req.query.processoId) } };
 
   const recibos = await prisma.reciboBolsa.findMany({
     where,
-    include: { entidade: { select: { id: true, nome: true, nif: true, niss: true, funcao: true } }, processo: { select: { id: true, nome: true } } },
+    include: reciboIncludes,
     orderBy: { periodoInicio: 'desc' },
   });
   res.json(recibos);
@@ -44,7 +50,7 @@ router.get('/next-number', async (_req: Request, res: Response) => {
   res.json({ numero: `${seq}/${ano}` });
 });
 
-// GET /recibos-bolsa/defaults/:entidadeId — buscar valores pré-definidos da entidade
+// GET /recibos-bolsa/defaults/:entidadeId
 router.get('/defaults/:entidadeId', async (req: Request, res: Response) => {
   const ent = await prisma.entidade.findUnique({
     where: { id: Number(req.params.entidadeId) },
@@ -56,6 +62,41 @@ router.get('/defaults/:entidadeId', async (req: Request, res: Response) => {
     subsidioRefeicaoDia: ent.subsidioRefeicaoDia ? Number(ent.subsidioRefeicaoDia) : null,
   });
 });
+
+async function syncDespesa(reciboId: number, calc: ReturnType<typeof calcRecibo>, b: any, entidadeNome: string, faturaIdExistente: number | null) {
+  const mesAno = new Date(b.periodoInicio).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+  const titulo = `Bolsa estágio — ${entidadeNome} — ${mesAno}`;
+  const faturaData: any = {
+    titulo,
+    valor: calc.custoEntidade,
+    data: new Date(b.periodoFim),
+    departamento: 'RH',
+    tipo: 'Recibo Bolsa',
+    estado: b.estado === 'Pago' ? 'pago' : 'por pagar',
+    descricao: `Recibo nº ${b.numeroRecibo}: bolsa ${calc.bolsaBruta}€ + TSU patronal ${calc.valorTSUPatronal}€ + sub.ref ${calc.subsidioRefeicao}€`,
+    entidadeId: Number(b.entidadeId),
+  };
+
+  let faturaId: number;
+  if (faturaIdExistente) {
+    await prisma.fatura.update({ where: { id: faturaIdExistente }, data: faturaData });
+    faturaId = faturaIdExistente;
+  } else {
+    const fatura = await prisma.fatura.create({ data: faturaData });
+    faturaId = fatura.id;
+  }
+
+  // Sync processos → faturaEventos
+  const processos: Array<{ processoId: number; valor: number }> = b.processos || [];
+  if (processos.length > 0) {
+    await prisma.faturaEvento.deleteMany({ where: { faturaId } });
+    await prisma.faturaEvento.createMany({
+      data: processos.map(p => ({ faturaId, eventoId: p.processoId, valor: p.valor })),
+    });
+  }
+
+  return faturaId;
+}
 
 // POST /recibos-bolsa
 router.post('/', async (req: Request, res: Response) => {
@@ -69,11 +110,16 @@ router.post('/', async (req: Request, res: Response) => {
 
   const calc = calcRecibo(bolsaMensal, diasFaltas, diasUteis, subsidioRefeicaoDia, taxaPatronal, taxaTrab);
 
+  const entidade = await prisma.entidade.findUnique({ where: { id: Number(b.entidadeId) }, select: { nome: true } });
+  const faturaId = await syncDespesa(0, calc, b, entidade?.nome || '', null);
+
+  const processos: Array<{ processoId: number; valor: number }> = b.processos || [];
+
   const recibo = await prisma.reciboBolsa.create({
     data: {
       numeroRecibo: b.numeroRecibo,
       entidadeId: Number(b.entidadeId),
-      processoId: b.processoId ? Number(b.processoId) : null,
+      faturaId,
       periodoInicio: new Date(b.periodoInicio),
       periodoFim: new Date(b.periodoFim),
       diasUteis, diasFaltas, bolsaMensal,
@@ -91,8 +137,11 @@ router.post('/', async (req: Request, res: Response) => {
       estado: b.estado || 'Rascunho',
       dataEmissao: b.dataEmissao ? new Date(b.dataEmissao) : null,
       dataPagamento: b.dataPagamento ? new Date(b.dataPagamento) : null,
+      reciboProcessos: processos.length > 0 ? {
+        create: processos.map(p => ({ eventoId: p.processoId, valor: p.valor })),
+      } : undefined,
     },
-    include: { entidade: { select: { id: true, nome: true } }, processo: { select: { id: true, nome: true } } },
+    include: reciboIncludes,
   });
   res.status(201).json(recibo);
 });
@@ -125,15 +174,34 @@ router.put('/:id', async (req: Request, res: Response) => {
       totalBruto: calc.totalBruto, totalLiquido: calc.totalLiquido, custoEntidade: calc.custoEntidade,
       periodoInicio: new Date(b.periodoInicio), periodoFim: new Date(b.periodoFim),
     });
+
+    // Sync despesa
+    const existing = await prisma.reciboBolsa.findUnique({ where: { id }, select: { faturaId: true } });
+    const entidade = await prisma.entidade.findUnique({ where: { id: Number(b.entidadeId) }, select: { nome: true } });
+    const faturaId = await syncDespesa(id, calc, b, entidade?.nome || '', existing?.faturaId || null);
+    data.faturaId = faturaId;
+
+    // Sync processos
+    const processos: Array<{ processoId: number; valor: number }> = b.processos || [];
+    await prisma.reciboBolsaEvento.deleteMany({ where: { reciboBolsaId: id } });
+    if (processos.length > 0) {
+      await prisma.reciboBolsaEvento.createMany({
+        data: processos.map(p => ({ reciboBolsaId: id, eventoId: p.processoId, valor: p.valor })),
+      });
+    }
   }
 
-  const recibo = await prisma.reciboBolsa.update({ where: { id }, data });
+  const recibo = await prisma.reciboBolsa.update({ where: { id }, data, include: reciboIncludes });
   res.json(recibo);
 });
 
 // DELETE /recibos-bolsa/:id
 router.delete('/:id', async (req: Request, res: Response) => {
+  const recibo = await prisma.reciboBolsa.findUnique({ where: { id: Number(req.params.id) }, select: { faturaId: true } });
   await prisma.reciboBolsa.delete({ where: { id: Number(req.params.id) } });
+  if (recibo?.faturaId) {
+    await prisma.fatura.delete({ where: { id: recibo.faturaId } }).catch(() => {});
+  }
   res.json({ ok: true });
 });
 
@@ -143,7 +211,7 @@ router.get('/:id/pdf', async (req: Request, res: Response) => {
     where: { id: Number(req.params.id) },
     include: {
       entidade: { select: { nome: true, nif: true, niss: true, funcao: true, tipoVinculo: true } },
-      processo: { select: { nome: true, numeroProcesso: true } },
+      reciboProcessos: { include: { evento: { select: { nome: true, numeroProcesso: true } } } },
     },
   });
   if (!recibo) return res.status(404).json({ error: 'Recibo não encontrado' });
@@ -185,8 +253,9 @@ router.get('/:id/pdf', async (req: Request, res: Response) => {
   if (recibo.entidade.niss) doc.text(`NISS: ${recibo.entidade.niss}`);
   if (recibo.entidade.funcao) doc.text(`Função: ${recibo.entidade.funcao}`);
   if (recibo.entidade.tipoVinculo) doc.text(`Vínculo: ${recibo.entidade.tipoVinculo}`);
-  if (recibo.processo) {
-    doc.text(`Processo: ${recibo.processo.nome}${recibo.processo.numeroProcesso ? ` (${recibo.processo.numeroProcesso})` : ''}`);
+  if (recibo.reciboProcessos.length > 0) {
+    const procs = recibo.reciboProcessos.map(rp => rp.evento.nome + (rp.evento.numeroProcesso ? ` (${rp.evento.numeroProcesso})` : '')).join(', ');
+    doc.text(`Processo(s): ${procs}`);
   }
   doc.text(`Período: ${formatDate(recibo.periodoInicio)} a ${formatDate(recibo.periodoFim)} (${recibo.diasUteis} dias úteis)`);
 
@@ -216,22 +285,17 @@ router.get('/:id/pdf', async (req: Request, res: Response) => {
     ty += 20;
   };
 
-  // Bolsa mensal
   row('Bolsa mensal (contrato)', formatEur(recibo.bolsaMensal));
 
-  // Desconto por faltas
   if (Number(recibo.descontoFaltas) > 0) {
     row(`Desconto faltas (${recibo.diasFaltas}d × ${formatEur(Number(recibo.bolsaMensal) / 30)}/dia)`, `- ${formatEur(recibo.descontoFaltas)}`);
   }
 
-  // Bolsa bruta efetiva
   row(`Bolsa bruta (${recibo.diasUteis} dias úteis trabalhados)`, formatEur(recibo.bolsaBruta), true);
 
-  // TSU trabalhador (desconto)
   const taxaTrab = Number(recibo.taxaTSUTrabalhador) * 100;
   row(`Retenção TSU trabalhador (${taxaTrab.toFixed(2)}%)`, `- ${formatEur(recibo.valorTSUTrabalhador)}`);
 
-  // Subsídio refeição
   if (Number(recibo.subsidioRefeicao) > 0) {
     row(`Subsídio de refeição (${formatEur(recibo.subsidioRefeicaoDia)} × ${recibo.diasUteis} dias) — isento TSU/IRS`, formatEur(recibo.subsidioRefeicao));
   }
