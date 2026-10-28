@@ -12,7 +12,11 @@ function getClaudeClient(): Anthropic | null {
   if (!key) return null;
   if (claudeExhausted && Date.now() - claudeExhaustedAt < RETRY_AFTER_MS) return null;
   if (claudeExhausted) claudeExhausted = false;
-  return new Anthropic({ apiKey: key });
+  const opts: ConstructorParameters<typeof Anthropic>[0] = { apiKey: key };
+  if (process.env.ANTHROPIC_WORKSPACE_ID) {
+    opts.defaultHeaders = { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID };
+  }
+  return new Anthropic(opts);
 }
 
 function markClaudeExhausted() {
