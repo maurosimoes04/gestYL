@@ -1,8 +1,10 @@
 import { Router, Request, Response } from 'express';
+import path from 'path';
 import { prisma } from '../config/prisma';
 import PDFDocument from 'pdfkit';
 
 const router = Router();
+const LOGO_PATH = path.resolve(__dirname, '../../../assets/logo.png');
 
 const TSU_PATRONAL = 0.2375;
 const TSU_TRABALHADOR = 0.11;
@@ -242,13 +244,15 @@ router.get('/:id/pdf', async (req: Request, res: Response) => {
   const R = 545;   // right edge
   const W = R - L;  // usable width
 
-  // === HEADER: emitter left, doc info right ===
-  doc.font('Helvetica-Bold').fontSize(13).fillColor(BLACK)
-    .text('Associação Juvenil de Castro Marim', L, 50);
+  // === HEADER: logo + emitter left, doc info right ===
+  try { doc.image(LOGO_PATH, L, 40, { width: 100 }); } catch {}
+  doc.font('Helvetica-Bold').fontSize(12).fillColor(BLACK)
+    .text('Associação Young-Link', L + 110, 45);
   doc.font('Helvetica').fontSize(8).fillColor(GRAY)
-    .text('Rua de Castro Marim', L, 68)
-    .text('8950-138 Castro Marim, Faro', L)
-    .text('NIPC: 510 455 340', L);
+    .text('Rua João de Almeida, Antiga Escola Primária', L + 110, 62)
+    .text('8950-414 Altura, Faro', L + 110)
+    .text('NIPC: 517 483 475', L + 110)
+    .text('geral@younglink.net · 914 524 860', L + 110);
 
   // Doc type — top right
   doc.font('Helvetica-Bold').fontSize(16).fillColor(BLACK)
@@ -259,10 +263,10 @@ router.get('/:id/pdf', async (req: Request, res: Response) => {
     .text(`Data: ${fmtDate(new Date())}`, 350, 88, { width: 195, align: 'right' });
 
   // Separator
-  doc.moveTo(L, 108).lineTo(R, 108).strokeColor(LINE).lineWidth(1).stroke();
+  doc.moveTo(L, 115).lineTo(R, 115).strokeColor(LINE).lineWidth(1).stroke();
 
   // === ESTAGIÁRIO BLOCK: left column ===
-  let y = 120;
+  let y = 128;
   doc.font('Helvetica-Bold').fontSize(9).fillColor(BLACK).text('Estagiário/a', L, y);
   y += 14;
   doc.font('Helvetica-Bold').fontSize(10).fillColor(BLACK).text(recibo.entidade.nome, L, y);
@@ -274,7 +278,7 @@ router.get('/:id/pdf', async (req: Request, res: Response) => {
   if (recibo.entidade.tipoVinculo) { doc.text(`Vínculo: ${recibo.entidade.tipoVinculo}`, L, y); y += 12; }
 
   // === PERÍODO BLOCK: right column ===
-  let yr = 120;
+  let yr = 128;
   doc.font('Helvetica-Bold').fontSize(9).fillColor(BLACK).text('Período', 350, yr, { width: 195, align: 'right' });
   yr += 14;
   doc.font('Helvetica').fontSize(9).fillColor(BLACK)
@@ -387,7 +391,7 @@ router.get('/:id/pdf', async (req: Request, res: Response) => {
   const footY = 770;
   doc.moveTo(L, footY).lineTo(R, footY).strokeColor(LINE).lineWidth(0.5).stroke();
   doc.font('Helvetica').fontSize(7).fillColor(LIGHT)
-    .text('Associação Juvenil de Castro Marim · NIPC 510 455 340', L, footY + 6, { width: W, align: 'center' });
+    .text('Associação Young-Link · NIPC 517 483 475', L, footY + 6, { width: W, align: 'center' });
   doc.text(`Estado: ${recibo.estado}${recibo.dataEmissao ? ' | Emitido: ' + fmtDate(recibo.dataEmissao) : ''}${recibo.dataPagamento ? ' | Pago: ' + fmtDate(recibo.dataPagamento) : ''}`, L, footY + 16, { width: W, align: 'center' });
 
   doc.end();
