@@ -130,7 +130,9 @@ export interface ReciboBolsa {
   periodoInicio: string;
   periodoFim: string;
   diasUteis: number;
-  bolsaDiaria: number | string;
+  diasFaltas: number;
+  bolsaMensal: number | string;
+  descontoFaltas: number | string;
   bolsaBruta: number | string;
   taxaTSUPatronal: number | string;
   valorTSUPatronal: number | string;

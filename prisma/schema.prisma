@@ -427,12 +427,14 @@ model ReciboBolsa {
   numeroRecibo        String   @unique                           // "1/2026", "2/2026"
   entidadeId          Int
   processoId          Int?                                       // subsídio/estágio IEFP
-  periodoInicio       DateTime @db.Date                          // ex: 21/10/2026
-  periodoFim          DateTime @db.Date                          // ex: 31/10/2026
-  diasUteis           Int                                        // dias trabalhados no período
-  // Bolsa (sujeita a TSU)
-  bolsaDiaria         Decimal  @db.Decimal(10, 2)
-  bolsaBruta          Decimal  @db.Decimal(10, 2)                // bolsaDiaria × diasUteis
+  periodoInicio       DateTime @db.Date                          // ex: 01/11/2026
+  periodoFim          DateTime @db.Date                          // ex: 30/11/2026
+  diasUteis           Int                                        // dias úteis trabalhados no período
+  diasFaltas          Int      @default(0)                       // dias de falta (desconto = bolsaMensal/30 × diasFaltas)
+  // Bolsa mensal (conforme contrato IEFP, sujeita a TSU)
+  bolsaMensal         Decimal  @db.Decimal(10, 2)                // valor fixo mensal (ex: 913.12)
+  descontoFaltas      Decimal  @db.Decimal(10, 2) @default(0)    // bolsaMensal/30 × diasFaltas
+  bolsaBruta          Decimal  @db.Decimal(10, 2)                // bolsaMensal - descontoFaltas
   // TSU patronal (paga pela entidade empregadora à Seg. Social)
   taxaTSUPatronal     Decimal  @db.Decimal(5, 4) @default(0.2375)
   valorTSUPatronal    Decimal  @db.Decimal(10, 2) @default(0)    // bolsaBruta × 23.75%

@@ -72,9 +72,10 @@ export function RecibosBolsaSection({ entidadeId, processos, readonly }: Props) 
                   <span className="text-ink-soft font-normal"> — {fmtData(r.periodoInicio)} a {fmtData(r.periodoFim)}</span>
                 </div>
                 <div className="text-xs text-ink-soft flex flex-wrap gap-3 mt-0.5">
-                  <span>{r.diasUteis} dias</span>
-                  <span className="font-mono">Bolsa: {fmtEuro(r.bolsaBruta)}</span>
-                  <span className="font-mono text-red-600">TSU trab.: -{fmtEuro(r.valorTSUTrabalhador)}</span>
+                  <span>Bolsa: {fmtEuro(r.bolsaMensal)}</span>
+                  {Number(r.descontoFaltas) > 0 && <span className="text-red-600">-{fmtEuro(r.descontoFaltas)} faltas</span>}
+                  <span className="font-mono">Bruta: {fmtEuro(r.bolsaBruta)}</span>
+                  <span className="font-mono text-red-600">TSU: -{fmtEuro(r.valorTSUTrabalhador)}</span>
                   {Number(r.subsidioRefeicao) > 0 && <span className="font-mono">Sub.ref.: +{fmtEuro(r.subsidioRefeicao)}</span>}
                   <span className="font-mono font-semibold text-brand">Líq.: {fmtEuro(r.totalLiquido)}</span>
                 </div>
@@ -126,7 +127,8 @@ function ReciboBolsaFormModal({ entidadeId, processos, editing, onClose, onSaved
   const [periodoInicio, setPeriodoInicio] = useState(editing?.periodoInicio?.slice(0, 10) || '');
   const [periodoFim, setPeriodoFim] = useState(editing?.periodoFim?.slice(0, 10) || '');
   const [diasUteis, setDiasUteis] = useState(editing?.diasUteis?.toString() || '');
-  const [bolsaDiaria, setBolsaDiaria] = useState(editing ? String(Number(editing.bolsaDiaria)) : '');
+  const [diasFaltas, setDiasFaltas] = useState(editing?.diasFaltas?.toString() || '0');
+  const [bolsaMensal, setBolsaMensal] = useState(editing ? String(Number(editing.bolsaMensal)) : '');
   const [subRefDia, setSubRefDia] = useState(editing ? String(Number(editing.subsidioRefeicaoDia)) : '');
   const [observacoes, setObservacoes] = useState(editing?.observacoes || '');
   const [estado, setEstado] = useState<'Rascunho' | 'Emitido' | 'Pago'>(editing?.estado || 'Rascunho');
@@ -136,8 +138,8 @@ function ReciboBolsaFormModal({ entidadeId, processos, editing, onClose, onSaved
   useEffect(() => {
     if (isNew) {
       apiGet<{ numero: string }>('/recibos-bolsa/next-number').then(r => setNumeroRecibo(r.numero)).catch(() => {});
-      apiGet<{ bolsaDiaria: number | null; subsidioRefeicaoDia: number | null }>(`/recibos-bolsa/defaults/${entidadeId}`).then(d => {
-        if (d.bolsaDiaria && !bolsaDiaria) setBolsaDiaria(String(d.bolsaDiaria));
+      apiGet<{ bolsaMensal: number | null; subsidioRefeicaoDia: number | null }>(`/recibos-bolsa/defaults/${entidadeId}`).then(d => {
+        if (d.bolsaMensal && !bolsaMensal) setBolsaMensal(String(d.bolsaMensal));
         if (d.subsidioRefeicaoDia && !subRefDia) setSubRefDia(String(d.subsidioRefeicaoDia));
         setLoaded(true);
       }).catch(() => setLoaded(true));
@@ -147,10 +149,12 @@ function ReciboBolsaFormModal({ entidadeId, processos, editing, onClose, onSaved
   }, []);
 
   const dias = Number(diasUteis) || 0;
-  const bolsa = Number(bolsaDiaria) || 0;
+  const faltas = Number(diasFaltas) || 0;
+  const mensal = Number(bolsaMensal) || 0;
   const subRef = Number(subRefDia) || 0;
 
-  const bolsaBruta = +(bolsa * dias).toFixed(2);
+  const descontoFaltas = +(mensal / 30 * faltas).toFixed(2);
+  const bolsaBruta = +(mensal - descontoFaltas).toFixed(2);
   const valorTSUPatronal = +(bolsaBruta * TSU_PATRONAL).toFixed(2);
   const valorTSUTrabalhador = +(bolsaBruta * TSU_TRABALHADOR).toFixed(2);
   const subsidioRefeicao = +(subRef * dias).toFixed(2);
@@ -159,7 +163,7 @@ function ReciboBolsaFormModal({ entidadeId, processos, editing, onClose, onSaved
   const custoEntidade = +(bolsaBruta + valorTSUPatronal + subsidioRefeicao).toFixed(2);
 
   async function submit() {
-    if (!numeroRecibo || !periodoInicio || !periodoFim || !diasUteis || !bolsaDiaria) {
+    if (!numeroRecibo || !periodoInicio || !periodoFim || !diasUteis || !bolsaMensal) {
       toast('Preenche todos os campos obrigatórios', 'error');
       return;
     }
@@ -169,7 +173,8 @@ function ReciboBolsaFormModal({ entidadeId, processos, editing, onClose, onSaved
         numeroRecibo, entidadeId,
         processoId: processoId || null,
         periodoInicio, periodoFim,
-        diasUteis: Number(diasUteis), bolsaDiaria: Number(bolsaDiaria),
+        diasUteis: Number(diasUteis), diasFaltas: faltas,
+        bolsaMensal: mensal,
         taxaTSUPatronal: TSU_PATRONAL, taxaTSUTrabalhador: TSU_TRABALHADOR,
         subsidioRefeicaoDia: subRef,
         observacoes: observacoes || null, estado,
@@ -217,12 +222,16 @@ function ReciboBolsaFormModal({ entidadeId, processos, editing, onClose, onSaved
           <Input type="date" value={periodoFim} onChange={e => setPeriodoFim(e.target.value)} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-ink-soft mb-1">Dias úteis *</label>
+          <label className="block text-xs font-medium text-ink-soft mb-1">Dias úteis trabalhados *</label>
           <Input type="number" min="0" value={diasUteis} onChange={e => setDiasUteis(e.target.value)} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-ink-soft mb-1">Bolsa diária (€) * {!loaded && <span className="text-ink-soft italic">a carregar...</span>}</label>
-          <Input type="number" step="0.01" min="0" value={bolsaDiaria} onChange={e => setBolsaDiaria(e.target.value)} />
+          <label className="block text-xs font-medium text-ink-soft mb-1">Dias de falta</label>
+          <Input type="number" min="0" value={diasFaltas} onChange={e => setDiasFaltas(e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-ink-soft mb-1">Bolsa mensal (€) * {!loaded && <span className="text-ink-soft italic">a carregar...</span>}</label>
+          <Input type="number" step="0.01" min="0" value={bolsaMensal} onChange={e => setBolsaMensal(e.target.value)} />
         </div>
         <div>
           <label className="block text-xs font-medium text-ink-soft mb-1">Sub. refeição / dia (€)</label>
@@ -236,19 +245,29 @@ function ReciboBolsaFormModal({ entidadeId, processos, editing, onClose, onSaved
             <option value="Pago">Pago</option>
           </Select>
         </div>
-        <div className="sm:col-span-2">
+        <div>
           <label className="block text-xs font-medium text-ink-soft mb-1">Observações</label>
           <Input value={observacoes} onChange={e => setObservacoes(e.target.value)} placeholder="(opcional)" />
         </div>
       </div>
 
       {/* Resumo de cálculos */}
-      {dias > 0 && bolsa > 0 && (
+      {mensal > 0 && (
         <div className="mt-5 bg-surface-page border border-line rounded-lg p-4">
           <h5 className="text-xs font-semibold text-ink-soft uppercase tracking-wider mb-3">Cálculo automático</h5>
           <div className="grid grid-cols-2 gap-y-2 gap-x-8 text-sm">
-            <span className="text-ink-soft">Bolsa bruta ({fmtEuro(bolsa)} × {dias} dias)</span>
-            <span className="text-right font-mono">{fmtEuro(bolsaBruta)}</span>
+            <span className="text-ink-soft">Bolsa mensal (contrato)</span>
+            <span className="text-right font-mono">{fmtEuro(mensal)}</span>
+
+            {faltas > 0 && (
+              <>
+                <span className="text-ink-soft">Desconto faltas ({faltas}d × {fmtEuro(mensal / 30)}/dia)</span>
+                <span className="text-right font-mono text-red-600">- {fmtEuro(descontoFaltas)}</span>
+              </>
+            )}
+
+            <span className="text-ink-soft font-semibold">Bolsa bruta</span>
+            <span className="text-right font-mono font-semibold">{fmtEuro(bolsaBruta)}</span>
 
             <span className="text-ink-soft">TSU trabalhador ({(TSU_TRABALHADOR * 100).toFixed(0)}% retida)</span>
             <span className="text-right font-mono text-red-600">- {fmtEuro(valorTSUTrabalhador)}</span>

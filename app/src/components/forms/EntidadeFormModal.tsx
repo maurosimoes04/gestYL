@@ -129,7 +129,7 @@ export function EntidadeFormModal({ entidade, onClose, onSaved }: Props) {
                 </Select>
               </FormField>
               <FormField label="Função"><Input value={funcao} onChange={e => setFuncao(e.target.value)} /></FormField>
-              <FormField label="Bolsa diária (€)" hint="Valor bruto por dia útil"><Input type="number" step="0.01" value={bolsaBase} onChange={e => setBolsaBase(e.target.value)} /></FormField>
+              <FormField label="Bolsa mensal (€)" hint="Valor fixo mensal conforme contrato"><Input type="number" step="0.01" value={bolsaBase} onChange={e => setBolsaBase(e.target.value)} /></FormField>
               <FormField label="Sub. refeição / dia (€)" hint="Isento de TSU/IRS"><Input type="number" step="0.01" value={subsidioRefeicaoDia} onChange={e => setSubsidioRefeicaoDia(e.target.value)} /></FormField>
               <FormField label="PIN ponto (4 dígitos)"><Input type="text" inputMode="numeric" maxLength={4} pattern="[0-9]{4}" placeholder="ex: 1234" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))} /></FormField>
             </FormGrid>

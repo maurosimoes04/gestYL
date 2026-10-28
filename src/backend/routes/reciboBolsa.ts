@@ -7,15 +7,16 @@ const router = Router();
 const TSU_PATRONAL = 0.2375;
 const TSU_TRABALHADOR = 0.11;
 
-function calcRecibo(diasUteis: number, bolsaDiaria: number, subsidioRefeicaoDia: number, taxaPatronal = TSU_PATRONAL, taxaTrab = TSU_TRABALHADOR) {
-  const bolsaBruta = +(bolsaDiaria * diasUteis).toFixed(2);
+function calcRecibo(bolsaMensal: number, diasFaltas: number, diasUteis: number, subsidioRefeicaoDia: number, taxaPatronal = TSU_PATRONAL, taxaTrab = TSU_TRABALHADOR) {
+  const descontoFaltas = +(bolsaMensal / 30 * diasFaltas).toFixed(2);
+  const bolsaBruta = +(bolsaMensal - descontoFaltas).toFixed(2);
   const valorTSUPatronal = +(bolsaBruta * taxaPatronal).toFixed(2);
   const valorTSUTrabalhador = +(bolsaBruta * taxaTrab).toFixed(2);
   const subsidioRefeicao = +(subsidioRefeicaoDia * diasUteis).toFixed(2);
   const totalBruto = +(bolsaBruta + subsidioRefeicao).toFixed(2);
   const totalLiquido = +(bolsaBruta - valorTSUTrabalhador + subsidioRefeicao).toFixed(2);
   const custoEntidade = +(bolsaBruta + valorTSUPatronal + subsidioRefeicao).toFixed(2);
-  return { bolsaBruta, valorTSUPatronal, valorTSUTrabalhador, subsidioRefeicao, totalBruto, totalLiquido, custoEntidade };
+  return { descontoFaltas, bolsaBruta, valorTSUPatronal, valorTSUTrabalhador, subsidioRefeicao, totalBruto, totalLiquido, custoEntidade };
 }
 
 // GET /recibos-bolsa?entidadeId=&processoId=
@@ -51,7 +52,7 @@ router.get('/defaults/:entidadeId', async (req: Request, res: Response) => {
   });
   if (!ent) return res.status(404).json({ error: 'Entidade não encontrada' });
   res.json({
-    bolsaDiaria: ent.bolsaBase ? Number(ent.bolsaBase) : null,
+    bolsaMensal: ent.bolsaBase ? Number(ent.bolsaBase) : null,
     subsidioRefeicaoDia: ent.subsidioRefeicaoDia ? Number(ent.subsidioRefeicaoDia) : null,
   });
 });
@@ -59,13 +60,14 @@ router.get('/defaults/:entidadeId', async (req: Request, res: Response) => {
 // POST /recibos-bolsa
 router.post('/', async (req: Request, res: Response) => {
   const b = req.body;
+  const bolsaMensal = Number(b.bolsaMensal);
+  const diasFaltas = Number(b.diasFaltas) || 0;
   const diasUteis = Number(b.diasUteis);
-  const bolsaDiaria = Number(b.bolsaDiaria);
   const subsidioRefeicaoDia = Number(b.subsidioRefeicaoDia) || 0;
   const taxaPatronal = Number(b.taxaTSUPatronal) || TSU_PATRONAL;
   const taxaTrab = Number(b.taxaTSUTrabalhador) || TSU_TRABALHADOR;
 
-  const calc = calcRecibo(diasUteis, bolsaDiaria, subsidioRefeicaoDia, taxaPatronal, taxaTrab);
+  const calc = calcRecibo(bolsaMensal, diasFaltas, diasUteis, subsidioRefeicaoDia, taxaPatronal, taxaTrab);
 
   const recibo = await prisma.reciboBolsa.create({
     data: {
@@ -74,7 +76,8 @@ router.post('/', async (req: Request, res: Response) => {
       processoId: b.processoId ? Number(b.processoId) : null,
       periodoInicio: new Date(b.periodoInicio),
       periodoFim: new Date(b.periodoFim),
-      diasUteis, bolsaDiaria,
+      diasUteis, diasFaltas, bolsaMensal,
+      descontoFaltas: calc.descontoFaltas,
       bolsaBruta: calc.bolsaBruta,
       taxaTSUPatronal: taxaPatronal,
       valorTSUPatronal: calc.valorTSUPatronal,
@@ -105,15 +108,17 @@ router.put('/:id', async (req: Request, res: Response) => {
   if (b.dataPagamento !== undefined) data.dataPagamento = b.dataPagamento ? new Date(b.dataPagamento) : null;
   if (b.observacoes !== undefined) data.observacoes = b.observacoes || null;
 
-  if (b.diasUteis != null) {
+  if (b.bolsaMensal != null) {
+    const bolsaMensal = Number(b.bolsaMensal);
+    const diasFaltas = Number(b.diasFaltas) || 0;
     const diasUteis = Number(b.diasUteis);
-    const bolsaDiaria = Number(b.bolsaDiaria);
     const subsidioRefeicaoDia = Number(b.subsidioRefeicaoDia) || 0;
     const taxaPatronal = Number(b.taxaTSUPatronal) || TSU_PATRONAL;
     const taxaTrab = Number(b.taxaTSUTrabalhador) || TSU_TRABALHADOR;
-    const calc = calcRecibo(diasUteis, bolsaDiaria, subsidioRefeicaoDia, taxaPatronal, taxaTrab);
+    const calc = calcRecibo(bolsaMensal, diasFaltas, diasUteis, subsidioRefeicaoDia, taxaPatronal, taxaTrab);
     Object.assign(data, {
-      diasUteis, bolsaDiaria, bolsaBruta: calc.bolsaBruta,
+      bolsaMensal, diasFaltas, diasUteis,
+      descontoFaltas: calc.descontoFaltas, bolsaBruta: calc.bolsaBruta,
       taxaTSUPatronal: taxaPatronal, valorTSUPatronal: calc.valorTSUPatronal,
       taxaTSUTrabalhador: taxaTrab, valorTSUTrabalhador: calc.valorTSUTrabalhador,
       subsidioRefeicaoDia, subsidioRefeicao: calc.subsidioRefeicao,
@@ -211,8 +216,16 @@ router.get('/:id/pdf', async (req: Request, res: Response) => {
     ty += 20;
   };
 
-  // Bolsa bruta
-  row(`Bolsa diária (${formatEur(recibo.bolsaDiaria)} × ${recibo.diasUteis} dias)`, formatEur(recibo.bolsaBruta));
+  // Bolsa mensal
+  row('Bolsa mensal (contrato)', formatEur(recibo.bolsaMensal));
+
+  // Desconto por faltas
+  if (Number(recibo.descontoFaltas) > 0) {
+    row(`Desconto faltas (${recibo.diasFaltas}d × ${formatEur(Number(recibo.bolsaMensal) / 30)}/dia)`, `- ${formatEur(recibo.descontoFaltas)}`);
+  }
+
+  // Bolsa bruta efetiva
+  row(`Bolsa bruta (${recibo.diasUteis} dias úteis trabalhados)`, formatEur(recibo.bolsaBruta), true);
 
   // TSU trabalhador (desconto)
   const taxaTrab = Number(recibo.taxaTSUTrabalhador) * 100;
