@@ -1,6 +1,5 @@
 import { prisma } from '../config/prisma';
-
-const GEMINI_MODEL = 'gemini-flash-latest';
+import { aiGenerate } from './aiProvider';
 
 const TIPOS_PROCESSO = ['Evento', 'Projeto Anual', 'Investimento', 'Subsídio'] as const;
 type TipoProcesso = typeof TIPOS_PROCESSO[number];
@@ -25,9 +24,20 @@ export class SugestaoTipoError extends Error {
   }
 }
 
-export async function sugerirTipoProcesso(input: Input, _attempt = 0): Promise<SugestaoTipo | null> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new SugestaoTipoError('IA não configurada (falta GEMINI_API_KEY)', 'no-key');
+const GEMINI_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    tipo: { type: 'STRING' },
+    confianca: { type: 'NUMBER' },
+    motivo: { type: 'STRING' },
+  },
+  required: ['tipo', 'confianca', 'motivo'],
+};
+
+export async function sugerirTipoProcesso(input: Input): Promise<SugestaoTipo | null> {
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.GEMINI_API_KEY) {
+    throw new SugestaoTipoError('IA não configurada (falta ANTHROPIC_API_KEY ou GEMINI_API_KEY)', 'no-key');
+  }
 
   const existentes = await prisma.evento.findMany({
     select: { nome: true, tipo: true },
@@ -36,8 +46,7 @@ export async function sugerirTipoProcesso(input: Input, _attempt = 0): Promise<S
   });
   const exemplos = existentes.map(e => `  "${e.nome}" → ${e.tipo}`).join('\n');
 
-  const prompt = `És o gestor de processos da associação Young-Link (ONG, Castro Marim).
-Classifica o novo processo num dos 4 tipos. Responde APENAS JSON válido.
+  const prompt = `Classifica o novo processo num dos 4 tipos. Responde APENAS JSON válido.
 
 TIPOS POSSÍVEIS:
 - Evento — edição concreta com data(s) definida(s), ex: "Carnaval 2026", "Campo de Férias Verão 2026"
@@ -67,46 +76,16 @@ Devolve este JSON:
   "motivo": "frase curta a explicar porquê (< 20 palavras)"
 }`;
 
+  const systemPrompt = 'És o gestor de processos da associação Young-Link (ONG, Castro Marim).';
+
   try {
-    const resp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            responseSchema: {
-              type: 'OBJECT',
-              properties: {
-                tipo: { type: 'STRING' },
-                confianca: { type: 'NUMBER' },
-                motivo: { type: 'STRING' },
-              },
-              required: ['tipo', 'confianca', 'motivo'],
-            },
-            temperature: 0.1,
-          },
-        }),
-      },
+    const { text, provider } = await aiGenerate(
+      { prompt, systemPrompt, temperature: 0.1 },
+      GEMINI_SCHEMA,
     );
-    if (!resp.ok) {
-      if ((resp.status === 503 || resp.status === 429 || resp.status >= 500) && _attempt < 1) {
-        await new Promise(r => setTimeout(r, 800));
-        return sugerirTipoProcesso(input, _attempt + 1);
-      }
-      if (resp.status === 503 || resp.status === 429) {
-        throw new SugestaoTipoError('Gemini sobrecarregado — tenta de novo em alguns segundos', 'overloaded');
-      }
-      if (resp.status === 400) {
-        throw new SugestaoTipoError('Pedido rejeitado pelo Gemini', 'blocked');
-      }
-      throw new SugestaoTipoError(`API Gemini HTTP ${resp.status}`, 'network');
-    }
-    const json: any = await resp.json();
-    const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) throw new SugestaoTipoError('Resposta vazia do Gemini', 'invalid');
+    if (!text) throw new SugestaoTipoError('Nenhum provider IA disponível', 'network');
+
+    console.log(`[Tipo-IA] Resposta via ${provider}`);
     const parsed = JSON.parse(text) as SugestaoTipo;
     if (!TIPOS_PROCESSO.includes(parsed.tipo as any)) {
       parsed.tipo = 'Evento';

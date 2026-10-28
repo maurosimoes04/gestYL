@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
+import { aiGenerate } from './aiProvider';
 
 type TipoDocumentoIA = 'fatura' | 'receita';
 
@@ -11,10 +12,9 @@ interface CamposExtraidos {
   fornecedor: string | null;
 }
 
-const GEMINI_MODEL = 'gemini-flash-latest';
 export const MAX_TENTATIVAS = 3;
 
-const RESPONSE_SCHEMA = {
+const GEMINI_RESPONSE_SCHEMA = {
   type: 'OBJECT',
   properties: {
     valor: { type: 'NUMBER', nullable: true },
@@ -33,7 +33,7 @@ export interface NarrativaRelatorio {
   conclusao: string;
 }
 
-const NARRATIVA_SCHEMA = {
+const GEMINI_NARRATIVA_SCHEMA = {
   type: 'OBJECT',
   properties: {
     notaIntroducao: { type: 'STRING' },
@@ -52,21 +52,17 @@ const NARRATIVA_SCHEMA = {
   },
 };
 
-// Gera a narrativa do Relatório e Contas anual a partir do plano de atividades (PDF)
-// e de um resumo real dos dados do ano. Devolve texto estruturado por secção (pt-PT).
 export async function gerarNarrativaRelatorio(
   planoBuffer: Buffer,
   mimeType: string,
   dadosAno: any,
 ): Promise<NarrativaRelatorio | null> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.warn('Relatório IA: GEMINI_API_KEY não definida.');
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.GEMINI_API_KEY) {
+    console.warn('Relatório IA: nenhuma API key configurada.');
     return null;
   }
 
   const prompt = [
-    'És o secretário da direção da Associação Young-Link (associação juvenil sem fins lucrativos de Castro Marim, Portugal).',
     `Vais redigir, em português de Portugal, as secções escritas do "Relatório e Contas ${dadosAno.ano}" da associação.`,
     'Em anexo está o PLANO ANUAL DE ATIVIDADES (o que estava previsto). A seguir estão os DADOS REAIS do ano, apurados do sistema de gestão financeira:',
     '',
@@ -77,39 +73,27 @@ export async function gerarNarrativaRelatorio(
     '- Usa números reais (totais, saldo, valores por atividade) quando fizer sentido, sobretudo na conclusão.',
     '- Tom profissional, caloroso e transparente, dirigido aos associados. Sem inventar factos que contradigam os dados. Não uses markdown nem títulos dentro dos textos — apenas parágrafos.',
     '- "notaIntroducao": carta de abertura aos associados. "administracao": 4 parágrafos (gestão interna, parcerias estratégicas, transparência e participação, desafios e visão). "conclusao": balanço final do ano com referência ao resultado do exercício.',
+    '- Responde APENAS JSON válido com os campos: notaIntroducao, administracao (objeto com gestaoInterna, parcerias, transparencia, desafios), atividadesRealizadas, atividadesNaoRealizadas, conclusao.',
   ].join('\n');
 
+  const systemPrompt = 'És o secretário da direção da Associação Young-Link (associação juvenil sem fins lucrativos de Castro Marim, Portugal).';
+
   try {
-    const resp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+    const { text, provider } = await aiGenerate(
       {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: prompt },
-              { inline_data: { mime_type: mimeType || 'application/pdf', data: planoBuffer.toString('base64') } },
-            ],
-          }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            responseSchema: NARRATIVA_SCHEMA,
-            temperature: 0.6,
-          },
-        }),
+        prompt,
+        systemPrompt,
+        temperature: 0.6,
+        fileBase64: planoBuffer.toString('base64'),
+        mimeType: mimeType || 'application/pdf',
       },
+      GEMINI_NARRATIVA_SCHEMA,
     );
-    if (!resp.ok) {
-      console.error('Relatório IA: erro na resposta da API Gemini', resp.status, await resp.text().catch(() => ''));
-      return null;
-    }
-    const json: any = await resp.json();
-    const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) {
-      console.error('Relatório IA: resposta sem conteúdo utilizável', JSON.stringify(json).slice(0, 500));
+      console.error('Relatório IA: nenhum provider disponível');
       return null;
     }
+    console.log(`[Relatório-IA] Resposta via ${provider}`);
     return JSON.parse(text) as NarrativaRelatorio;
   } catch (err: any) {
     console.error('Relatório IA: falha ao gerar narrativa', err.message || err);
@@ -118,41 +102,24 @@ export async function gerarNarrativaRelatorio(
 }
 
 export async function extrairCamposDocumento(buffer: Buffer, mimeType: string): Promise<CamposExtraidos | null> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.warn('Análise IA: GEMINI_API_KEY não definida, a ignorar análise.');
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.GEMINI_API_KEY) {
+    console.warn('Análise IA: nenhuma API key configurada, a ignorar análise.');
     return null;
   }
   try {
-    const resp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+    const { text, provider } = await aiGenerate(
       {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: 'Extrai os seguintes campos deste documento (fatura ou recibo): valor total (número), data (YYYY-MM-DD), NIF do fornecedor/emissor, número do documento, e nome do fornecedor/emissor. Se algum campo não existir, devolve null.' },
-              { inline_data: { mime_type: mimeType, data: buffer.toString('base64') } },
-            ],
-          }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            responseSchema: RESPONSE_SCHEMA,
-          },
-        }),
+        prompt: 'Extrai os seguintes campos deste documento (fatura ou recibo): valor total (número), data (YYYY-MM-DD), NIF do fornecedor/emissor, número do documento, e nome do fornecedor/emissor. Se algum campo não existir, devolve null. Responde APENAS JSON válido com os campos: valor, data, nif, numero, fornecedor.',
+        fileBase64: buffer.toString('base64'),
+        mimeType,
       },
+      GEMINI_RESPONSE_SCHEMA,
     );
-    if (!resp.ok) {
-      console.error('Análise IA: erro na resposta da API Gemini', resp.status, await resp.text().catch(() => ''));
-      return null;
-    }
-    const json: any = await resp.json();
-    const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) {
-      console.error('Análise IA: resposta sem conteúdo utilizável', JSON.stringify(json).slice(0, 500));
+      console.error('Análise IA: nenhum provider disponível');
       return null;
     }
+    console.log(`[Análise-IA] Resposta via ${provider}`);
     return JSON.parse(text) as CamposExtraidos;
   } catch (err: any) {
     console.error('Análise IA: falha ao extrair campos', err.message || err);
@@ -275,7 +242,7 @@ export async function recompararReceita(receitaId: number) {
 }
 
 export async function analisarFatura(faturaId: number, buffer: Buffer, mimeType: string, resetTentativas = false) {
-  if (!process.env.GEMINI_API_KEY) return;
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.GEMINI_API_KEY) return;
   try {
     const faturaAtual = await prisma.fatura.findUnique({ where: { id: faturaId } });
     if (resetTentativas) {
@@ -310,7 +277,7 @@ export async function analisarFatura(faturaId: number, buffer: Buffer, mimeType:
 }
 
 export async function analisarReceita(receitaId: number, buffer: Buffer, mimeType: string, resetTentativas = false) {
-  if (!process.env.GEMINI_API_KEY) return;
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.GEMINI_API_KEY) return;
   try {
     const receitaAtual = await prisma.receita.findUnique({ where: { id: receitaId } });
     if (resetTentativas) {

@@ -27,6 +27,7 @@ export interface Entidade {
   tipoVinculo?: string | null;
   funcao?: string | null;
   bolsaBase?: number | null;
+  subsidioRefeicaoDia?: number | null;
   dataNascimento?: string | null;
   pin?: string | null;
   ativo: boolean;
@@ -119,4 +120,28 @@ export interface Movimento {
   referencia?: string | null;
   faturaId?: number | null;
   receitaId?: number | null;
+}
+
+export interface ReciboBolsa {
+  id: number;
+  numeroRecibo: string;
+  entidadeId: number;
+  processoId?: number | null;
+  periodoInicio: string;
+  periodoFim: string;
+  diasUteis: number;
+  bolsaDiaria: number | string;
+  bolsaBruta: number | string;
+  taxaTSU: number | string;
+  valorTSU: number | string;
+  subsidioRefeicaoDia: number | string;
+  subsidioRefeicao: number | string;
+  totalBruto: number | string;
+  totalLiquido: number | string;
+  observacoes?: string | null;
+  estado: 'Rascunho' | 'Emitido' | 'Pago';
+  dataEmissao?: string | null;
+  dataPagamento?: string | null;
+  entidade?: { id: number; nome: string } | null;
+  processo?: { id: number; nome: string } | null;
 }

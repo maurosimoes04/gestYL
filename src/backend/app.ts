@@ -181,6 +181,8 @@ app.use('/documentos', auditRoutes('documento'), documentoRoutes);
 app.use('/ia-snc', auditRoutes('sncIa'), sncIaRoutes);
 const pontoRoutes = require('./routes/ponto').default;
 app.use('/ponto/registos', auditRoutes('ponto'), pontoRoutes);
+const reciboBolsaRoutes = require('./routes/reciboBolsa').default;
+app.use('/recibos-bolsa', auditRoutes('reciboBolsa'), reciboBolsaRoutes);
 
 // Error handler global — captura erros de multer e outros middlewares
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

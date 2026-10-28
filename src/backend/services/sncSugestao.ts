@@ -1,22 +1,11 @@
-/**
- * Sugestão de conta SNC por IA (Gemini).
- *
- * Dado o título, fornecedor/entidade, valor e opcionalmente o anexo, pede ao
- * Gemini a conta SNC mais provável do plano YL + nível de confiança + motivo.
- *
- * O prompt inclui o catálogo completo de contas ativas (código, nome, pergunta
- * de decisão) para o modelo escolher dentro do universo YL — não "do SNC geral".
- */
-
 import { prisma } from '../config/prisma';
-
-const GEMINI_MODEL = 'gemini-flash-latest';
+import { aiGenerate } from './aiProvider';
 
 export type TipoRegisto = 'fatura' | 'receita';
 
 export interface SugestaoSNC {
   codigo: string | null;
-  confianca: number; // 0..1
+  confianca: number;
   motivo: string;
   avisos?: string[];
 }
@@ -39,22 +28,23 @@ export class SugestaoSncError extends Error {
   }
 }
 
-/**
- * Chama o Gemini com um prompt que inclui o plano de contas ativo.
- * Faz 1 retry quando o modelo devolve 503 (overloaded).
- * Lança `SugestaoSncError` com motivo preciso — chamador decide o que mostrar.
- */
-export async function sugerirSncParaRegisto(reg: InputRegisto, _attempt = 0): Promise<SugestaoSNC | null> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.warn('[SNC-IA] GEMINI_API_KEY não definida');
-    throw new SugestaoSncError('IA não configurada (falta GEMINI_API_KEY)', 'no-key');
+const GEMINI_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    codigo: { type: 'STRING', nullable: true },
+    confianca: { type: 'NUMBER' },
+    motivo: { type: 'STRING' },
+    avisos: { type: 'ARRAY', items: { type: 'STRING' }, nullable: true },
+  },
+  required: ['codigo', 'confianca', 'motivo'],
+};
+
+export async function sugerirSncParaRegisto(reg: InputRegisto): Promise<SugestaoSNC | null> {
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.GEMINI_API_KEY) {
+    throw new SugestaoSncError('IA não configurada (falta ANTHROPIC_API_KEY ou GEMINI_API_KEY)', 'no-key');
   }
 
-  // Carregar o plano SNC relevante (gasto p/ despesas, proveito+passivo p/ receitas)
-  const tiposRelevantes = reg.tipo === 'fatura'
-    ? ['gasto', 'ativo']
-    : ['proveito', 'passivo'];
+  const tiposRelevantes = reg.tipo === 'fatura' ? ['gasto', 'ativo'] : ['proveito', 'passivo'];
   const contas = await prisma.contaSNC.findMany({
     where: { tipo: { in: tiposRelevantes }, ativaPorOmissao: true },
     orderBy: [{ familia: 'asc' }, { codigo: 'asc' }],
@@ -69,8 +59,7 @@ export async function sugerirSncParaRegisto(reg: InputRegisto, _attempt = 0): Pr
   const entidadeLbl = reg.tipo === 'fatura' ? 'Fornecedor' : 'Financiador';
   const entidade = reg.entidadeNome || reg.fornecedor || '(desconhecido)';
 
-  const prompt = `És um contabilista da associação Young-Link (ONG, Castro Marim, isenta de IVA pelo art.º 9.º CIVA).
-Classifica o registo abaixo numa conta SNC do plano YL. Responde APENAS JSON válido.
+  const prompt = `Classifica o registo abaixo numa conta SNC do plano YL. Responde APENAS JSON válido com os campos: codigo (string), confianca (0..1), motivo (string), avisos (array de strings, opcional).
 
 TIPO: ${kind}
 Título: ${reg.titulo}
@@ -95,61 +84,20 @@ REGRAS CRÍTICAS:
 - Fatura Vodafone, telemóvel, internet, correio → 6253.
 - Fatura Fidelidade ou outras apólices de seguro → 6263.
 - Prestação de serviços de animador/formador/DJ (recibo verde) → 622.
-- Papel, canetas, consumíveis genéricos de escritório → 6262.
+- Papel, canetas, consumíveis genéricos de escritório → 6262.`;
 
-Devolve este JSON:
-{
-  "codigo": "código escolhido (string exata de um dos códigos listados)",
-  "confianca": 0.0 a 1.0 (quão certo estás),
-  "motivo": "frase curta a explicar porquê (< 25 palavras)",
-  "avisos": ["aviso1 se houver dúvida ou ambiguidade", "..."]
-}`;
+  const systemPrompt = 'És um contabilista da associação Young-Link (ONG, Castro Marim, isenta de IVA pelo art.º 9.º CIVA).';
 
   try {
-    const resp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            responseSchema: {
-              type: 'OBJECT',
-              properties: {
-                codigo: { type: 'STRING', nullable: true },
-                confianca: { type: 'NUMBER' },
-                motivo: { type: 'STRING' },
-                avisos: { type: 'ARRAY', items: { type: 'STRING' }, nullable: true },
-              },
-              required: ['codigo', 'confianca', 'motivo'],
-            },
-            temperature: 0.1,
-          },
-        }),
-      },
+    const { text, provider } = await aiGenerate(
+      { prompt, systemPrompt, temperature: 0.1 },
+      GEMINI_SCHEMA,
     );
-    if (!resp.ok) {
-      const body = await resp.text().catch(() => '');
-      console.error('[SNC-IA] HTTP', resp.status, body.slice(0, 200));
-      // Retry 1x para erros transitórios do Gemini (sobrecarga)
-      if ((resp.status === 503 || resp.status === 429 || resp.status >= 500) && _attempt < 1) {
-        await new Promise(r => setTimeout(r, 800));
-        return sugerirSncParaRegisto(reg, _attempt + 1);
-      }
-      if (resp.status === 503 || resp.status === 429) {
-        throw new SugestaoSncError('Gemini sobrecarregado — tenta de novo em alguns segundos', 'overloaded');
-      }
-      if (resp.status === 400) {
-        throw new SugestaoSncError('Pedido rejeitado pelo Gemini (conteúdo bloqueado?)', 'blocked');
-      }
-      throw new SugestaoSncError(`API Gemini HTTP ${resp.status}`, 'network');
-    }
-    const json: any = await resp.json();
-    const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) throw new SugestaoSncError('Resposta vazia do Gemini', 'invalid');
+    if (!text) throw new SugestaoSncError('Nenhum provider IA disponível', 'network');
+
+    console.log(`[SNC-IA] Resposta via ${provider}`);
     const parsed = JSON.parse(text) as SugestaoSNC;
+
     if (parsed.codigo && !contas.find(c => c.codigo === parsed.codigo)) {
       parsed.avisos = [...(parsed.avisos || []), `código ${parsed.codigo} não existe no plano — ignorado`];
       parsed.codigo = null;

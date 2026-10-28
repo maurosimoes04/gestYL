@@ -60,7 +60,8 @@ model Entidade {
   niss          String?
   tipoVinculo   String?                                       // "Estágio INICIAR", "CEI", "Voluntário", "Colaborador"
   funcao        String?
-  bolsaBase     Decimal? @db.Decimal(10, 2)
+  bolsaBase           Decimal? @db.Decimal(10, 2)
+  subsidioRefeicaoDia Decimal? @db.Decimal(10, 2)      // valor diário do sub. refeição (isento TSU/IRS)
   dataNascimento DateTime? @db.Date
   // Observações de qualidade (ajuda deduplicação futura)
   verificado    Boolean  @default(false)                      // marcado após validação manual
@@ -75,6 +76,7 @@ model Entidade {
   subsidios     Evento[]    @relation("ProcessoPessoa")
   documentos    Documento[]
   registosPonto RegistoPonto[]
+  recibosBolsa  ReciboBolsa[]
 
   @@index([nome])
   @@index([ativo])
@@ -167,6 +169,7 @@ model Evento {
   shares                 EventoShare[]
   documentos             Documento[]
   stockMovimentos        StockMovimento[]
+  recibosBolsa           ReciboBolsa[]
   pessoa                 Entidade? @relation("ProcessoPessoa", fields: [pessoaId], references: [id], onDelete: SetNull)
   entidadeFinanciadora   Entidade? @relation("ProcessoEntidade", fields: [entidadeFinanciadoraId], references: [id], onDelete: SetNull)
   contaSncReceita        ContaSNC? @relation("ProcessoContaReceita", fields: [contaSncReceitaId], references: [id], onDelete: SetNull)
@@ -415,4 +418,42 @@ model EventoShare {
   @@index([eventoId])
   @@index([expiresAt])
   @@map("evento_shares")
+}
+
+/// Recibo mensal de bolsa de estágio.
+/// Separa bolsa (sujeita a TSU) de subsídio de refeição (isento).
+model ReciboBolsa {
+  id                  Int      @id @default(autoincrement())
+  numeroRecibo        String   @unique                           // "1/2026", "2/2026"
+  entidadeId          Int
+  processoId          Int?                                       // subsídio/estágio IEFP
+  periodoInicio       DateTime @db.Date                          // ex: 21/10/2026
+  periodoFim          DateTime @db.Date                          // ex: 31/10/2026
+  diasUteis           Int                                        // dias trabalhados no período
+  // Bolsa (sujeita a TSU empregador 23.75%)
+  bolsaDiaria         Decimal  @db.Decimal(10, 2)
+  bolsaBruta          Decimal  @db.Decimal(10, 2)                // bolsaDiaria × diasUteis
+  taxaTSU             Decimal  @db.Decimal(5, 4) @default(0.2375)
+  valorTSU            Decimal  @db.Decimal(10, 2)                // bolsaBruta × taxaTSU
+  // Subsídio de refeição (isento TSU/IRS)
+  subsidioRefeicaoDia Decimal  @db.Decimal(10, 2) @default(0)
+  subsidioRefeicao    Decimal  @db.Decimal(10, 2) @default(0)    // subsidioRefeicaoDia × diasUteis
+  // Totais
+  totalBruto          Decimal  @db.Decimal(10, 2)                // bolsaBruta + subsidioRefeicao
+  totalLiquido        Decimal  @db.Decimal(10, 2)                // totalBruto - valorTSU
+  observacoes         String?
+  estado              String   @default("Rascunho")              // "Rascunho" | "Emitido" | "Pago"
+  dataEmissao         DateTime? @db.Date
+  dataPagamento       DateTime? @db.Date
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  entidade Entidade @relation(fields: [entidadeId], references: [id], onDelete: Cascade)
+  processo Evento?  @relation(fields: [processoId], references: [id], onDelete: SetNull)
+
+  @@index([entidadeId])
+  @@index([processoId])
+  @@index([periodoInicio])
+  @@index([estado])
+  @@map("recibos_bolsa")
 }

@@ -17,6 +17,7 @@ import { useCatalogos } from '@/hooks/useCatalogos';
 import type { Documento, Entidade, Processo } from '@/lib/types';
 import { DocumentoFormModal } from '@/components/forms/DocumentoFormModal';
 import { cn } from '@/lib/cn';
+import { RecibosBolsaSection } from '@/components/rh/RecibosBolsaSection';
 
 interface PessoaResumo {
   pessoa: Entidade;
@@ -337,6 +338,16 @@ export function RHPage() {
                         </div>
                       )}
                     </div>
+
+                    {/* Recibos de bolsa */}
+                    {pessoaSubsidios.length > 0 && (
+                      <RecibosBolsaSection
+                        entidadeId={pessoa.id}
+                        subsidioRefeicaoDia={pessoa.subsidioRefeicaoDia}
+                        processos={pessoaSubsidios}
+                        readonly={readonly}
+                      />
+                    )}
 
                     {/* Assiduidade */}
                     <div className="mb-3">
