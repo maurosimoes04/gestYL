@@ -28,9 +28,13 @@ function calcRecibo(bolsaMensal: number, diasPeriodo: number, diasFaltas: number
   return { bolsaProporcional, descontoFaltas, bolsaBruta, valorTSUPatronal, valorTSUTrabalhador, subsidioRefeicao, totalBruto, totalLiquido, custoEntidade };
 }
 
+const SNC_BOLSA = 12;       // 631 — Gastos com pessoal — Bolsas
+const SNC_ENCARGOS = 13;    // 635 — Encargos sobre remunerações
+const SNC_SUB_REF = 311;    // 6382 — Subsídio de refeição
+
 const reciboIncludes = {
   entidade: { select: { id: true, nome: true, nif: true, niss: true, funcao: true } },
-  fatura: { select: { id: true, titulo: true } },
+  faturas: { select: { id: true, titulo: true, contaSncId: true, valor: true } },
   reciboProcessos: { include: { evento: { select: { id: true, nome: true } } } },
 };
 
@@ -72,39 +76,47 @@ router.get('/defaults/:entidadeId', async (req: Request, res: Response) => {
   });
 });
 
-async function syncDespesa(reciboId: number, calc: ReturnType<typeof calcRecibo>, b: any, entidadeNome: string, faturaIdExistente: number | null) {
+async function syncDespesas(reciboId: number, calc: ReturnType<typeof calcRecibo>, b: any, entidadeNome: string) {
   const mesAno = new Date(b.periodoInicio).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
-  const titulo = `Bolsa estágio — ${entidadeNome} — ${mesAno}`;
-  const faturaData: any = {
-    titulo,
-    valor: calc.custoEntidade,
-    data: new Date(b.periodoFim),
-    departamento: 'RH',
-    tipo: 'Recibo Bolsa',
-    estado: b.estado === 'Pago' ? 'pago' : 'por pagar',
-    descricao: `Recibo nº ${b.numeroRecibo}: bolsa ${calc.bolsaBruta}€ + TSU patronal ${calc.valorTSUPatronal}€ + sub.ref ${calc.subsidioRefeicao}€`,
-    entidadeId: Number(b.entidadeId),
-  };
-
-  let faturaId: number;
-  if (faturaIdExistente) {
-    await prisma.fatura.update({ where: { id: faturaIdExistente }, data: faturaData });
-    faturaId = faturaIdExistente;
-  } else {
-    const fatura = await prisma.fatura.create({ data: faturaData });
-    faturaId = fatura.id;
-  }
-
-  // Sync processos → faturaEventos
+  const estado = b.estado === 'Pago' ? 'pago' : 'por pagar';
+  const entidadeId = Number(b.entidadeId);
+  const data = new Date(b.periodoFim);
   const processos: Array<{ processoId: number; valor: number }> = b.processos || [];
-  if (processos.length > 0) {
-    await prisma.faturaEvento.deleteMany({ where: { faturaId } });
-    await prisma.faturaEvento.createMany({
-      data: processos.map(p => ({ faturaId, eventoId: p.processoId, valor: p.valor })),
-    });
+
+  // Remove faturas anteriores deste recibo
+  if (reciboId > 0) {
+    await prisma.fatura.deleteMany({ where: { reciboBolsaId: reciboId } });
   }
 
-  return faturaId;
+  const linhas: Array<{ titulo: string; valor: number; contaSncId: number; desc: string }> = [
+    { titulo: `Bolsa estágio (remuneração) — ${entidadeNome} — ${mesAno}`, valor: calc.bolsaBruta, contaSncId: SNC_BOLSA, desc: `631 Bolsa bruta — Recibo nº ${b.numeroRecibo}` },
+  ];
+  if (calc.subsidioRefeicao > 0) {
+    linhas.push({ titulo: `Sub. refeição — ${entidadeNome} — ${mesAno}`, valor: calc.subsidioRefeicao, contaSncId: SNC_SUB_REF, desc: `6382 Subsídio de refeição — Recibo nº ${b.numeroRecibo}` });
+  }
+  if (calc.valorTSUPatronal > 0) {
+    linhas.push({ titulo: `TSU patronal — ${entidadeNome} — ${mesAno}`, valor: calc.valorTSUPatronal, contaSncId: SNC_ENCARGOS, desc: `635 Encargos sobre remunerações — Recibo nº ${b.numeroRecibo}` });
+  }
+
+  const faturaIds: number[] = [];
+  for (const l of linhas) {
+    const f = await prisma.fatura.create({
+      data: {
+        titulo: l.titulo, valor: l.valor, data, departamento: 'RH', tipo: 'Recibo Bolsa',
+        estado, descricao: l.desc, entidadeId, contaSncId: l.contaSncId,
+        reciboBolsaId: reciboId > 0 ? reciboId : undefined,
+      },
+    });
+    faturaIds.push(f.id);
+
+    if (processos.length > 0) {
+      await prisma.faturaEvento.createMany({
+        data: processos.map(p => ({ faturaId: f.id, eventoId: p.processoId, valor: p.valor })),
+      });
+    }
+  }
+
+  return faturaIds;
 }
 
 // POST /recibos-bolsa
@@ -121,7 +133,6 @@ router.post('/', async (req: Request, res: Response) => {
   const calc = calcRecibo(bolsaMensal, diasPeriodo, diasFaltas, diasUteis, subsidioRefeicaoDia, taxaPatronal, taxaTrab);
 
   const entidade = await prisma.entidade.findUnique({ where: { id: Number(b.entidadeId) }, select: { nome: true } });
-  const faturaId = await syncDespesa(0, calc, b, entidade?.nome || '', null);
 
   const processos: Array<{ processoId: number; valor: number }> = b.processos || [];
 
@@ -129,7 +140,6 @@ router.post('/', async (req: Request, res: Response) => {
     data: {
       numeroRecibo: b.numeroRecibo,
       entidadeId: Number(b.entidadeId),
-      faturaId,
       periodoInicio: new Date(b.periodoInicio),
       periodoFim: new Date(b.periodoFim),
       diasUteis, diasFaltas, bolsaMensal,
@@ -153,7 +163,10 @@ router.post('/', async (req: Request, res: Response) => {
     },
     include: reciboIncludes,
   });
-  res.status(201).json(recibo);
+
+  await syncDespesas(recibo.id, calc, b, entidade?.nome || '');
+  const updated = await prisma.reciboBolsa.findUnique({ where: { id: recibo.id }, include: reciboIncludes });
+  res.status(201).json(updated);
 });
 
 // PUT /recibos-bolsa/:id
@@ -186,11 +199,9 @@ router.put('/:id', async (req: Request, res: Response) => {
       periodoInicio: new Date(b.periodoInicio), periodoFim: new Date(b.periodoFim),
     });
 
-    // Sync despesa
-    const existing = await prisma.reciboBolsa.findUnique({ where: { id }, select: { faturaId: true } });
+    // Sync despesas (recria as 3 faturas com contas SNC corretas)
     const entidade = await prisma.entidade.findUnique({ where: { id: Number(b.entidadeId) }, select: { nome: true } });
-    const faturaId = await syncDespesa(id, calc, b, entidade?.nome || '', existing?.faturaId || null);
-    data.faturaId = faturaId;
+    await syncDespesas(id, calc, b, entidade?.nome || '');
 
     // Sync processos
     const processos: Array<{ processoId: number; valor: number }> = b.processos || [];
@@ -208,11 +219,9 @@ router.put('/:id', async (req: Request, res: Response) => {
 
 // DELETE /recibos-bolsa/:id
 router.delete('/:id', async (req: Request, res: Response) => {
-  const recibo = await prisma.reciboBolsa.findUnique({ where: { id: Number(req.params.id) }, select: { faturaId: true } });
-  await prisma.reciboBolsa.delete({ where: { id: Number(req.params.id) } });
-  if (recibo?.faturaId) {
-    await prisma.fatura.delete({ where: { id: recibo.faturaId } }).catch(() => {});
-  }
+  const id = Number(req.params.id);
+  await prisma.fatura.deleteMany({ where: { reciboBolsaId: id } });
+  await prisma.reciboBolsa.delete({ where: { id } });
   res.json({ ok: true });
 });
 
@@ -250,7 +259,7 @@ router.get('/:id/pdf', async (req: Request, res: Response) => {
     .text('Associação Young-Link', L + 110, 45);
   doc.font('Helvetica').fontSize(8).fillColor(GRAY)
     .text('Rua João de Almeida, Antiga Escola Primária', L + 110, 62)
-    .text('8950-414 Altura, Faro', L + 110)
+    .text('8950-414 CP Altura, Castro Marim', L + 110)
     .text('NIPC: 517 483 475', L + 110)
     .text('geral@younglink.net · 914 524 860', L + 110);
 

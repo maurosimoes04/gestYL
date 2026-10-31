@@ -217,7 +217,8 @@ model Fatura {
   stockMovimentos StockMovimento[]
   faturaEventos FaturaEvento[]
   movimento     Movimento?
-  reciboBolsa   ReciboBolsa?
+  reciboBolsaId Int?
+  reciboBolsa   ReciboBolsa? @relation(fields: [reciboBolsaId], references: [id], onDelete: Cascade)
 
   @@index([departamento])
   @@index([estado])
@@ -225,6 +226,7 @@ model Fatura {
   @@index([dataVencimento])
   @@index([contaSncId])
   @@index([entidadeId])
+  @@index([reciboBolsaId])
   @@map("Faturas")
 }
 
@@ -427,7 +429,7 @@ model ReciboBolsa {
   id                  Int      @id @default(autoincrement())
   numeroRecibo        String   @unique                           // "1/2026", "2/2026"
   entidadeId          Int
-  faturaId            Int?     @unique                           // despesa auto-criada (custo entidade)
+  // faturas criadas via syncDespesa (1:N via Fatura.reciboBolsaId)
   periodoInicio       DateTime @db.Date                          // ex: 01/11/2026
   periodoFim          DateTime @db.Date                          // ex: 30/11/2026
   diasUteis           Int                                        // dias úteis trabalhados no período
@@ -457,7 +459,7 @@ model ReciboBolsa {
   updatedAt           DateTime @updatedAt
 
   entidade            Entidade @relation(fields: [entidadeId], references: [id], onDelete: Cascade)
-  fatura              Fatura?  @relation(fields: [faturaId], references: [id], onDelete: SetNull)
+  faturas             Fatura[]
   reciboProcessos     ReciboBolsaEvento[]
 
   @@index([entidadeId])

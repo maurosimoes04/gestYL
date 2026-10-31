@@ -126,7 +126,6 @@ export interface ReciboBolsa {
   id: number;
   numeroRecibo: string;
   entidadeId: number;
-  faturaId?: number | null;
   periodoInicio: string;
   periodoFim: string;
   diasUteis: number;
@@ -148,6 +147,6 @@ export interface ReciboBolsa {
   dataEmissao?: string | null;
   dataPagamento?: string | null;
   entidade?: { id: number; nome: string } | null;
-  fatura?: { id: number; titulo: string } | null;
+  faturas?: Array<{ id: number; titulo: string; contaSncId?: number | null; valor: number | string }>;
   reciboProcessos?: Array<{ eventoId: number; valor: number; evento?: { id: number; nome: string } }>;
 }
