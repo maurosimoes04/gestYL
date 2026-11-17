@@ -78,7 +78,7 @@ router.get('/defaults/:entidadeId', async (req: Request, res: Response) => {
 
 async function syncDespesas(reciboId: number, calc: ReturnType<typeof calcRecibo>, b: any, entidadeNome: string) {
   const mesAno = new Date(b.periodoInicio).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
-  const estado = b.estado === 'Pago' ? 'pago' : 'por pagar';
+  const estado = b.estado === 'Pago' ? 'Paga' : 'Pendente';
   const entidadeId = Number(b.entidadeId);
   const data = new Date(b.periodoFim);
   const processos: Array<{ processoId: number; valor: number }> = b.processos || [];

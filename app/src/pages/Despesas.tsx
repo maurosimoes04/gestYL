@@ -26,6 +26,8 @@ export function DespesasPage() {
   const [estado, setEstado] = useState('');
   const [departamento, setDepartamento] = useState('');
   const [sncId, setSncId] = useState<string>('');
+  const anoAtual = new Date().getFullYear();
+  const [ano, setAno] = useState(anoAtual);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Fatura | null>(null);
   const readonly = role === 'fiscal';
@@ -42,6 +44,10 @@ export function DespesasPage() {
   const filtradas = useMemo(() => {
     const query = q.trim().toLowerCase();
     return items.filter(f => {
+      if (ano) {
+        const y = new Date(f.data).getFullYear();
+        if (y !== ano) return false;
+      }
       if (estado && f.estado !== estado) return false;
       if (departamento && f.departamento !== departamento) return false;
       if (sncId === '__none__') { if (f.contaSncId) return false; }
@@ -52,7 +58,7 @@ export function DespesasPage() {
       }
       return true;
     });
-  }, [items, q, estado, departamento, sncId]);
+  }, [items, q, estado, departamento, sncId, ano]);
 
   const total = useMemo(() => filtradas.reduce((s, f) => s + Number(f.valor), 0), [filtradas]);
   const pendente = useMemo(() => filtradas.filter(f => f.estado === 'Pendente').reduce((s, f) => s + Number(f.valor), 0), [filtradas]);
@@ -87,6 +93,9 @@ export function DespesasPage() {
         <Select value={departamento} onChange={e => setDepartamento(e.target.value)} className="w-56">
           <option value="">Todos os departamentos</option>
           {departamentos.map(d => <option key={d} value={d}>{d}</option>)}
+        </Select>
+        <Select value={ano} onChange={e => setAno(Number(e.target.value))} className="w-28">
+          {[0, 1, 2, 3, 4].map(d => <option key={d} value={anoAtual - d}>{anoAtual - d}</option>)}
         </Select>
         <Select value={sncId} onChange={e => setSncId(e.target.value)} className="w-64">
           <option value="">Todas as contas SNC</option>
