@@ -16,7 +16,7 @@ interface Props {
   readonly?: boolean;
 }
 
-const TSU_PATRONAL = 0.2375;
+const TSU_PATRONAL = 0.2230;
 const TSU_TRABALHADOR = 0.11;
 
 export function RecibosBolsaSection({ entidadeId, processos, readonly }: Props) {

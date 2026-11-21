@@ -6,7 +6,7 @@ import PDFDocument from 'pdfkit';
 const router = Router();
 const LOGO_PATH = path.resolve(__dirname, '../../../assets/logo.png');
 
-const TSU_PATRONAL = 0.2375;
+const TSU_PATRONAL = 0.2230;
 const TSU_TRABALHADOR = 0.11;
 
 function diasCorridos(inicio: Date, fim: Date): number {
